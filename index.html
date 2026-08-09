@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -89,23 +89,27 @@
 
 
 
-        <section class="section-block">
+        <section class="section-block explore-home-section">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Little places inside Fuwa</p>
-              <h3>Fuwa Spaces</h3>
+              <p class="eyebrow">Everything else, tucked away</p>
+              <h3>Explore Fuwa</h3>
             </div>
+            <button class="text-btn" id="openExploreButton">Open</button>
           </div>
-          <div class="fuwa-spaces-grid">
-            <button class="fuwa-space-card" data-nav="thenNow" type="button"><span class="space-icon mirror-icon"></span><strong>Then & Now</strong><small>Meet an older version of you.</small></button>
-            <button class="fuwa-space-card" data-nav="comfort" type="button"><span class="space-icon comfort-icon"></span><strong>Comfort Corner</strong><small>Keep soft things close.</small></button>
-            <button class="fuwa-space-card" data-nav="monthly" type="button"><span class="space-icon story-icon"></span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></button>
-            <button class="fuwa-space-card" data-nav="weather" type="button"><span class="space-icon weather-icon"></span><strong>Emotional Weather</strong><small>See your month as a sky.</small></button>
-            <button class="fuwa-space-card" data-nav="unsent" type="button"><span class="space-icon letter-icon"></span><strong>Unsent Letters</strong><small>Words that never need sending.</small></button>
-            <button class="fuwa-space-card" data-nav="bubbles" type="button"><span class="space-icon bubble-icon"></span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></button>
-            <button class="fuwa-space-card" data-nav="dreams" type="button"><span class="space-icon dream-icon"></span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></button>
-            <button class="fuwa-space-card" data-nav="sanctuary" type="button"><span class="space-icon sanctuary-icon"></span><strong>Fuwa Sanctuary</strong><small>Your cozy room grows with you.</small></button>
-          </div>
+          <button class="explore-home-card" id="exploreHomeCard" type="button">
+            <div class="explore-home-icons" aria-hidden="true">
+              <span class="mini-space mini-mood"></span>
+              <span class="mini-space mini-dream"></span>
+              <span class="mini-space mini-sleep"></span>
+              <span class="mini-space mini-room"></span>
+            </div>
+            <div>
+              <strong>Your little spaces live here.</strong>
+              <span>Mood Jar, Threads, Bookmarks, Sleep Corner, Dream Pocket, Sanctuary, and more.</span>
+              <small>Explore Fuwa →</small>
+            </div>
+          </button>
         </section>
 
         <section class="section-block memory-drift-section" id="memoryDriftHomeSection">
@@ -513,6 +517,55 @@
         </section>
       </section>
 
+
+      <section class="view" id="exploreView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Your little places</p>
+            <h2>Explore Fuwa</h2>
+          </div>
+          <span class="explore-cloud-mark" aria-hidden="true"></span>
+        </div>
+        <p class="muted feature-intro">Everything Fuwa can do, without making Home feel crowded.</p>
+
+        <div class="explore-section">
+          <p class="eyebrow">Reflect</p>
+          <div class="explore-grid">
+            <button class="explore-card" data-nav="moodjar" type="button"><span class="explore-icon mood-explore-icon"></span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></button>
+            <button class="explore-card" data-nav="thenNow" type="button"><span class="explore-icon mirror-icon"></span><strong>Then & Now</strong><small>Meet an older version of you.</small></button>
+            <button class="explore-card" data-nav="monthly" type="button"><span class="explore-icon story-icon"></span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></button>
+            <button class="explore-card" data-nav="weather" type="button"><span class="explore-icon weather-icon"></span><strong>Emotional Weather</strong><small>See your month as a sky.</small></button>
+          </div>
+        </div>
+
+        <div class="explore-section">
+          <p class="eyebrow">Remember</p>
+          <div class="explore-grid">
+            <button class="explore-card" data-nav="threads" type="button"><span class="explore-icon thread-explore-icon"></span><strong>Memory Threads</strong><small>Stories that keep returning.</small></button>
+            <button class="explore-card" data-nav="bookmarks" type="button"><span class="explore-icon bookmark-explore-icon"></span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></button>
+            <button class="explore-card" data-nav="bubbles" type="button"><span class="explore-icon bubble-icon"></span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></button>
+            <button class="explore-card" data-nav="dreams" type="button"><span class="explore-icon dream-icon"></span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></button>
+          </div>
+        </div>
+
+        <div class="explore-section">
+          <p class="eyebrow">Comfort</p>
+          <div class="explore-grid">
+            <button class="explore-card" data-nav="nightly" type="button"><span class="explore-icon nightly-explore-icon"></span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></button>
+            <button class="explore-card" data-nav="sleep" type="button"><span class="explore-icon sleep-explore-icon"></span><strong>Sleep Corner</strong><small>Soft sounds with a timer.</small></button>
+            <button class="explore-card" data-nav="comfort" type="button"><span class="explore-icon comfort-icon"></span><strong>Comfort Corner</strong><small>Keep soft things close.</small></button>
+            <button class="explore-card" data-nav="sanctuary" type="button"><span class="explore-icon sanctuary-icon"></span><strong>Fuwa Sanctuary</strong><small>Your little room grows with you.</small></button>
+          </div>
+        </div>
+
+        <div class="explore-section">
+          <p class="eyebrow">Letters</p>
+          <div class="explore-grid">
+            <button class="explore-card" data-nav="unsent" type="button"><span class="explore-icon letter-icon"></span><strong>Unsent Letters</strong><small>Words that never need sending.</small></button>
+            <button class="explore-card" data-nav="letters" type="button"><span class="explore-icon future-letter-icon"></span><strong>Letters Through Time</strong><small>Write something for later.</small></button>
+          </div>
+        </div>
+      </section>
 
       <section class="view" id="thenNowView">
         <div class="page-title-row">

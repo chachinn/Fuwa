@@ -846,6 +846,31 @@ function threadChipsForEntry(entry) {
 
 
 
+const renderCache = { monthly: "", weather: "", sanctuary: "" };
+
+function collectionSignature(items, extra = "") {
+  if (!Array.isArray(items) || !items.length) return `0:${extra}`;
+  let newest = 0;
+  for (const item of items) newest = Math.max(newest, Number(item.updatedAt || item.createdAt || 0));
+  return `${items.length}:${newest}:${extra}`;
+}
+
+function monthlySignature(date) {
+  return [
+    monthKey(date),
+    collectionSignature(state.entries),
+    collectionSignature(state.moodCheckins),
+    collectionSignature(state.tinyJoys),
+    collectionSignature(state.nightlyReflections),
+    collectionSignature(state.dreams),
+    collectionSignature(state.thoughtBubbles)
+  ].join("|");
+}
+
+function sanctuarySignature() {
+  return [state.entries.length, state.moodCheckins.length, state.nightlyReflections.length, state.dreams.length, state.thoughtBubbles.length].join(":");
+}
+
 let featureModalMode = null;
 let featureEditingId = null;
 let monthlyCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -1142,9 +1167,12 @@ function monthSummary(date) {
   return { entries, moods, joys, nights, dreams, bubbles, topTags };
 }
 
-function renderMonthlyStory() {
+function renderMonthlyStory(force = false) {
   const host = $("monthlyStory");
   if (!host) return;
+  const signature = monthlySignature(monthlyCursor);
+  if (!force && renderCache.monthly === signature) return;
+  renderCache.monthly = signature;
   const summary = monthSummary(monthlyCursor);
   $("monthlyTitle").textContent = new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric"}).format(monthlyCursor);
 
@@ -1168,9 +1196,12 @@ function renderMonthlyStory() {
     </div>`;
 }
 
-function renderEmotionalWeather() {
+function renderEmotionalWeather(force = false) {
   const host = $("emotionalWeather");
   if (!host) return;
+  const signature = `${monthKey(weatherCursor)}|${collectionSignature(state.moodCheckins)}`;
+  if (!force && renderCache.weather === signature) return;
+  renderCache.weather = signature;
   const moods = itemsForMonth(state.moodCheckins, weatherCursor);
   $("weatherTitle").textContent = new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric"}).format(weatherCursor);
 
@@ -1210,10 +1241,13 @@ function sanctuaryLevel() {
   return 1;
 }
 
-function renderSanctuary() {
+function renderSanctuary(force = false) {
   const host = $("sanctuaryRoom");
   const unlocks = $("sanctuaryUnlocks");
   if (!host || !unlocks) return;
+  const signature = sanctuarySignature();
+  if (!force && renderCache.sanctuary === signature) return;
+  renderCache.sanctuary = signature;
   const level = sanctuaryLevel();
 
   host.innerHTML = `
@@ -3268,7 +3302,44 @@ async function clearAll() {
   }
 }
 
+
+function installIOSZoomGuard() {
+  const editableSelector = 'input, textarea, select, [contenteditable="true"]';
+
+  // Safari exposes gesture* events for pinch zoom.
+  ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
+    document.addEventListener(type, event => {
+      event.preventDefault();
+    }, { passive: false });
+  });
+
+  // Prevent multi-touch pinch gestures before Safari can scale the page.
+  document.addEventListener("touchmove", event => {
+    if (event.touches && event.touches.length > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  // Prevent double-tap page zoom on non-editable UI.
+  let lastTouchEnd = 0;
+  document.addEventListener("touchend", event => {
+    if (event.target.closest(editableSelector)) {
+      lastTouchEnd = 0;
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastTouchEnd <= 320) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+}
+
+
 document.addEventListener("DOMContentLoaded", async () => {
+  installIOSZoomGuard();
+  document.body.classList.add("fuwa-loading");
   try {
     state = { ...state, ...loadPreferences() };
     await diaryRepository.initialize();
@@ -3278,6 +3349,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await applyWallpaper();
     renderSleepControls();
     maybeShowDailyMoodCheckin();
+    document.body.classList.remove("fuwa-loading");
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
     alert("Fuwa could not open its local diary. Please reload and try again.");
@@ -3301,6 +3373,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
+  $("openExploreButton").addEventListener("click", () => navigate("explore"));
+  $("exploreHomeCard").addEventListener("click", () => navigate("explore"));
+
+  document.querySelectorAll("#exploreView [data-nav]").forEach(button => {
+    button.addEventListener("click", () => navigate(button.dataset.nav));
+  });
+
   $("featureCancelButton").addEventListener("click", closeFeatureModal);
   $("featureForm").addEventListener("submit", saveFeatureModal);
   $("featureModal").addEventListener("click", event => {
@@ -3316,7 +3395,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("monthlyPrev").addEventListener("click", () => {
     monthlyCursor = new Date(monthlyCursor.getFullYear(), monthlyCursor.getMonth()-1, 1);
-    renderMonthlyStory();
+    renderMonthlyStory(true);
   });
   $("monthlyNext").addEventListener("click", () => {
     const next = new Date(monthlyCursor.getFullYear(), monthlyCursor.getMonth()+1, 1);
@@ -3326,7 +3405,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("weatherPrev").addEventListener("click", () => {
     weatherCursor = new Date(weatherCursor.getFullYear(), weatherCursor.getMonth()-1, 1);
-    renderEmotionalWeather();
+    renderEmotionalWeather(true);
   });
   $("weatherNext").addEventListener("click", () => {
     const next = new Date(weatherCursor.getFullYear(), weatherCursor.getMonth()+1, 1);
