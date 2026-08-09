@@ -27,6 +27,9 @@
         <p class="eyebrow" id="todayLabel">Today</p>
         <h1>Fuwa <span class="fuwa-cloud-mark" aria-hidden="true"><span></span></span></h1>
       </div>
+      <button class="icon-btn quick-hide-btn" id="quickHideButton" aria-label="Quick hide">
+        <span class="quick-hide-icon" aria-hidden="true"></span>
+      </button>
       <button class="icon-btn appearance-launch-btn" id="themeButton" aria-label="Customize Fuwa appearance">
         <span class="appearance-icon" aria-hidden="true">
           <span class="appearance-star"></span>
@@ -41,12 +44,20 @@
           <h2>How was your day?</h2>
 
           <div class="mood-picker" id="moodPicker" aria-label="Choose today's mood">
-            <button data-mood="amazing" title="Amazing" aria-label="Amazing"><span class="fuwa-mood-icon mood-amazing" aria-hidden="true"><i></i></span></button>
-            <button data-mood="good" title="Good" aria-label="Good"><span class="fuwa-mood-icon mood-good" aria-hidden="true"><i></i></span></button>
-            <button data-mood="neutral" title="Neutral" aria-label="Neutral"><span class="fuwa-mood-icon mood-neutral" aria-hidden="true"><i></i></span></button>
-            <button data-mood="tired" title="Tired" aria-label="Tired"><span class="fuwa-mood-icon mood-tired" aria-hidden="true"><i></i></span></button>
-            <button data-mood="sad" title="Sad" aria-label="Sad"><span class="fuwa-mood-icon mood-sad" aria-hidden="true"><i></i></span></button>
-            <button data-mood="angry" title="Angry" aria-label="Angry"><span class="fuwa-mood-icon mood-angry" aria-hidden="true"><i></i></span></button>
+            <button data-mood="amazing" title="Amazing" aria-label="Amazing"><span class="fuwa-mood-svg mood-amazing" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-amazing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8fb"/><stop offset="1" stop-color="#f6cbd9"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-amazing)" stroke="#e894ad" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M33 39 Q40 46 47 39" class="mood-mouth-line"/><path d="M61 13 C61 9 67 8 69 12 C71 8 77 9 77 14 C77 18 69 23 69 23 C69 23 61 18 61 13Z" class="mood-heart"/></svg></span></button>
+            <button data-mood="good" title="Good" aria-label="Good"><span class="fuwa-mood-svg mood-good" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-good" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffafb"/><stop offset="1" stop-color="#f4d6e0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-good)" stroke="#dda0b4" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M34 39 Q40 44 46 39" class="mood-mouth-line"/></svg></span></button>
+            <button data-mood="neutral" title="Neutral" aria-label="Neutral"><span class="fuwa-mood-svg mood-neutral" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-neutral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf3"/><stop offset="1" stop-color="#f3dfc2"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-neutral)" stroke="#d5ad78" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M36 41 H44" class="mood-mouth-line"/></svg></span></button>
+            <button data-mood="tired" title="Tired" aria-label="Tired"><span class="fuwa-mood-svg mood-tired" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-tired" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf8ff"/><stop offset="1" stop-color="#ded4ef"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-tired)" stroke="#a997c8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 34 Q31 31 35 34" class="mood-eye-line"/><path d="M45 34 Q49 31 53 34" class="mood-eye-line"/><path d="M37 41 Q40 39 43 41" class="mood-mouth-line"/><text x="60" y="18" class="mood-z">z</text></svg></span></button>
+            <button data-mood="sad" title="Sad" aria-label="Sad"><span class="fuwa-mood-svg mood-sad" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-sad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fcff"/><stop offset="1" stop-color="#d6e8f5"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-sad)" stroke="#8eb8d8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M34 43 Q40 37 46 43" class="mood-mouth-line"/><path d="M53 38 C58 43 58 47 54 49 C50 47 50 43 53 38Z" class="mood-tear"/></svg></span></button>
+            <button data-mood="angry" title="Angry" aria-label="Angry"><span class="fuwa-mood-svg mood-angry" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-angry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8f7"/><stop offset="1" stop-color="#f4d2d0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-angry)" stroke="#dd9598" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/></svg></span></button>
+          </div>
+
+          <div class="mood-reaction" id="moodReaction" aria-live="polite">
+            <span class="mood-reaction-cloud" id="moodReactionIcon"></span>
+            <div>
+              <strong id="moodReactionWord">Good</strong>
+              <small id="moodReactionCopy">Soft and steady today.</small>
+            </div>
           </div>
 
           <button class="primary-btn" id="writeTodayButton">✎ Write today</button>
@@ -812,6 +823,55 @@
 
 
 
+
+  <div class="privacy-pin-modal hidden" id="privacyPinModal" role="dialog" aria-modal="true" aria-labelledby="privacyPinTitle">
+    <form class="privacy-pin-sheet" id="privacyPinForm">
+      <div class="privacy-pin-top">
+        <button class="text-btn" id="privacyPinCancel" type="button">Cancel</button>
+        <strong id="privacyPinTitle">Set Fuwa PIN</strong>
+        <span></span>
+      </div>
+      <div class="privacy-pin-cloud" aria-hidden="true"><span></span></div>
+      <p class="muted" id="privacyPinHelp">Choose a 4–6 digit PIN.</p>
+      <div class="privacy-pin-dots" id="privacyPinDots" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <input id="privacyPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="PIN" />
+      <button class="primary-btn" type="submit" id="privacyPinSubmit">Continue</button>
+    </form>
+  </div>
+
+  <div class="privacy-lock-screen hidden" id="privacyLockScreen">
+    <div class="privacy-lock-content">
+      <div class="sleeping-cloud" aria-hidden="true">
+        <span class="sleeping-cloud-face"></span>
+        <span class="sleeping-z z-a">z</span>
+        <span class="sleeping-z z-b">z</span>
+      </div>
+      <p class="eyebrow">Private space</p>
+      <h1>Fuwa is resting</h1>
+      <p>A little private space, just for you.</p>
+
+      <div class="unlock-dots" id="unlockDots">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+
+      <input id="unlockPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="Enter Fuwa PIN" />
+
+      <button class="privacy-unlock-btn" id="unlockPinButton" type="button">Unlock Fuwa</button>
+      <button class="privacy-biometric-btn hidden" id="unlockBiometricButton" type="button">Use Face ID / Device Unlock</button>
+      <p class="privacy-error hidden" id="privacyUnlockError">That PIN didn't match.</p>
+    </div>
+  </div>
+
+  <div class="quick-hide-screen hidden" id="quickHideScreen">
+    <div class="quick-hide-neutral">
+      <div class="quick-hide-neutral-cloud" aria-hidden="true"></div>
+      <h1>Fuwa</h1>
+      <p>Tap to return.</p>
+    </div>
+  </div>
+
   <div class="feature-modal hidden" id="featureModal" role="dialog" aria-modal="true">
     <form class="feature-sheet" id="featureForm">
       <div class="feature-sheet-top">
@@ -1002,12 +1062,12 @@
       <h2 id="moodCheckinTitle">How are you feeling today?</h2>
       <p class="muted">One tap is enough. You don't have to write anything.</p>
       <div class="mood-checkin-options" id="moodCheckinOptions">
-        <button type="button" data-checkin-mood="amazing"><span class="fuwa-mood-icon mood-amazing" aria-hidden="true"><i></i></span><small>Amazing</small></button>
-        <button type="button" data-checkin-mood="good"><span class="fuwa-mood-icon mood-good" aria-hidden="true"><i></i></span><small>Good</small></button>
-        <button type="button" data-checkin-mood="neutral"><span class="fuwa-mood-icon mood-neutral" aria-hidden="true"><i></i></span><small>Neutral</small></button>
-        <button type="button" data-checkin-mood="tired"><span class="fuwa-mood-icon mood-tired" aria-hidden="true"><i></i></span><small>Tired</small></button>
-        <button type="button" data-checkin-mood="sad"><span class="fuwa-mood-icon mood-sad" aria-hidden="true"><i></i></span><small>Sad</small></button>
-        <button type="button" data-checkin-mood="angry"><span class="fuwa-mood-icon mood-angry" aria-hidden="true"><i></i></span><small>Angry</small></button>
+        <button type="button" data-checkin-mood="amazing"><span class="fuwa-mood-svg mood-amazing" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-amazing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8fb"/><stop offset="1" stop-color="#f6cbd9"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-amazing)" stroke="#e894ad" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M33 39 Q40 46 47 39" class="mood-mouth-line"/><path d="M61 13 C61 9 67 8 69 12 C71 8 77 9 77 14 C77 18 69 23 69 23 C69 23 61 18 61 13Z" class="mood-heart"/></svg></span><small>Amazing</small></button>
+        <button type="button" data-checkin-mood="good"><span class="fuwa-mood-svg mood-good" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-good" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffafb"/><stop offset="1" stop-color="#f4d6e0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-good)" stroke="#dda0b4" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M34 39 Q40 44 46 39" class="mood-mouth-line"/></svg></span><small>Good</small></button>
+        <button type="button" data-checkin-mood="neutral"><span class="fuwa-mood-svg mood-neutral" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-neutral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf3"/><stop offset="1" stop-color="#f3dfc2"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-neutral)" stroke="#d5ad78" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M36 41 H44" class="mood-mouth-line"/></svg></span><small>Neutral</small></button>
+        <button type="button" data-checkin-mood="tired"><span class="fuwa-mood-svg mood-tired" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-tired" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf8ff"/><stop offset="1" stop-color="#ded4ef"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-tired)" stroke="#a997c8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 34 Q31 31 35 34" class="mood-eye-line"/><path d="M45 34 Q49 31 53 34" class="mood-eye-line"/><path d="M37 41 Q40 39 43 41" class="mood-mouth-line"/><text x="60" y="18" class="mood-z">z</text></svg></span><small>Tired</small></button>
+        <button type="button" data-checkin-mood="sad"><span class="fuwa-mood-svg mood-sad" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-sad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fcff"/><stop offset="1" stop-color="#d6e8f5"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-sad)" stroke="#8eb8d8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M34 43 Q40 37 46 43" class="mood-mouth-line"/><path d="M53 38 C58 43 58 47 54 49 C50 47 50 43 53 38Z" class="mood-tear"/></svg></span><small>Sad</small></button>
+        <button type="button" data-checkin-mood="angry"><span class="fuwa-mood-svg mood-angry" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-angry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8f7"/><stop offset="1" stop-color="#f4d2d0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-angry)" stroke="#dd9598" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/></svg></span><small>Angry</small></button>
       </div>
       <button type="button" class="text-btn mood-skip-btn" id="skipMoodCheckin">Skip for now</button>
     </div>

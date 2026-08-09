@@ -28,7 +28,11 @@ const defaultState = {
   wallpaperOverlay: "medium",
   sleepSound: "rain",
   sleepMinutes: 30,
-  sleepVolume: 45
+  sleepVolume: 45,
+  privacyLockEnabled: false,
+  privacyAutoLockMinutes: 5,
+  privacyLockOnReopen: true,
+  biometricEnabled: false
 };
 
 let state = structuredClone(defaultState);
@@ -53,7 +57,11 @@ function loadPreferences() {
       wallpaperOverlay: ["light", "medium", "strong"].includes(saved.wallpaperOverlay) ? saved.wallpaperOverlay : defaultState.wallpaperOverlay,
       sleepSound: typeof saved.sleepSound === "string" ? saved.sleepSound : defaultState.sleepSound,
       sleepMinutes: Number.isFinite(saved.sleepMinutes) ? saved.sleepMinutes : defaultState.sleepMinutes,
-      sleepVolume: Number.isFinite(saved.sleepVolume) ? saved.sleepVolume : defaultState.sleepVolume
+      sleepVolume: Number.isFinite(saved.sleepVolume) ? saved.sleepVolume : defaultState.sleepVolume,
+      privacyLockEnabled: typeof saved.privacyLockEnabled === "boolean" ? saved.privacyLockEnabled : defaultState.privacyLockEnabled,
+      privacyAutoLockMinutes: Number.isFinite(saved.privacyAutoLockMinutes) ? saved.privacyAutoLockMinutes : defaultState.privacyAutoLockMinutes,
+      privacyLockOnReopen: typeof saved.privacyLockOnReopen === "boolean" ? saved.privacyLockOnReopen : defaultState.privacyLockOnReopen,
+      biometricEnabled: typeof saved.biometricEnabled === "boolean" ? saved.biometricEnabled : defaultState.biometricEnabled
     };
   } catch (error) {
     console.error("Could not read Fuwa preferences.", error);
@@ -70,7 +78,11 @@ function savePreferences() {
       wallpaperOverlay: state.wallpaperOverlay,
       sleepSound: state.sleepSound,
       sleepMinutes: state.sleepMinutes,
-      sleepVolume: state.sleepVolume
+      sleepVolume: state.sleepVolume,
+      privacyLockEnabled: state.privacyLockEnabled,
+      privacyAutoLockMinutes: state.privacyAutoLockMinutes,
+      privacyLockOnReopen: state.privacyLockOnReopen,
+      biometricEnabled: state.biometricEnabled
     }));
   } catch (error) {
     console.error("Could not save Fuwa preferences.", error);
@@ -334,9 +346,28 @@ async function loadState() {
 
 function moodIconMarkup(mood, extraClass = "") {
   const safeMood = moodLabels[mood] ? mood : "good";
-  return `<span class="fuwa-mood-icon mood-${safeMood} ${extraClass}" aria-hidden="true"><i></i></span>`;
-}
+  const palettes = {
+    amazing: ["#fff8fb", "#f6cbd9", "#e894ad"],
+    good: ["#fffafb", "#f4d6e0", "#dda0b4"],
+    neutral: ["#fffaf3", "#f3dfc2", "#d5ad78"],
+    tired: ["#fbf8ff", "#ded4ef", "#a997c8"],
+    sad: ["#f8fcff", "#d6e8f5", "#8eb8d8"],
+    angry: ["#fff8f7", "#f4d2d0", "#dd9598"]
+  };
+  const [top, bottom, stroke] = palettes[safeMood];
 
+  const faces = {
+    amazing: `<path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M33 39 Q40 46 47 39" class="mood-mouth-line"/><path d="M61 13 C61 9 67 8 69 12 C71 8 77 9 77 14 C77 18 69 23 69 23 C69 23 61 18 61 13Z" class="mood-heart"/>`,
+    good: `<path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M34 39 Q40 44 46 39" class="mood-mouth-line"/>`,
+    neutral: `<circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M36 41 H44" class="mood-mouth-line"/>`,
+    tired: `<path d="M27 34 Q31 31 35 34" class="mood-eye-line"/><path d="M45 34 Q49 31 53 34" class="mood-eye-line"/><path d="M37 41 Q40 39 43 41" class="mood-mouth-line"/><text x="60" y="18" class="mood-z">z</text>`,
+    sad: `<circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M34 43 Q40 37 46 43" class="mood-mouth-line"/><path d="M53 38 C58 43 58 47 54 49 C50 47 50 43 53 38Z" class="mood-tear"/>`,
+    angry: `<path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/>`
+  };
+
+  const gradientId = `mood-grad-${safeMood}-${Math.random().toString(36).slice(2, 7)}`;
+  return `<span class="fuwa-mood-svg mood-${safeMood} ${extraClass}" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#${gradientId})" stroke="${stroke}" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/>${faces[safeMood]}</svg></span>`;
+}
 const moodEmoji = {
   amazing: "🥰",
   good: "🙂",
@@ -517,6 +548,7 @@ function closePhotoViewer() {
   $("photoViewer").classList.add("hidden");
   $("photoViewerImage").removeAttribute("src");
   document.body.style.overflow = "";
+  maybeShowDailyMoodCheckin();
 }
 
 function blobToDataUrl(blob) {
@@ -870,6 +902,409 @@ function monthlySignature(date) {
 function sanctuarySignature() {
   return [state.entries.length, state.moodCheckins.length, state.nightlyReflections.length, state.dreams.length, state.thoughtBubbles.length].join(":");
 }
+
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  bytes.forEach(byte => binary += String.fromCharCode(byte));
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function hashPrivacyPin(pin, saltBytes) {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(pin),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: saltBytes,
+      iterations: 120000,
+      hash: "SHA-256"
+    },
+    keyMaterial,
+    256
+  );
+
+  return bytesToBase64(new Uint8Array(bits));
+}
+
+async function getPrivacyCredential() {
+  return diaryRepository.getSetting("privacy-pin");
+}
+
+async function savePrivacyCredential(pin) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await hashPrivacyPin(pin, salt);
+  await diaryRepository.saveSetting({
+    key: "privacy-pin",
+    salt: bytesToBase64(salt),
+    hash,
+    updatedAt: Date.now()
+  });
+}
+
+async function verifyPrivacyPin(pin) {
+  const credential = await getPrivacyCredential();
+  if (!credential?.salt || !credential?.hash) return false;
+  const salt = base64ToBytes(credential.salt);
+  const hash = await hashPrivacyPin(pin, salt);
+  return hash === credential.hash;
+}
+
+function renderPinDots(inputId, dotsId) {
+  const input = $(inputId);
+  const dots = $(dotsId);
+  if (!input || !dots) return;
+  const length = input.value.length;
+  [...dots.children].forEach((dot, index) => {
+    dot.classList.toggle("filled", index < length);
+    dot.classList.toggle("unused", index >= Math.max(4, length) && index >= 4);
+  });
+}
+
+function openPrivacyPinSetup() {
+  privacySetupStage = "new";
+  privacyFirstPin = "";
+  $("privacyPinTitle").textContent = "Set Fuwa PIN";
+  $("privacyPinHelp").textContent = "Choose a 4–6 digit PIN.";
+  $("privacyPinInput").value = "";
+  renderPinDots("privacyPinInput", "privacyPinDots");
+  $("privacyPinModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => $("privacyPinInput").focus(), 80);
+}
+
+function closePrivacyPinSetup() {
+  $("privacyPinModal").classList.add("hidden");
+  document.body.style.overflow = privacyIsLocked ? "hidden" : "";
+  privacySetupStage = "new";
+  privacyFirstPin = "";
+  $("privacyPinInput").value = "";
+}
+
+async function handlePrivacyPinSetup(event) {
+  event.preventDefault();
+  const pin = $("privacyPinInput").value.trim();
+
+  if (!/^\d{4,6}$/.test(pin)) {
+    $("privacyPinHelp").textContent = "Use 4–6 numbers only.";
+    return;
+  }
+
+  if (privacySetupStage === "new") {
+    privacyFirstPin = pin;
+    privacySetupStage = "confirm";
+    $("privacyPinTitle").textContent = "Confirm Fuwa PIN";
+    $("privacyPinHelp").textContent = "Enter the same PIN one more time.";
+    $("privacyPinInput").value = "";
+    renderPinDots("privacyPinInput", "privacyPinDots");
+    $("privacyPinInput").focus();
+    return;
+  }
+
+  if (pin !== privacyFirstPin) {
+    privacySetupStage = "new";
+    privacyFirstPin = "";
+    $("privacyPinTitle").textContent = "Set Fuwa PIN";
+    $("privacyPinHelp").textContent = "Those didn't match. Choose your PIN again.";
+    $("privacyPinInput").value = "";
+    renderPinDots("privacyPinInput", "privacyPinDots");
+    return;
+  }
+
+  try {
+    $("privacyPinSubmit").disabled = true;
+    $("privacyPinSubmit").textContent = "Saving…";
+    await savePrivacyCredential(pin);
+    state.privacyLockEnabled = true;
+    savePreferences();
+    closePrivacyPinSetup();
+    renderPrivacySettings();
+    toast("Fuwa lock is ready 🔒");
+  } catch (error) {
+    console.error("Could not save privacy PIN.", error);
+    $("privacyPinHelp").textContent = "Fuwa couldn't save the PIN on this device.";
+  } finally {
+    $("privacyPinSubmit").disabled = false;
+    $("privacyPinSubmit").textContent = "Continue";
+  }
+}
+
+async function detectBiometricAvailability() {
+  privacyBiometricAvailable = false;
+  try {
+    if (
+      window.PublicKeyCredential &&
+      typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function"
+    ) {
+      privacyBiometricAvailable = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    }
+  } catch (error) {
+    console.info("Platform authenticator check unavailable.", error);
+  }
+
+  $("biometricSettingRow")?.classList.toggle("hidden", !privacyBiometricAvailable);
+  renderPrivacySettings();
+}
+
+function renderPrivacySettings() {
+  if (!$("privacyLockToggle")) return;
+  $("privacyLockToggle").checked = !!state.privacyLockEnabled;
+  $("privacyReopenToggle").checked = !!state.privacyLockOnReopen;
+  $("privacyAutoLockSelect").value = String(state.privacyAutoLockMinutes);
+  $("biometricToggle").checked = !!state.biometricEnabled;
+  $("biometricSettingRow")?.classList.toggle("hidden", !privacyBiometricAvailable);
+
+  const biometricButton = $("unlockBiometricButton");
+  if (biometricButton) {
+    biometricButton.classList.toggle("hidden", !(privacyBiometricAvailable && state.biometricEnabled));
+  }
+}
+
+async function enableOrDisablePrivacyLock() {
+  const shouldEnable = $("privacyLockToggle").checked;
+
+  if (shouldEnable) {
+    const credential = await getPrivacyCredential();
+    if (!credential?.hash) {
+      $("privacyLockToggle").checked = false;
+      openPrivacyPinSetup();
+      return;
+    }
+  }
+
+  state.privacyLockEnabled = shouldEnable;
+  savePreferences();
+  renderPrivacySettings();
+}
+
+function shouldPrivacyAutoLock() {
+  if (!state.privacyLockEnabled) return false;
+  if (privacyIsLocked) return false;
+
+  const elapsedMs = Date.now() - privacyLastActiveAt;
+  const minutes = Number(state.privacyAutoLockMinutes) || 0;
+
+  if (minutes === 0) return elapsedMs > 1500;
+  return elapsedMs >= minutes * 60000;
+}
+
+function lockFuwa(reason = "manual") {
+  if (!state.privacyLockEnabled && reason !== "quick-hide") return;
+
+  privacyIsLocked = true;
+  $("privacyLockScreen").classList.remove("hidden");
+  $("unlockPinInput").value = "";
+  $("privacyUnlockError").classList.add("hidden");
+  renderPinDots("unlockPinInput", "unlockDots");
+  renderPrivacySettings();
+
+  document.body.classList.add("privacy-locked");
+  document.body.style.overflow = "hidden";
+
+  if (!quickHideActive) {
+    setTimeout(() => $("unlockPinInput").focus(), 100);
+  }
+}
+
+function unlockFuwaSuccess() {
+  privacyIsLocked = false;
+  privacyLastActiveAt = Date.now();
+  $("privacyLockScreen").classList.add("hidden");
+  $("unlockPinInput").value = "";
+  $("privacyUnlockError").classList.add("hidden");
+  document.body.classList.remove("privacy-locked");
+  document.body.style.overflow = "";
+}
+
+async function unlockWithPin() {
+  const pin = $("unlockPinInput").value.trim();
+  if (!/^\d{4,6}$/.test(pin)) {
+    $("privacyUnlockError").textContent = "Enter your 4–6 digit PIN.";
+    $("privacyUnlockError").classList.remove("hidden");
+    return;
+  }
+
+  try {
+    $("unlockPinButton").disabled = true;
+    const valid = await verifyPrivacyPin(pin);
+    if (valid) {
+      unlockFuwaSuccess();
+    } else {
+      $("privacyUnlockError").textContent = "That PIN didn't match.";
+      $("privacyUnlockError").classList.remove("hidden");
+      $("unlockPinInput").value = "";
+      renderPinDots("unlockPinInput", "unlockDots");
+      $("unlockPinInput").focus();
+    }
+  } catch (error) {
+    console.error("Could not verify privacy PIN.", error);
+    $("privacyUnlockError").textContent = "Fuwa couldn't verify the PIN right now.";
+    $("privacyUnlockError").classList.remove("hidden");
+  } finally {
+    $("unlockPinButton").disabled = false;
+  }
+}
+
+async function registerBiometricCredential() {
+  if (!privacyBiometricAvailable) return false;
+
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: "Fuwa" },
+        user: {
+          id: userId,
+          name: "fuwa-local-user",
+          displayName: "Fuwa"
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "preferred"
+        },
+        timeout: 60000,
+        attestation: "none"
+      }
+    });
+
+    if (!credential) return false;
+
+    await diaryRepository.saveSetting({
+      key: "privacy-biometric",
+      credentialId: bytesToBase64(new Uint8Array(credential.rawId)),
+      createdAt: Date.now()
+    });
+
+    return true;
+  } catch (error) {
+    console.info("Biometric registration did not complete.", error);
+    return false;
+  }
+}
+
+async function tryBiometricUnlock() {
+  if (!privacyBiometricAvailable || !state.biometricEnabled) return;
+
+  const saved = await diaryRepository.getSetting("privacy-biometric");
+  if (!saved?.credentialId) {
+    toast("Set up Face ID / device unlock first.");
+    return;
+  }
+
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const credentialId = base64ToBytes(saved.credentialId);
+
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{
+          id: credentialId,
+          type: "public-key",
+          transports: ["internal"]
+        }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+
+    if (assertion) unlockFuwaSuccess();
+  } catch (error) {
+    console.info("Biometric unlock was cancelled or unavailable.", error);
+  }
+}
+
+async function toggleBiometric() {
+  const desired = $("biometricToggle").checked;
+
+  if (desired) {
+    const ok = await registerBiometricCredential();
+    if (!ok) {
+      $("biometricToggle").checked = false;
+      state.biometricEnabled = false;
+      savePreferences();
+      toast("Device unlock couldn't be set up here.");
+      return;
+    }
+  } else {
+    await diaryRepository.removeSetting("privacy-biometric");
+  }
+
+  state.biometricEnabled = desired;
+  savePreferences();
+  renderPrivacySettings();
+}
+
+function updatePrivacyActivity() {
+  if (!privacyIsLocked && !quickHideActive) privacyLastActiveAt = Date.now();
+}
+
+function handleVisibilityPrivacy() {
+  if (document.visibilityState === "hidden") {
+    privacyLastActiveAt = Date.now();
+    return;
+  }
+
+  if (!state.privacyLockEnabled || privacyIsLocked) return;
+
+  if (state.privacyLockOnReopen || shouldPrivacyAutoLock()) {
+    lockFuwa("resume");
+  }
+}
+
+function installPrivacyActivityWatch() {
+  ["pointerdown", "keydown", "scroll", "touchstart"].forEach(type => {
+    document.addEventListener(type, updatePrivacyActivity, { passive: true });
+  });
+
+  document.addEventListener("visibilitychange", handleVisibilityPrivacy);
+  window.addEventListener("pagehide", () => {
+    privacyLastActiveAt = Date.now();
+  });
+
+  setInterval(() => {
+    if (document.visibilityState === "visible" && shouldPrivacyAutoLock()) {
+      lockFuwa("timeout");
+    }
+  }, 15000);
+}
+
+function quickHideFuwa() {
+  quickHideActive = true;
+  $("quickHideScreen").classList.remove("hidden");
+  document.body.classList.add("quick-hide-active");
+  document.body.style.overflow = "hidden";
+}
+
+function exitQuickHide() {
+  quickHideActive = false;
+  $("quickHideScreen").classList.add("hidden");
+  document.body.classList.remove("quick-hide-active");
+
+  if (state.privacyLockEnabled) {
+    lockFuwa("quick-hide");
+  } else {
+    document.body.style.overflow = "";
+  }
+}
+
 
 let featureModalMode = null;
 let featureEditingId = null;
@@ -1512,6 +1947,7 @@ function renderSleepControls() {
   }
 
   renderSleepProgress();
+  renderPrivacySettings();
   renderExpansionFeatures();
   renderSleepHome();
 }
@@ -1896,6 +2332,15 @@ let sleepIsPlaying = false;
 let sleepIsPaused = false;
 let sleepRemainingMs = 0;
 let sleepFadeTimeout = null;
+
+// Privacy Lock
+let privacySetupStage = "new";
+let privacyFirstPin = "";
+let privacyLastActiveAt = Date.now();
+let privacyIsLocked = false;
+let privacyBiometricAvailable = false;
+let quickHideActive = false;
+
 
 
 function shiftIsoDate(dateString, years = 0, months = 0) {
@@ -2419,7 +2864,7 @@ function renderHomeMoodJar() {
   $("moodJarSummary").textContent = checkins.length
     ? `${checkins.length} check-in${checkins.length === 1 ? "" : "s"} tucked into your jar.`
     : "No check-ins yet. Your first little bead is waiting.";
-  $("moodJarTodayStatus").textContent = today
+  $("moodJarTodayStatus").innerHTML = today
     ? `${moodIconMarkup(today.mood, "mini")} <span class="mood-status-copy">Today: ${moodLabels[today.mood]} · tap to open</span>`
     : "♡ Check in today";
 }
@@ -2436,7 +2881,7 @@ function renderMoodJarView() {
     return acc;
   }, {});
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-  $("moodJarMostCommon").textContent = top && top[1] > 0
+  $("moodJarMostCommon").innerHTML = top && top[1] > 0
     ? `Most common: ${moodIconMarkup(top[0], "mini")} <span>${moodLabels[top[0]]}</span>`
     : "Your jar is waiting for its first mood.";
 
@@ -2835,10 +3280,46 @@ async function resetAppearance() {
   toast("Appearance reset");
 }
 
+const moodReactionCopy = {
+  amazing: { word: "Amazing", copy: "You're glowing a little brighter today." },
+  good: { word: "Good", copy: "Soft and steady today." },
+  neutral: { word: "Neutral", copy: "Just taking the day as it comes." },
+  tired: { word: "Tired", copy: "You can move gently today." },
+  sad: { word: "Sad", copy: "A softer day deserves extra care." },
+  angry: { word: "Angry", copy: "Big feelings can rest here too." }
+};
+
+function showMoodReaction(mood, animate = true) {
+  const reaction = $("moodReaction");
+  if (!reaction) return;
+  const safeMood = moodReactionCopy[mood] ? mood : "good";
+  const content = moodReactionCopy[safeMood];
+
+  $("moodReactionIcon").innerHTML = moodIconMarkup(safeMood, "reaction-icon");
+  $("moodReactionWord").textContent = content.word;
+  $("moodReactionCopy").textContent = content.copy;
+  reaction.dataset.mood = safeMood;
+  reaction.classList.add("visible");
+
+  if (animate) {
+    reaction.classList.remove("mood-reaction-pop");
+    void reaction.offsetWidth;
+    reaction.classList.add("mood-reaction-pop");
+
+    const selectedButton = document.querySelector(`#moodPicker button[data-mood="${safeMood}"]`);
+    if (selectedButton) {
+      selectedButton.classList.remove("mood-button-pop");
+      void selectedButton.offsetWidth;
+      selectedButton.classList.add("mood-button-pop");
+    }
+  }
+}
+
 function renderMoodPicker() {
   document.querySelectorAll("#moodPicker button").forEach(button => {
     button.classList.toggle("selected", button.dataset.mood === state.selectedMood);
   });
+  showMoodReaction(state.selectedMood, false);
 }
 
 function renderCalendar() {
@@ -3207,7 +3688,11 @@ async function exportBackup() {
       app: "Fuwa",
       version: 7,
       exportedAt: new Date().toISOString(),
-      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay, sleepSound: state.sleepSound, sleepMinutes: state.sleepMinutes, sleepVolume: state.sleepVolume }
+      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay, sleepSound: state.sleepSound, sleepMinutes: state.sleepMinutes, sleepVolume: state.sleepVolume,
+      privacyLockEnabled: state.privacyLockEnabled,
+      privacyAutoLockMinutes: state.privacyAutoLockMinutes,
+      privacyLockOnReopen: state.privacyLockOnReopen,
+      biometricEnabled: false }
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -3273,7 +3758,11 @@ function importBackup(file) {
         wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : state.wallpaperOverlay,
         sleepSound: typeof incoming.sleepSound === "string" ? incoming.sleepSound : state.sleepSound,
         sleepMinutes: Number.isFinite(incoming.sleepMinutes) ? incoming.sleepMinutes : state.sleepMinutes,
-        sleepVolume: Number.isFinite(incoming.sleepVolume) ? incoming.sleepVolume : state.sleepVolume
+        sleepVolume: Number.isFinite(incoming.sleepVolume) ? incoming.sleepVolume : state.sleepVolume,
+        privacyLockEnabled: typeof incoming.privacyLockEnabled === "boolean" ? incoming.privacyLockEnabled : state.privacyLockEnabled,
+        privacyAutoLockMinutes: Number.isFinite(incoming.privacyAutoLockMinutes) ? incoming.privacyAutoLockMinutes : state.privacyAutoLockMinutes,
+        privacyLockOnReopen: typeof incoming.privacyLockOnReopen === "boolean" ? incoming.privacyLockOnReopen : state.privacyLockOnReopen,
+        biometricEnabled: false
       };
       saveState();
       toast("Backup imported 🌸");
@@ -3348,7 +3837,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderAll();
     await applyWallpaper();
     renderSleepControls();
-    maybeShowDailyMoodCheckin();
+    await detectBiometricAvailability();
+    installPrivacyActivityWatch();
+
+    if (state.privacyLockEnabled) {
+      lockFuwa("startup");
+    } else {
+      maybeShowDailyMoodCheckin();
+    }
     document.body.classList.remove("fuwa-loading");
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
@@ -3364,7 +3860,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     button.addEventListener("click", () => {
       state.selectedMood = button.dataset.mood;
       saveState();
+      renderMoodPicker();
+      showMoodReaction(state.selectedMood, true);
     });
+    button.addEventListener("animationend", () => button.classList.remove("mood-button-pop"));
   });
 
 
@@ -3379,6 +3878,46 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("#exploreView [data-nav]").forEach(button => {
     button.addEventListener("click", () => navigate(button.dataset.nav));
   });
+
+
+  $("quickHideButton").addEventListener("click", quickHideFuwa);
+  $("quickHideScreen").addEventListener("click", exitQuickHide);
+
+  $("privacyLockToggle").addEventListener("change", enableOrDisablePrivacyLock);
+  $("setPrivacyPinButton").addEventListener("click", openPrivacyPinSetup);
+  $("testPrivacyLockButton").addEventListener("click", () => {
+    if (!state.privacyLockEnabled) {
+      toast("Turn App Lock on first.");
+      return;
+    }
+    lockFuwa("manual");
+  });
+
+  $("privacyAutoLockSelect").addEventListener("change", event => {
+    state.privacyAutoLockMinutes = Number(event.target.value);
+    savePreferences();
+  });
+
+  $("privacyReopenToggle").addEventListener("change", event => {
+    state.privacyLockOnReopen = event.target.checked;
+    savePreferences();
+  });
+
+  $("biometricToggle").addEventListener("change", toggleBiometric);
+
+  $("privacyPinCancel").addEventListener("click", closePrivacyPinSetup);
+  $("privacyPinForm").addEventListener("submit", handlePrivacyPinSetup);
+  $("privacyPinInput").addEventListener("input", () => renderPinDots("privacyPinInput", "privacyPinDots"));
+
+  $("unlockPinInput").addEventListener("input", () => renderPinDots("unlockPinInput", "unlockDots"));
+  $("unlockPinInput").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      unlockWithPin();
+    }
+  });
+  $("unlockPinButton").addEventListener("click", unlockWithPin);
+  $("unlockBiometricButton").addEventListener("click", tryBiometricUnlock);
 
   $("featureCancelButton").addEventListener("click", closeFeatureModal);
   $("featureForm").addEventListener("submit", saveFeatureModal);
