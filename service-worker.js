@@ -1,11 +1,11 @@
-const CACHE_NAME = "fuwa-shell-v22";
+const CACHE_NAME = "fuwa-shell-v23";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
-  "./firebase-auth.js",
+  "./firebase-fuwa.js",
   "./manifest.json"
 ];
 
@@ -45,7 +45,7 @@ function isCoreRequest(request) {
     url.pathname.endsWith("/index.html") ||
     url.pathname.endsWith("/style.css") ||
     url.pathname.endsWith("/app.js") ||
-    url.pathname.endsWith("/firebase-auth.js") ||
+    url.pathname.endsWith("/firebase-fuwa.js") ||
     url.pathname.endsWith("/manifest.json")
   );
 }
