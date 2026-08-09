@@ -2849,11 +2849,18 @@ function getTodayMoodCheckin() {
 }
 
 function moodBeadsMarkup(checkins, max = 31) {
-  return checkins.slice(0, max).map((item, index) => `
-    <span class="mood-bead ${moodBeadClass[item.mood] || "bead-neutral"}"
-      style="--bead-i:${index}"
-      title="${escapeHtml(formatDate(item.date))} · ${escapeHtml(moodLabels[item.mood] || item.mood)}"></span>
-  `).join("");
+  return checkins.slice(0, max).map((item, index) => {
+    const mood = moodLabels[item.mood] ? item.mood : "neutral";
+    const label = moodLabels[mood] || mood;
+    return `
+      <span class="jar-mood-item"
+        style="--jar-mood-i:${index}"
+        title="${escapeHtml(formatDate(item.date))} · ${escapeHtml(label)}"
+        aria-label="${escapeHtml(formatDate(item.date))}: ${escapeHtml(label)}">
+        ${moodIconMarkup(mood, "jar-mood-icon")}
+      </span>
+    `;
+  }).join("");
 }
 
 function renderHomeMoodJar() {
