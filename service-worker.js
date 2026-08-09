@@ -1,10 +1,14 @@
-const CACHE_NAME = "fuwa-shell-v16";
-const APP_ASSETS = [
+const CACHE_NAME = "fuwa-shell-v17";
+
+const CORE_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
-  "./manifest.json",
+  "./manifest.json"
+];
+
+const STATIC_ASSETS = [
   "./icon/icon-192.png",
   "./icon/icon-512.png",
   "./icon/apple-touch-icon.png",
@@ -13,32 +17,93 @@ const APP_ASSETS = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS])
+    )
   );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
-    )
+    Promise.all([
+      caches.keys().then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
+      ),
+      self.clients.claim()
+    ])
   );
-  self.clients.claim();
 });
+
+function isCoreRequest(request) {
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return false;
+
+  return (
+    request.mode === "navigate" ||
+    url.pathname.endsWith("/") ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/style.css") ||
+    url.pathname.endsWith("/app.js") ||
+    url.pathname.endsWith("/manifest.json")
+  );
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    // no-store prevents Safari/browser HTTP cache from handing us an old shell
+    const freshRequest = new Request(request, { cache: "no-store" });
+    const response = await fetch(freshRequest);
+
+    if (response && response.ok) {
+      cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    if (request.mode === "navigate") {
+      return cache.match("./index.html");
+    }
+
+    throw error;
+  }
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response && response.ok) {
+    cache.put(request, response.clone());
+  }
+  return response;
+}
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
+  if (isCoreRequest(event.request)) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
 
-      return fetch(event.request).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        return response;
-      }).catch(() => caches.match("./index.html"));
+  event.respondWith(
+    cacheFirst(event.request).catch(() => {
+      if (event.request.mode === "navigate") {
+        return caches.match("./index.html");
+      }
+      return Response.error();
     })
   );
 });

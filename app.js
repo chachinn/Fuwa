@@ -3827,6 +3827,7 @@ function installIOSZoomGuard() {
 
 
 document.addEventListener("DOMContentLoaded", async () => {
+  setTimeout(() => sessionStorage.removeItem("fuwa-sw-reloaded"), 2500);
   installIOSZoomGuard();
   document.body.classList.add("fuwa-loading");
   try {
@@ -4103,8 +4104,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("clearAllButton").addEventListener("click", clearAll);
 
   if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (sessionStorage.getItem("fuwa-sw-reloaded") === "1") return;
+      sessionStorage.setItem("fuwa-sw-reloaded", "1");
+      window.location.reload();
+    });
+
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js").catch(console.error);
+      navigator.serviceWorker.register("./service-worker.js", { updateViaCache: "none" })
+        .then(registration => registration.update())
+        .catch(console.error);
     });
   }
 });
