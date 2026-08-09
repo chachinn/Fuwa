@@ -27,7 +27,11 @@
         <p class="eyebrow" id="todayLabel">Today</p>
         <h1>Fuwa <span class="fuwa-cloud-mark" aria-hidden="true"><span></span></span></h1>
       </div>
-      <button class="icon-btn" id="themeButton" aria-label="Change theme">🎨</button>
+      <button class="icon-btn appearance-launch-btn" id="themeButton" aria-label="Customize Fuwa appearance">
+        <span class="appearance-icon" aria-hidden="true">
+          <span class="appearance-star"></span>
+        </span>
+      </button>
     </header>
 
     <main id="app">
@@ -82,6 +86,17 @@
           <div class="thread-preview-row" id="homeThreadPreview"></div>
         </section>
 
+
+
+        <section class="section-block memory-drift-section" id="memoryDriftHomeSection">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">From another day</p>
+              <h3>Memory Drift</h3>
+            </div>
+          </div>
+          <div id="memoryDriftHome"></div>
+        </section>
 
         <section class="section-block" id="bookmarksHomeCard">
           <div class="section-heading">
@@ -212,6 +227,17 @@
         <div class="thread-timeline" id="threadTimeline"></div>
       </section>
 
+
+
+      <section class="view" id="memoryDriftView">
+        <button class="text-btn thread-back" id="memoryDriftBackButton">← Home</button>
+        <div class="memory-drift-page-head">
+          <div class="memory-drift-cloud" aria-hidden="true"><span></span></div>
+          <p class="eyebrow">A memory drifted back</p>
+          <h2 id="memoryDriftHeading">From another day</h2>
+        </div>
+        <div id="memoryDriftDetail"></div>
+      </section>
 
       <section class="view" id="bookmarksView">
         <div class="page-title-row">
@@ -385,6 +411,126 @@
 
 
 
+
+
+  <div class="appearance-modal hidden" id="appearanceModal" role="dialog" aria-modal="true" aria-labelledby="appearanceTitle">
+    <div class="appearance-sheet">
+      <div class="appearance-header">
+        <div>
+          <p class="eyebrow">Personalize</p>
+          <h2 id="appearanceTitle">Appearance</h2>
+        </div>
+        <button class="appearance-close" id="appearanceCloseButton" type="button" aria-label="Close appearance">×</button>
+      </div>
+
+      <section class="appearance-section">
+        <div class="appearance-section-title">
+          <h3>Color Theme</h3>
+          <span id="currentThemeLabel">Sakura Pink</span>
+        </div>
+
+        <div class="theme-list" id="themeList">
+          <button class="theme-option" type="button" data-theme-choice="peach">
+            <span class="theme-swatch swatch-peach"></span>
+            <strong>Peach Pink</strong>
+            <span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option" type="button" data-theme-choice="pink">
+            <span class="theme-swatch swatch-sakura"></span>
+            <strong>Sakura Pink</strong>
+            <span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option" type="button" data-theme-choice="lavender">
+            <span class="theme-swatch swatch-lavender"></span>
+            <strong>Lavender Purple</strong>
+            <span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option" type="button" data-theme-choice="blue">
+            <span class="theme-swatch swatch-blue"></span>
+            <strong>Sky Blue</strong>
+            <span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option" type="button" data-theme-choice="mint">
+            <span class="theme-swatch swatch-mint"></span>
+            <strong>Mint Green</strong>
+            <span class="theme-check">✓</span>
+          </button>
+          <button class="theme-option" type="button" data-theme-choice="yellow">
+            <span class="theme-swatch swatch-yellow"></span>
+            <strong>Soft Yellow</strong>
+            <span class="theme-check">✓</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="appearance-section wallpaper-section">
+        <div class="appearance-section-title">
+          <h3>Custom Wallpaper</h3>
+          <span id="wallpaperStatus">Off</span>
+        </div>
+
+        <div class="wallpaper-preview" id="wallpaperPreview">
+          <div class="wallpaper-preview-empty" id="wallpaperPreviewEmpty">
+            <span class="wallpaper-cloud-icon" aria-hidden="true"></span>
+            <p>Choose a photo from this device.<br>It stays private and local to Fuwa.</p>
+          </div>
+        </div>
+
+        <input id="wallpaperFileInput" type="file" accept="image/*" hidden />
+        <button class="appearance-secondary-btn" id="chooseWallpaperButton" type="button">Choose Photo</button>
+
+        <div class="wallpaper-toggle-row">
+          <div>
+            <strong>Wallpaper</strong>
+            <span>Turn the saved photo background on or off.</span>
+          </div>
+          <label class="fuwa-switch">
+            <input id="wallpaperToggle" type="checkbox" />
+            <span></span>
+          </label>
+        </div>
+
+        <div class="overlay-group">
+          <strong>Overlay strength</strong>
+          <div class="overlay-options" id="overlayOptions">
+            <button type="button" data-overlay="light">Light</button>
+            <button type="button" data-overlay="medium">Medium</button>
+            <button type="button" data-overlay="strong">Strong</button>
+          </div>
+        </div>
+
+        <div class="wallpaper-crop-note">
+          <strong>Wallpaper Crop</strong>
+          <span>When you choose a photo, Fuwa lets you drag and zoom it to fit your screen before saving.</span>
+        </div>
+      </section>
+
+      <button class="appearance-secondary-btn appearance-reset" id="resetAppearanceButton" type="button">Reset Appearance</button>
+      <button class="appearance-done-btn" id="appearanceDoneButton" type="button">Done</button>
+    </div>
+  </div>
+
+  <div class="wallpaper-crop-modal hidden" id="wallpaperCropModal" role="dialog" aria-modal="true" aria-labelledby="wallpaperCropTitle">
+    <div class="wallpaper-crop-sheet">
+      <div class="wallpaper-crop-header">
+        <button class="text-btn" id="cancelWallpaperCrop" type="button">Cancel</button>
+        <strong id="wallpaperCropTitle">Adjust Wallpaper</strong>
+        <button class="text-btn strong" id="saveWallpaperCrop" type="button">Save</button>
+      </div>
+
+      <div class="wallpaper-crop-stage" id="wallpaperCropStage">
+        <img id="wallpaperCropImage" alt="Wallpaper crop preview" draggable="false" />
+        <div class="wallpaper-crop-guide"></div>
+      </div>
+
+      <div class="wallpaper-zoom-control">
+        <span>−</span>
+        <input id="wallpaperZoomRange" type="range" min="1" max="2.4" step="0.02" value="1" aria-label="Wallpaper zoom" />
+        <span>＋</span>
+      </div>
+      <p class="wallpaper-crop-help">Drag the photo to reposition it. Use the slider to zoom.</p>
+    </div>
+  </div>
 
   <div class="bookmark-composer hidden" id="bookmarkComposer" role="dialog" aria-modal="true" aria-labelledby="bookmarkComposerTitle">
     <form class="bookmark-composer-sheet" id="bookmarkComposerForm">

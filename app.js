@@ -17,7 +17,9 @@ const defaultState = {
   threads: [],
   bookmarks: [],
   selectedMood: "good",
-  theme: "pink"
+  theme: "pink",
+  wallpaperEnabled: false,
+  wallpaperOverlay: "medium"
 };
 
 let state = structuredClone(defaultState);
@@ -37,7 +39,9 @@ function loadPreferences() {
     const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || "{}");
     return {
       selectedMood: typeof saved.selectedMood === "string" ? saved.selectedMood : defaultState.selectedMood,
-      theme: typeof saved.theme === "string" ? saved.theme : defaultState.theme
+      theme: typeof saved.theme === "string" ? saved.theme : defaultState.theme,
+      wallpaperEnabled: typeof saved.wallpaperEnabled === "boolean" ? saved.wallpaperEnabled : defaultState.wallpaperEnabled,
+      wallpaperOverlay: ["light", "medium", "strong"].includes(saved.wallpaperOverlay) ? saved.wallpaperOverlay : defaultState.wallpaperOverlay
     };
   } catch (error) {
     console.error("Could not read Fuwa preferences.", error);
@@ -49,7 +53,9 @@ function savePreferences() {
   try {
     localStorage.setItem(PREFERENCES_KEY, JSON.stringify({
       selectedMood: state.selectedMood,
-      theme: state.theme
+      theme: state.theme,
+      wallpaperEnabled: state.wallpaperEnabled,
+      wallpaperOverlay: state.wallpaperOverlay
     }));
   } catch (error) {
     console.error("Could not save Fuwa preferences.", error);
@@ -220,6 +226,22 @@ const diaryRepository = {
     const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
+    await transactionDone(transaction);
+  },
+
+  async getSetting(key) {
+    return requestResult(this.db.transaction("settings", "readonly").objectStore("settings").get(key));
+  },
+
+  async saveSetting(record) {
+    const transaction = this.db.transaction("settings", "readwrite");
+    transaction.objectStore("settings").put(record);
+    await transactionDone(transaction);
+  },
+
+  async removeSetting(key) {
+    const transaction = this.db.transaction("settings", "readwrite");
+    transaction.objectStore("settings").delete(key);
     await transactionDone(transaction);
   },
 
@@ -761,6 +783,160 @@ function threadChipsForEntry(entry) {
 }
 
 
+
+const MEMORY_DRIFT_MILESTONES = [
+  { months: 0, years: 1, label: "One year ago today" },
+  { months: 0, years: 2, label: "Two years ago today" },
+  { months: 0, years: 3, label: "Three years ago today" },
+  { months: 6, years: 0, label: "Six months ago" },
+  { months: 3, years: 0, label: "Three months ago" },
+  { months: 1, years: 0, label: "One month ago" }
+];
+
+let activeMemoryDriftEntryId = null;
+let activeMemoryDriftLabel = "";
+let wallpaperObjectUrl = "";
+let pendingWallpaperFile = null;
+let cropObjectUrl = "";
+let cropScale = 1;
+let cropX = 0;
+let cropY = 0;
+let cropDragStart = null;
+
+function shiftIsoDate(dateString, years = 0, months = 0) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const shifted = new Date(year, month - 1, day, 12, 0, 0);
+  shifted.setFullYear(shifted.getFullYear() - years);
+  shifted.setMonth(shifted.getMonth() - months);
+  return shifted.toISOString().slice(0, 10);
+}
+
+function dayDistance(a, b) {
+  const one = new Date(`${a}T12:00:00`);
+  const two = new Date(`${b}T12:00:00`);
+  return Math.abs(Math.round((one - two) / 86400000));
+}
+
+function findMemoryDrift() {
+  if (!state.entries.length) return null;
+  const today = isoToday();
+
+  // Prefer meaningful calendar milestones, with a gentle ±3 day window
+  // so the feature still works when the user did not write on the exact day.
+  for (const milestone of MEMORY_DRIFT_MILESTONES) {
+    const target = shiftIsoDate(today, milestone.years, milestone.months);
+    const candidates = state.entries
+      .filter(entry => entry.date < today && dayDistance(entry.date, target) <= 3)
+      .sort((a, b) => {
+        const distance = dayDistance(a.date, target) - dayDistance(b.date, target);
+        if (distance) return distance;
+        return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
+      });
+
+    if (candidates.length) {
+      return { entry: candidates[0], label: milestone.label, target };
+    }
+  }
+
+  // Once Fuwa has older history, occasionally surface an older memory even
+  // when there is no exact milestone. Deterministic per day so it does not
+  // jump around every refresh.
+  const older = state.entries
+    .filter(entry => dayDistance(entry.date, today) >= 21)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (!older.length) return null;
+
+  const seed = today.split("-").join("").split("").reduce((sum, n) => sum + Number(n), 0);
+  // Show the fallback surprise on roughly 2 of every 3 calendar days.
+  if (seed % 3 === 0) return null;
+
+  const entry = older[seed % older.length];
+  const days = dayDistance(entry.date, today);
+  const label = days >= 365 ? "From a past chapter" : days >= 90 ? "A few months ago" : "From a little while ago";
+  return { entry, label, target: entry.date };
+}
+
+function memoryDriftPreviewText(entry, max = 180) {
+  const raw = (entry.body || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "A little memory from this day.";
+  return raw.length > max ? `${raw.slice(0, max).trim()}…` : raw;
+}
+
+function renderMemoryDriftHome() {
+  const host = $("memoryDriftHome");
+  const section = $("memoryDriftHomeSection");
+  if (!host || !section) return;
+
+  const drift = findMemoryDrift();
+  if (!drift) {
+    // Memory Drift should feel like a surprise, not an empty dashboard card.
+    section.classList.add("hidden");
+    return;
+  }
+
+  section.classList.remove("hidden");
+  const { entry, label } = drift;
+  host.innerHTML = `
+    <button class="memory-drift-card" type="button" id="openMemoryDrift">
+      <div class="memory-drift-top">
+        <div class="memory-drift-mini-cloud" aria-hidden="true"><span></span></div>
+        <div>
+          <span class="memory-drift-kicker">A memory drifted back</span>
+          <strong>${escapeHtml(label)}</strong>
+        </div>
+      </div>
+      <time>${escapeHtml(formatDate(entry.date))}</time>
+      <blockquote>“${escapeHtml(memoryDriftPreviewText(entry))}”</blockquote>
+      <div class="memory-drift-bottom">
+        <span>${moodIconMarkup(entry.mood, "mini")} ${escapeHtml(moodLabels[entry.mood] || "Memory")}</span>
+        <strong>Read this memory →</strong>
+      </div>
+    </button>`;
+
+  $("openMemoryDrift").addEventListener("click", () => {
+    activeMemoryDriftEntryId = entry.id;
+    activeMemoryDriftLabel = label;
+    renderMemoryDriftDetail();
+    navigate("memoryDrift");
+  });
+}
+
+function renderMemoryDriftDetail() {
+  const host = $("memoryDriftDetail");
+  const entry = state.entries.find(item => item.id === activeMemoryDriftEntryId);
+  if (!host || !entry) return;
+
+  $("memoryDriftHeading").textContent = activeMemoryDriftLabel || "From another day";
+  const photos = state.media?.filter?.(item => item.entryId === entry.id) || [];
+
+  host.innerHTML = `
+    <article class="memory-drift-detail-card">
+      <div class="memory-drift-detail-meta">
+        <span>${moodIconMarkup(entry.mood, "mini")} ${escapeHtml(moodLabels[entry.mood] || "")}</span>
+        <time>${escapeHtml(formatDate(entry.date))}</time>
+      </div>
+      <h3>${escapeHtml(entry.title || "Untitled memory")}</h3>
+      <div class="memory-drift-entry-text">${escapeHtml(entry.body || "").replace(/\n/g, "<br>")}</div>
+      ${entry.tags?.length ? `<div class="tag-row">${entry.tags.map(tag => `<span>#${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
+      ${entry.afterthought ? `
+        <div class="memory-drift-afterthought">
+          <span>Afterthought</span>
+          <p>${escapeHtml(entry.afterthought)}</p>
+        </div>` : ""}
+      <div class="memory-drift-actions">
+        <button class="primary-btn compact" type="button" id="memoryDriftOpenEntry">Open original entry</button>
+      </div>
+    </article>
+    <div class="memory-drift-soft-note">
+      <div class="memory-drift-mini-cloud" aria-hidden="true"><span></span></div>
+      <p>You don't have to do anything with an old memory. Sometimes it's enough just to meet it again.</p>
+    </div>`;
+
+  $("memoryDriftOpenEntry").addEventListener("click", () => openEditor(entry.id));
+}
+
+
 function addMonthsToIsoDate(dateString, months) {
   const date = new Date(`${dateString}T12:00:00`);
   date.setMonth(date.getMonth() + months);
@@ -1279,18 +1455,289 @@ function navigate(view) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+const themeNames = {
+  peach: "Peach Pink",
+  pink: "Sakura Pink",
+  lavender: "Lavender Purple",
+  blue: "Sky Blue",
+  mint: "Mint Green",
+  yellow: "Soft Yellow"
+};
+
 function applyTheme() {
-  document.body.classList.remove("theme-lavender", "theme-peach");
+  document.body.classList.remove(
+    "theme-lavender",
+    "theme-peach",
+    "theme-blue",
+    "theme-mint",
+    "theme-yellow"
+  );
+
   if (state.theme === "lavender") document.body.classList.add("theme-lavender");
   if (state.theme === "peach") document.body.classList.add("theme-peach");
+  if (state.theme === "blue") document.body.classList.add("theme-blue");
+  if (state.theme === "mint") document.body.classList.add("theme-mint");
+  if (state.theme === "yellow") document.body.classList.add("theme-yellow");
+
+  renderAppearanceControls();
 }
 
-function cycleTheme() {
-  const order = ["pink", "lavender", "peach"];
-  state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
-  saveState();
+async function applyWallpaper() {
+  const saved = await diaryRepository.getSetting("custom-wallpaper");
+
+  if (wallpaperObjectUrl) {
+    URL.revokeObjectURL(wallpaperObjectUrl);
+    wallpaperObjectUrl = "";
+  }
+
+  document.documentElement.style.removeProperty("--fuwa-wallpaper-image");
+  document.body.classList.remove("wallpaper-active", "wallpaper-overlay-light", "wallpaper-overlay-medium", "wallpaper-overlay-strong");
+
+  if (saved?.blob && state.wallpaperEnabled) {
+    wallpaperObjectUrl = URL.createObjectURL(saved.blob);
+    document.documentElement.style.setProperty("--fuwa-wallpaper-image", `url("${wallpaperObjectUrl}")`);
+    document.body.classList.add("wallpaper-active", `wallpaper-overlay-${state.wallpaperOverlay}`);
+  }
+
+  renderAppearanceControls(saved);
+}
+
+function renderAppearanceControls(savedWallpaper = null) {
+  const currentLabel = $("currentThemeLabel");
+  if (currentLabel) currentLabel.textContent = themeNames[state.theme] || themeNames.pink;
+
+  document.querySelectorAll("[data-theme-choice]").forEach(button => {
+    button.classList.toggle("selected", button.dataset.themeChoice === state.theme);
+  });
+
+  const toggle = $("wallpaperToggle");
+  if (toggle) toggle.checked = !!state.wallpaperEnabled;
+
+  document.querySelectorAll("[data-overlay]").forEach(button => {
+    button.classList.toggle("selected", button.dataset.overlay === state.wallpaperOverlay);
+  });
+
+  const status = $("wallpaperStatus");
+  if (status) status.textContent = state.wallpaperEnabled ? "On" : "Off";
+
+  if (savedWallpaper !== null) updateWallpaperPreview(savedWallpaper);
+  else if ($("wallpaperPreview")) {
+    diaryRepository.getSetting("custom-wallpaper").then(updateWallpaperPreview).catch(console.error);
+  }
+}
+
+function updateWallpaperPreview(saved) {
+  const preview = $("wallpaperPreview");
+  const empty = $("wallpaperPreviewEmpty");
+  if (!preview || !empty) return;
+
+  const old = preview.querySelector(".wallpaper-preview-image");
+  if (old) old.remove();
+
+  if (!saved?.blob) {
+    empty.classList.remove("hidden");
+    return;
+  }
+
+  empty.classList.add("hidden");
+  const url = URL.createObjectURL(saved.blob);
+  const img = document.createElement("img");
+  img.className = "wallpaper-preview-image";
+  img.alt = "Saved Fuwa wallpaper";
+  img.src = url;
+  img.onload = () => URL.revokeObjectURL(url);
+  preview.appendChild(img);
+}
+
+function openAppearance() {
+  $("appearanceModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  renderAppearanceControls();
+}
+
+function closeAppearance() {
+  $("appearanceModal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+async function selectTheme(theme) {
+  if (!themeNames[theme]) return;
+  state.theme = theme;
+  savePreferences();
   applyTheme();
-  toast(`Theme: ${state.theme}`);
+}
+
+async function toggleWallpaperEnabled() {
+  const saved = await diaryRepository.getSetting("custom-wallpaper");
+  if (!saved?.blob && $("wallpaperToggle").checked) {
+    $("wallpaperToggle").checked = false;
+    toast("Choose a wallpaper photo first.");
+    return;
+  }
+  state.wallpaperEnabled = $("wallpaperToggle").checked;
+  savePreferences();
+  await applyWallpaper();
+}
+
+async function setWallpaperOverlay(level) {
+  if (!["light", "medium", "strong"].includes(level)) return;
+  state.wallpaperOverlay = level;
+  savePreferences();
+  await applyWallpaper();
+}
+
+function openWallpaperPicker() {
+  $("wallpaperFileInput").click();
+}
+
+function imageNaturalSize(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const result = { width: image.naturalWidth, height: image.naturalHeight };
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read wallpaper image."));
+    };
+    image.src = url;
+  });
+}
+
+async function beginWallpaperCrop(file) {
+  if (!file || !file.type.startsWith("image/")) {
+    toast("Choose an image file.");
+    return;
+  }
+
+  pendingWallpaperFile = file;
+  if (cropObjectUrl) URL.revokeObjectURL(cropObjectUrl);
+  cropObjectUrl = URL.createObjectURL(file);
+
+  cropScale = 1;
+  cropX = 0;
+  cropY = 0;
+  cropDragStart = null;
+
+  $("wallpaperCropImage").src = cropObjectUrl;
+  $("wallpaperZoomRange").value = "1";
+  updateCropTransform();
+
+  $("wallpaperCropModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeWallpaperCrop() {
+  $("wallpaperCropModal").classList.add("hidden");
+  pendingWallpaperFile = null;
+  cropDragStart = null;
+  if (cropObjectUrl) {
+    URL.revokeObjectURL(cropObjectUrl);
+    cropObjectUrl = "";
+  }
+  if (!$("appearanceModal").classList.contains("hidden")) document.body.style.overflow = "hidden";
+  else document.body.style.overflow = "";
+}
+
+function updateCropTransform() {
+  const image = $("wallpaperCropImage");
+  if (!image) return;
+  image.style.transform = `translate(${cropX}px, ${cropY}px) scale(${cropScale})`;
+}
+
+function cropPointerDown(event) {
+  event.preventDefault();
+  cropDragStart = { x: event.clientX, y: event.clientY, cropX, cropY };
+  $("wallpaperCropStage").setPointerCapture?.(event.pointerId);
+}
+
+function cropPointerMove(event) {
+  if (!cropDragStart) return;
+  cropX = cropDragStart.cropX + (event.clientX - cropDragStart.x);
+  cropY = cropDragStart.cropY + (event.clientY - cropDragStart.y);
+  updateCropTransform();
+}
+
+function cropPointerUp() {
+  cropDragStart = null;
+}
+
+async function createCroppedWallpaperBlob() {
+  const image = $("wallpaperCropImage");
+  const stage = $("wallpaperCropStage");
+  if (!image || !stage || !pendingWallpaperFile) throw new Error("No wallpaper selected.");
+
+  const source = await imageFromBlob(pendingWallpaperFile);
+  const outputWidth = 1170;
+  const outputHeight = 2532;
+  const canvas = document.createElement("canvas");
+  canvas.width = outputWidth;
+  canvas.height = outputHeight;
+  const context = canvas.getContext("2d", { alpha: false });
+
+  const stageRect = stage.getBoundingClientRect();
+  const fitScale = Math.max(stageRect.width / source.naturalWidth, stageRect.height / source.naturalHeight);
+  const displayWidth = source.naturalWidth * fitScale * cropScale;
+  const displayHeight = source.naturalHeight * fitScale * cropScale;
+
+  const ratioX = outputWidth / stageRect.width;
+  const ratioY = outputHeight / stageRect.height;
+
+  const drawWidth = displayWidth * ratioX;
+  const drawHeight = displayHeight * ratioY;
+  const drawX = ((stageRect.width - displayWidth) / 2 + cropX) * ratioX;
+  const drawY = ((stageRect.height - displayHeight) / 2 + cropY) * ratioY;
+
+  context.fillStyle = "#fff8fa";
+  context.fillRect(0, 0, outputWidth, outputHeight);
+  context.drawImage(source, drawX, drawY, drawWidth, drawHeight);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error("Wallpaper crop failed.")),
+      "image/jpeg",
+      0.86
+    );
+  });
+}
+
+async function saveCroppedWallpaper() {
+  try {
+    $("saveWallpaperCrop").disabled = true;
+    $("saveWallpaperCrop").textContent = "Saving…";
+    const blob = await createCroppedWallpaperBlob();
+    await diaryRepository.saveSetting({
+      key: "custom-wallpaper",
+      blob,
+      updatedAt: Date.now()
+    });
+    state.wallpaperEnabled = true;
+    savePreferences();
+    closeWallpaperCrop();
+    await applyWallpaper();
+    toast("Wallpaper saved ☁️");
+  } catch (error) {
+    console.error("Could not save wallpaper.", error);
+    toast("Fuwa couldn't save that wallpaper.");
+  } finally {
+    $("saveWallpaperCrop").disabled = false;
+    $("saveWallpaperCrop").textContent = "Save";
+  }
+}
+
+async function resetAppearance() {
+  if (!confirm("Reset Fuwa's appearance to the default cozy pink theme?")) return;
+  state.theme = "pink";
+  state.wallpaperEnabled = false;
+  state.wallpaperOverlay = "medium";
+  savePreferences();
+  await diaryRepository.removeSetting("custom-wallpaper");
+  applyTheme();
+  await applyWallpaper();
+  toast("Appearance reset");
 }
 
 function renderMoodPicker() {
@@ -1457,6 +1904,7 @@ function renderAll() {
   renderMoodJarView();
   renderHomeThreads();
   renderThreads();
+  renderMemoryDriftHome();
   renderHomeBookmarks();
   renderBookmarks();
   if (activeThreadId) renderThreadDetail();
@@ -1661,7 +2109,7 @@ async function exportBackup() {
       app: "Fuwa",
       version: 5,
       exportedAt: new Date().toISOString(),
-      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme }
+      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay }
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -1710,7 +2158,9 @@ function importBackup(file) {
         threads: Array.isArray(incoming.threads) ? incoming.threads : [],
         bookmarks: Array.isArray(incoming.bookmarks) ? incoming.bookmarks : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
-        theme: typeof incoming.theme === "string" ? incoming.theme : state.theme
+        theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
+        wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
+        wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : state.wallpaperOverlay
       };
       saveState();
       toast("Backup imported 🌸");
@@ -1746,6 +2196,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await diaryRepository.migrateLegacyData();
     await loadState();
     renderAll();
+    await applyWallpaper();
     maybeShowDailyMoodCheckin();
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
@@ -1767,6 +2218,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
+  $("memoryDriftBackButton").addEventListener("click", () => navigate("home"));
   $("openBookmarksButton").addEventListener("click", () => navigate("bookmarks"));
   $("bookmarksHomeCard").addEventListener("click", event => {
     if (!event.target.closest("[data-bookmark-open]")) navigate("bookmarks");
@@ -1850,7 +2302,45 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("cancelLetterButton").addEventListener("click", () => toggleLetterComposer(false));
   $("saveLetterButton").addEventListener("click", saveLetter);
 
-  $("themeButton").addEventListener("click", cycleTheme);
+
+  $("appearanceCloseButton").addEventListener("click", closeAppearance);
+  $("appearanceDoneButton").addEventListener("click", closeAppearance);
+  $("appearanceModal").addEventListener("click", event => {
+    if (event.target === $("appearanceModal")) closeAppearance();
+  });
+
+  document.querySelectorAll("[data-theme-choice]").forEach(button => {
+    button.addEventListener("click", () => selectTheme(button.dataset.themeChoice));
+  });
+
+  $("chooseWallpaperButton").addEventListener("click", openWallpaperPicker);
+  $("wallpaperFileInput").addEventListener("change", event => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) beginWallpaperCrop(file);
+  });
+
+  $("wallpaperToggle").addEventListener("change", toggleWallpaperEnabled);
+
+  document.querySelectorAll("[data-overlay]").forEach(button => {
+    button.addEventListener("click", () => setWallpaperOverlay(button.dataset.overlay));
+  });
+
+  $("resetAppearanceButton").addEventListener("click", resetAppearance);
+
+  $("cancelWallpaperCrop").addEventListener("click", closeWallpaperCrop);
+  $("saveWallpaperCrop").addEventListener("click", saveCroppedWallpaper);
+  $("wallpaperZoomRange").addEventListener("input", event => {
+    cropScale = Number(event.target.value);
+    updateCropTransform();
+  });
+
+  $("wallpaperCropStage").addEventListener("pointerdown", cropPointerDown);
+  $("wallpaperCropStage").addEventListener("pointermove", cropPointerMove);
+  $("wallpaperCropStage").addEventListener("pointerup", cropPointerUp);
+  $("wallpaperCropStage").addEventListener("pointercancel", cropPointerUp);
+
+  $("themeButton").addEventListener("click", openAppearance);
   $("exportButton").addEventListener("click", exportBackup);
   $("importInput").addEventListener("change", event => importBackup(event.target.files[0]));
   $("clearAllButton").addEventListener("click", clearAll);
