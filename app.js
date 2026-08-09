@@ -45,6 +45,12 @@ let activeThreadId = null;
 let activeBookmarkId = null;
 let bookmarkEditorEntryId = null;
 let moodCheckinSaving = false;
+let moodJarPhysicsFrame = null;
+let moodJarOrientationBound = false;
+let moodJarOrientationPermissionRequested = false;
+let moodJarGravity = { x: 0, y: 0.78 };
+const moodJarPhysicsWorlds = new Map();
+
 
 // Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
 // in localStorage so the content database and display preferences stay separate.
@@ -2854,6 +2860,7 @@ function moodBeadsMarkup(checkins, max = 31) {
     const label = moodLabels[mood] || mood;
     return `
       <span class="jar-mood-item"
+        data-jar-mood-index="${index}"
         style="--jar-mood-i:${index}"
         title="${escapeHtml(formatDate(item.date))} · ${escapeHtml(label)}"
         aria-label="${escapeHtml(formatDate(item.date))}: ${escapeHtml(label)}">
@@ -2863,12 +2870,236 @@ function moodBeadsMarkup(checkins, max = 31) {
   }).join("");
 }
 
+
+function moodJarSensorGravity(event) {
+  const beta = Number.isFinite(event?.beta) ? event.beta : 90;
+  const gamma = Number.isFinite(event?.gamma) ? event.gamma : 0;
+  const x = Math.sin(Math.max(-90, Math.min(90, gamma)) * Math.PI / 180);
+  const y = Math.sin(Math.max(-90, Math.min(90, beta)) * Math.PI / 180);
+
+  moodJarGravity.x = Math.max(-1, Math.min(1, x));
+  moodJarGravity.y = Math.max(-1, Math.min(1, y));
+}
+
+function bindMoodJarOrientation() {
+  if (moodJarOrientationBound) return;
+  window.addEventListener("deviceorientation", moodJarSensorGravity, { passive: true });
+  moodJarOrientationBound = true;
+}
+
+async function requestMoodJarMotionPermission() {
+  if (moodJarOrientationPermissionRequested) return;
+  moodJarOrientationPermissionRequested = true;
+
+  try {
+    if (typeof DeviceOrientationEvent !== "undefined"
+      && typeof DeviceOrientationEvent.requestPermission === "function") {
+      const permission = await DeviceOrientationEvent.requestPermission();
+      if (permission === "granted") bindMoodJarOrientation();
+      return;
+    }
+    bindMoodJarOrientation();
+  } catch (error) {
+    console.warn("Fuwa Mood Jar motion permission was not granted.", error);
+  }
+}
+
+function buildMoodJarWorld(container) {
+  if (!container) return null;
+
+  const rect = container.getBoundingClientRect();
+  if (rect.width < 12 || rect.height < 12) return null;
+
+  const elements = [...container.querySelectorAll(".jar-mood-item")];
+  const isLarge = container.id === "moodJarLargeBeads";
+  const radius = isLarge ? 18 : 10;
+  const padding = isLarge ? 7 : 4;
+
+  const bodies = elements.map((element, index) => {
+    const usableWidth = Math.max(radius * 2, rect.width - padding * 2 - radius * 2);
+    const x = padding + radius + ((index * 37 + 17) % Math.max(1, usableWidth));
+    const y = Math.max(radius + padding, -radius - index * (isLarge ? 11 : 7));
+    return {
+      element,
+      x,
+      y,
+      vx: ((index % 3) - 1) * 0.16,
+      vy: 0,
+      radius,
+      rotation: ((index % 5) - 2) * 3
+    };
+  });
+
+  const world = {
+    container,
+    width: rect.width,
+    height: rect.height,
+    padding,
+    radius,
+    bodies,
+    lastTime: performance.now(),
+    sleepingFrames: 0
+  };
+
+  moodJarPhysicsWorlds.set(container.id, world);
+  return world;
+}
+
+function ensureMoodJarWorld(containerId) {
+  const container = $(containerId);
+  if (!container || !container.querySelector(".jar-mood-item")) {
+    moodJarPhysicsWorlds.delete(containerId);
+    return null;
+  }
+
+  const oldWorld = moodJarPhysicsWorlds.get(containerId);
+  const rect = container.getBoundingClientRect();
+  const count = container.querySelectorAll(".jar-mood-item").length;
+
+  if (!oldWorld
+    || oldWorld.bodies.length !== count
+    || Math.abs(oldWorld.width - rect.width) > 2
+    || Math.abs(oldWorld.height - rect.height) > 2) {
+    return buildMoodJarWorld(container);
+  }
+
+  return oldWorld;
+}
+
+function resolveMoodJarCollisions(world) {
+  const bodies = world.bodies;
+
+  for (let i = 0; i < bodies.length; i += 1) {
+    for (let j = i + 1; j < bodies.length; j += 1) {
+      const a = bodies[i];
+      const b = bodies[j];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let distance = Math.hypot(dx, dy);
+      const minDistance = a.radius + b.radius - 1;
+
+      if (distance <= 0.001) {
+        dx = 0.01;
+        dy = 0;
+        distance = 0.01;
+      }
+
+      if (distance < minDistance) {
+        const nx = dx / distance;
+        const ny = dy / distance;
+        const overlap = (minDistance - distance) * 0.5;
+
+        a.x -= nx * overlap;
+        a.y -= ny * overlap;
+        b.x += nx * overlap;
+        b.y += ny * overlap;
+
+        const relativeVelocity = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (relativeVelocity < 0) {
+          const impulse = -relativeVelocity * 0.36;
+          a.vx -= impulse * nx;
+          a.vy -= impulse * ny;
+          b.vx += impulse * nx;
+          b.vy += impulse * ny;
+        }
+      }
+    }
+  }
+}
+
+function stepMoodJarWorld(world, dt) {
+  const gravityStrength = 0.0017 * dt;
+  const gx = moodJarGravity.x * gravityStrength;
+  const gy = moodJarGravity.y * gravityStrength;
+  const left = world.padding + world.radius;
+  const right = world.width - world.padding - world.radius;
+  const top = world.padding + world.radius;
+  const bottom = world.height - world.padding - world.radius;
+
+  world.bodies.forEach(body => {
+    body.vx += gx;
+    body.vy += gy;
+    body.vx *= 0.992;
+    body.vy *= 0.992;
+
+    const speed = Math.hypot(body.vx, body.vy);
+    if (speed > 1.8) {
+      body.vx = (body.vx / speed) * 1.8;
+      body.vy = (body.vy / speed) * 1.8;
+    }
+
+    body.x += body.vx * dt * 0.06;
+    body.y += body.vy * dt * 0.06;
+
+    if (body.x < left) {
+      body.x = left;
+      body.vx = Math.abs(body.vx) * 0.48;
+    } else if (body.x > right) {
+      body.x = right;
+      body.vx = -Math.abs(body.vx) * 0.48;
+    }
+
+    if (body.y < top) {
+      body.y = top;
+      body.vy = Math.abs(body.vy) * 0.45;
+    } else if (body.y > bottom) {
+      body.y = bottom;
+      body.vy = -Math.abs(body.vy) * 0.36;
+      if (Math.abs(body.vy) < 0.035) body.vy = 0;
+    }
+  });
+
+  resolveMoodJarCollisions(world);
+
+  world.bodies.forEach(body => {
+    body.rotation += body.vx * dt * 0.035;
+    body.element.style.transform = `translate3d(${body.x - body.radius}px, ${body.y - body.radius}px, 0) rotate(${body.rotation}deg)`;
+  });
+}
+
+function moodJarPhysicsTick(now) {
+  moodJarPhysicsFrame = null;
+  if (document.hidden) return;
+
+  const activeIds = currentView === "moodjar"
+    ? ["moodJarLargeBeads"]
+    : currentView === "home"
+      ? ["homeMoodJarBeads"]
+      : [];
+
+  activeIds.forEach(containerId => {
+    const world = ensureMoodJarWorld(containerId);
+    if (!world) return;
+    const dt = Math.min(34, Math.max(8, now - world.lastTime || 16));
+    world.lastTime = now;
+    stepMoodJarWorld(world, dt);
+  });
+
+  if (activeIds.length) moodJarPhysicsFrame = requestAnimationFrame(moodJarPhysicsTick);
+}
+
+function startMoodJarPhysics() {
+  if (moodJarPhysicsFrame || document.hidden) return;
+  moodJarPhysicsFrame = requestAnimationFrame(moodJarPhysicsTick);
+}
+
+function refreshMoodJarPhysics(containerId) {
+  const existing = moodJarPhysicsWorlds.get(containerId);
+  if (existing) moodJarPhysicsWorlds.delete(containerId);
+
+  requestAnimationFrame(() => {
+    ensureMoodJarWorld(containerId);
+    startMoodJarPhysics();
+  });
+}
+
 function renderHomeMoodJar() {
   const checkins = moodCheckinsForMonth(new Date());
   const today = getTodayMoodCheckin();
   const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date());
   $("moodJarMonthLabel").textContent = monthName;
   $("homeMoodJarBeads").innerHTML = moodBeadsMarkup(checkins);
+  refreshMoodJarPhysics("homeMoodJarBeads");
   $("moodJarSummary").textContent = checkins.length
     ? `${checkins.length} check-in${checkins.length === 1 ? "" : "s"} tucked into your jar.`
     : "No check-ins yet. Your first little bead is waiting.";
@@ -2882,6 +3113,7 @@ function renderMoodJarView() {
   const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(moodJarCursor);
   $("moodJarViewMonth").textContent = monthName;
   $("moodJarLargeBeads").innerHTML = moodBeadsMarkup(checkins);
+  refreshMoodJarPhysics("moodJarLargeBeads");
   $("moodJarCheckinCount").textContent = `${checkins.length} check-in${checkins.length === 1 ? "" : "s"}`;
 
   const counts = Object.keys(moodEmoji).reduce((acc, mood) => {
@@ -4074,15 +4306,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (event.target === $("threadModal")) closeThreadModal();
   });
 
-  $("openMoodJarButton").addEventListener("click", () => {
+  $("openMoodJarButton").addEventListener("click", async () => {
+    requestMoodJarMotionPermission();
     moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     renderMoodJarView();
     navigate("moodjar");
+    startMoodJarPhysics();
   });
-  $("moodJarCard").addEventListener("click", () => {
+  $("moodJarCard").addEventListener("click", async () => {
+    requestMoodJarMotionPermission();
     moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     renderMoodJarView();
     navigate("moodjar");
+    startMoodJarPhysics();
   });
   $("moodJarCheckInButton").addEventListener("click", () => openMoodCheckin(true));
   $("moodJarPrevMonth").addEventListener("click", () => {
@@ -4174,6 +4410,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Open the daily check-in only after every control has its listener. This
   // avoids a slow-device race where the modal could appear during binding.
   if (!state.privacyLockEnabled) maybeShowDailyMoodCheckin();
+
+  bindMoodJarOrientation();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) startMoodJarPhysics();
+  });
+  window.addEventListener("resize", () => {
+    moodJarPhysicsWorlds.clear();
+    startMoodJarPhysics();
+  }, { passive: true });
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {

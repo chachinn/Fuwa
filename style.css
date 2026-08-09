@@ -5950,3 +5950,191 @@ body.drawer-open .bottom-nav{pointer-events:none}
 .auth-provider-divider.hidden {
   display: none !important;
 }
+
+
+/* =========================================================
+   FUWA V25 — ACCOUNT POLISH + PHYSICAL MOOD JAR
+   ========================================================= */
+
+.firebase-account-panel {
+  margin: 14px 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(240, 223, 229, .92);
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,.78);
+  box-shadow: var(--shadow);
+}
+
+.firebase-account-panel-top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.firebase-account-panel-top > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.firebase-account-panel-top h3 {
+  margin: 3px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+}
+
+.firebase-session-pill {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #edf6ef;
+  color: #66856f;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.firebase-account-detail {
+  display: grid;
+  gap: 3px;
+  padding: 11px 2px;
+  border-top: 1px solid rgba(240,223,229,.82);
+}
+
+.firebase-account-detail span {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.firebase-account-detail strong {
+  overflow-wrap: anywhere;
+  color: #58464f;
+  font-size: 12px;
+}
+
+.firebase-local-data-note {
+  margin-top: 10px;
+  padding: 13px;
+  border-radius: 17px;
+  background: rgba(253, 236, 242, .67);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.firebase-local-data-note > div {
+  display: grid;
+  gap: 3px;
+}
+
+.firebase-local-data-note strong {
+  color: #684d58;
+  font-size: 11px;
+}
+
+.firebase-local-data-note small {
+  color: #937d86;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.local-data-cloud {
+  position: relative;
+  flex: 0 0 31px;
+  width: 31px;
+  height: 15px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: #efc5d2;
+}
+
+.local-data-cloud::before,
+.local-data-cloud::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: inherit;
+}
+
+.local-data-cloud::before {
+  width: 17px;
+  height: 17px;
+  left: 6px;
+  top: -9px;
+}
+
+.local-data-cloud::after {
+  width: 12px;
+  height: 12px;
+  right: 3px;
+  top: -5px;
+}
+
+.firebase-profile-signout {
+  width: 100%;
+  margin-top: 13px;
+}
+
+/* Jar contents are now real moving bodies instead of a flex/grid collage. */
+.jar-glass {
+  position: relative !important;
+  display: block !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.jar-mood-item,
+.large .jar-mood-item {
+  position: absolute !important;
+  inset: 0 auto auto 0 !important;
+  margin: 0 !important;
+  animation: none !important;
+  will-change: transform;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: center center;
+}
+
+.jar-mood-item {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.large .jar-mood-item {
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.jar-mood-item .fuwa-mood-svg.jar-mood-icon {
+  width: 22px !important;
+  height: 18px !important;
+  margin: 1px 0 0 -1px !important;
+}
+
+.large .jar-mood-item .fuwa-mood-svg.jar-mood-icon {
+  width: 39px !important;
+  height: 30px !important;
+  margin: 3px 0 0 -2px !important;
+}
+
+/* Keep the glass visually above the moving pieces while allowing them to move inside it. */
+.mood-jar-illustration .jar-glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 16px rgba(255,255,255,.42);
+  z-index: 4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jar-mood-item,
+  .large .jar-mood-item {
+    will-change: auto;
+  }
+}

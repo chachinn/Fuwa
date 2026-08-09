@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v24-google-auth-left-menu -->
+  <!-- FUWA_BUILD: v25-account-mood-jar-physics -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -145,7 +145,7 @@
           <p class="drawer-section-label">Account & Login</p>
           <button class="drawer-account-card" data-nav="me" type="button">
             <span class="drawer-account-avatar" aria-hidden="true"></span>
-            <span class="drawer-account-copy"><small>Signed in as</small><strong id="firebaseAccountEmail">Loading account…</strong></span>
+            <span class="drawer-account-copy"><small id="firebaseAccountProviderDrawer">Signed in</small><strong id="firebaseAccountEmail">Loading account…</strong></span>
             <span class="drawer-chevron">›</span>
           </button>
           <button class="drawer-signout-button" id="firebaseSignOutButton" type="button">Log out of Fuwa</button>
@@ -948,6 +948,36 @@
             <h2>Cha</h2>
             <p class="muted">Collect moments, not things.</p>
           </div>
+        </div>
+
+        <div class="firebase-account-panel">
+          <div class="firebase-account-panel-top">
+            <div class="firebase-account-cloud" aria-hidden="true"></div>
+            <div>
+              <p class="eyebrow">Account & Login</p>
+              <h3>Your private Fuwa</h3>
+            </div>
+            <span class="firebase-session-pill">Signed in</span>
+          </div>
+
+          <div class="firebase-account-detail">
+            <span>Email</span>
+            <strong id="firebaseAccountEmailProfile">Loading account…</strong>
+          </div>
+          <div class="firebase-account-detail">
+            <span>Sign-in method</span>
+            <strong id="firebaseAccountProviderProfile">Checking…</strong>
+          </div>
+
+          <div class="firebase-local-data-note">
+            <span class="local-data-cloud" aria-hidden="true"></span>
+            <div>
+              <strong>Your diary is still stored on this device.</strong>
+              <small>Firebase currently handles login only. Cloud sync will be added separately so your existing IndexedDB journal stays safe.</small>
+            </div>
+          </div>
+
+          <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
         </div>
 
         <div class="stats-grid" id="statsGrid">

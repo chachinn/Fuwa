@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication — V24
+// Fuwa Firebase Authentication — V25
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -104,11 +104,30 @@ function revealSignedIn(user) {
   document.body.classList.add("auth-signed-in");
   $auth("fuwaAuthGate")?.classList.add("hidden");
 
-  const accountEmail = $auth("firebaseAccountEmail");
-  if (accountEmail) accountEmail.textContent = user?.email || "Signed-in account";
+  const providerIds = Array.isArray(user?.providerData)
+    ? user.providerData.map(item => item?.providerId).filter(Boolean)
+    : [];
+  const providerLabel = providerIds.includes("google.com")
+    ? "Google"
+    : providerIds.includes("password")
+      ? "Email & password"
+      : "Firebase account";
+
+  const accountEmail = user?.email || "Signed-in account";
+  if ($auth("firebaseAccountEmail")) $auth("firebaseAccountEmail").textContent = accountEmail;
+  if ($auth("firebaseAccountEmailProfile")) $auth("firebaseAccountEmailProfile").textContent = accountEmail;
+  if ($auth("firebaseAccountProviderProfile")) $auth("firebaseAccountProviderProfile").textContent = providerLabel;
+  if ($auth("firebaseAccountProviderDrawer")) $auth("firebaseAccountProviderDrawer").textContent = `Signed in with ${providerLabel}`;
 
   window.dispatchEvent(new CustomEvent("fuwa-auth-ready", {
-    detail: { user: user ? { uid: user.uid, email: user.email } : null }
+    detail: {
+      user: user ? {
+        uid: user.uid,
+        email: user.email,
+        provider: providerLabel,
+        providerIds
+      } : null
+    }
   }));
 }
 
@@ -297,6 +316,7 @@ function bindAuthUI() {
   $auth("forgotPasswordButton")?.addEventListener("click", handleForgotPassword);
   $auth("googleSignInButton")?.addEventListener("click", handleGoogleSignIn);
   $auth("firebaseSignOutButton")?.addEventListener("click", handleSignOut);
+  $auth("firebaseProfileSignOutButton")?.addEventListener("click", handleSignOut);
 
   $auth("authSwitchButton")?.addEventListener("click", () => {
     setAuthMode(authMode === "login" ? "signup" : "login");
