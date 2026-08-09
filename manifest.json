@@ -1,0 +1,19 @@
+{
+  "name": "Fuwa — Soft moments, forever yours.",
+  "short_name": "Fuwa",
+  "description": "A soft, private, offline-first diary for memories, tiny joys, and letters to your future self.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8fa",
+  "theme_color": "#f7c6d5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='120' fill='%23f7c6d5'/%3E%3Ccircle cx='256' cy='256' r='120' fill='%23fff8fa'/%3E%3Ctext x='256' y='300' text-anchor='middle' font-size='160'%3E🌸%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

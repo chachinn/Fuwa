@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7c6d5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Fuwa" />
+  <title>Fuwa — Soft moments, forever yours.</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow" id="todayLabel">Today</p>
+        <h1>Fuwa <span aria-hidden="true">🌸</span></h1>
+      </div>
+      <button class="icon-btn" id="themeButton" aria-label="Change theme">🎨</button>
+    </header>
+
+    <main id="app">
+      <section class="view active" id="homeView">
+        <div class="hero-card">
+          <p class="soft-label">Good day, Cha ☁️</p>
+          <h2>How was your day?</h2>
+
+          <div class="mood-picker" id="moodPicker" aria-label="Choose today's mood">
+            <button data-mood="amazing" title="Amazing">🥰</button>
+            <button data-mood="good" title="Good">🙂</button>
+            <button data-mood="neutral" title="Neutral">😐</button>
+            <button data-mood="tired" title="Tired">😮‍💨</button>
+            <button data-mood="sad" title="Sad">😔</button>
+            <button data-mood="angry" title="Angry">😤</button>
+          </div>
+
+          <button class="primary-btn" id="writeTodayButton">✎ Write today</button>
+        </div>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">This month</p>
+              <h3 id="monthTitle">Calendar</h3>
+            </div>
+          </div>
+          <div class="calendar-card">
+            <div class="calendar-grid weekday-row">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Recently</p>
+              <h3>Recent memories</h3>
+            </div>
+            <button class="text-btn" data-nav="entries">View all</button>
+          </div>
+          <div class="stack" id="recentEntries"></div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Small things</p>
+              <h3>Tiny joys</h3>
+            </div>
+          </div>
+
+          <form class="tiny-joy-form" id="tinyJoyForm">
+            <input id="tinyJoyInput" maxlength="100" placeholder="Something tiny that made you smile…" />
+            <button type="submit" class="mini-add-btn">＋</button>
+          </form>
+
+          <div class="tiny-joy-list" id="tinyJoyList"></div>
+        </section>
+      </section>
+
+      <section class="view" id="entriesView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Your journal</p>
+            <h2>Entries</h2>
+          </div>
+          <button class="round-add" id="newEntryButton">＋</button>
+        </div>
+
+        <div class="search-wrap">
+          <input id="entrySearch" type="search" placeholder="Search memories, tags, moods…" />
+        </div>
+
+        <div class="stack" id="entriesList"></div>
+      </section>
+
+      <section class="view" id="editorView">
+        <div class="editor-top">
+          <button class="text-btn" id="cancelEditor">Cancel</button>
+          <span id="editorHeading">New Entry</span>
+          <button class="text-btn strong" id="saveEntryButton">Save</button>
+        </div>
+
+        <form id="entryForm" class="editor-form">
+          <input type="hidden" id="entryId" />
+
+          <div class="entry-meta-row">
+            <input id="entryDate" type="date" />
+            <select id="entryMood">
+              <option value="amazing">🥰 Amazing</option>
+              <option value="good">🙂 Good</option>
+              <option value="neutral">😐 Neutral</option>
+              <option value="tired">😮‍💨 Tired</option>
+              <option value="sad">😔 Sad</option>
+              <option value="angry">😤 Angry</option>
+            </select>
+          </div>
+
+          <input id="entryTitle" class="title-input" maxlength="100" placeholder="Title your day…" required />
+          <textarea id="entryBody" rows="12" placeholder="Write anything. This space is yours…" required></textarea>
+
+          <div class="editor-section">
+            <label for="entryTags">Tags</label>
+            <input id="entryTags" placeholder="travel, work, japan, little joys" />
+            <small>Separate tags with commas.</small>
+          </div>
+
+          <div class="editor-section">
+            <label for="entryAfterthought">Afterthought</label>
+            <textarea id="entryAfterthought" rows="4" placeholder="Add something later without changing what Past You wrote."></textarea>
+          </div>
+
+          <div class="editor-actions">
+            <button type="button" class="danger-btn hidden" id="deleteEntryButton">Delete entry</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="view" id="lettersView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Future you</p>
+            <h2>Letters Through Time</h2>
+          </div>
+          <button class="round-add" id="newLetterButton">＋</button>
+        </div>
+
+        <div class="letter-compose hidden" id="letterComposer">
+          <input id="letterTitle" placeholder="A title for Future You" maxlength="80" />
+          <textarea id="letterBody" rows="7" placeholder="Dear future me…"></textarea>
+          <label>
+            Open on
+            <input id="letterOpenDate" type="date" />
+          </label>
+          <div class="composer-actions">
+            <button class="secondary-btn" id="cancelLetterButton" type="button">Cancel</button>
+            <button class="primary-btn compact" id="saveLetterButton" type="button">Seal letter ✉️</button>
+          </div>
+        </div>
+
+        <div class="stack" id="lettersList"></div>
+      </section>
+
+      <section class="view" id="meView">
+        <div class="profile-card">
+          <div class="avatar">🌷</div>
+          <div>
+            <p class="eyebrow">Your Fuwa</p>
+            <h2>Cha</h2>
+            <p class="muted">Collect moments, not things.</p>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card"><strong id="entryCount">0</strong><span>Entries</span></div>
+          <div class="stat-card"><strong id="joyCount">0</strong><span>Tiny Joys</span></div>
+          <div class="stat-card"><strong id="letterCount">0</strong><span>Letters</span></div>
+        </div>
+
+        <div class="settings-card">
+          <button id="exportButton">Backup & Export <span>›</span></button>
+          <label class="import-row">
+            Import Backup <span>›</span>
+            <input type="file" id="importInput" accept=".json,application/json" hidden />
+          </label>
+          <button id="clearAllButton" class="danger-text">Clear all local data <span>›</span></button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-nav="home"><span>⌂</span><small>Home</small></button>
+      <button class="nav-item" data-nav="entries"><span>▤</span><small>Entries</small></button>
+      <button class="nav-item nav-create" id="navCreate">＋</button>
+      <button class="nav-item" data-nav="letters"><span>✉</span><small>Letters</small></button>
+      <button class="nav-item" data-nav="me"><span>♡</span><small>Me</small></button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
