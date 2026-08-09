@@ -42,6 +42,28 @@
           <button class="primary-btn" id="writeTodayButton">✎ Write today</button>
         </div>
 
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">A tiny daily check-in</p>
+              <h3>Mood Jar</h3>
+            </div>
+            <button class="text-btn" id="openMoodJarButton">Open jar</button>
+          </div>
+          <button class="mood-jar-card" id="moodJarCard" type="button" aria-label="Open Mood Jar">
+            <div class="mood-jar-illustration" aria-hidden="true">
+              <div class="jar-lid"></div>
+              <div class="jar-glass" id="homeMoodJarBeads"></div>
+            </div>
+            <div class="mood-jar-copy">
+              <strong id="moodJarMonthLabel">This month</strong>
+              <span id="moodJarSummary">No check-ins yet. Your first little bead is waiting.</span>
+              <small id="moodJarTodayStatus">Check in today</small>
+            </div>
+          </button>
+        </section>
+
         <section class="section-block">
           <div class="section-heading">
             <div>
@@ -83,6 +105,56 @@
 
           <div class="tiny-joy-list" id="tinyJoyList"></div>
         </section>
+      </section>
+
+
+      <section class="view" id="moodjarView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Your little weather</p>
+            <h2>Mood Jar</h2>
+          </div>
+          <button class="round-add" id="moodJarCheckInButton" aria-label="Check in today">♡</button>
+        </div>
+
+        <div class="mood-jar-month-nav">
+          <button class="icon-btn" id="moodJarPrevMonth" aria-label="Previous month">‹</button>
+          <div>
+            <p class="eyebrow">Mood Jar</p>
+            <h3 id="moodJarViewMonth">Month</h3>
+          </div>
+          <button class="icon-btn" id="moodJarNextMonth" aria-label="Next month">›</button>
+        </div>
+
+        <div class="mood-jar-large-card">
+          <div class="mood-jar-illustration large" aria-hidden="true">
+            <div class="jar-lid"></div>
+            <div class="jar-glass" id="moodJarLargeBeads"></div>
+          </div>
+          <div class="mood-jar-month-summary">
+            <strong id="moodJarCheckinCount">0 check-ins</strong>
+            <span id="moodJarMostCommon">Your jar is waiting for its first mood.</span>
+          </div>
+        </div>
+
+        <div class="mood-count-grid" id="moodCountGrid"></div>
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Day by day</p>
+              <h3>Mood calendar</h3>
+            </div>
+          </div>
+          <div class="calendar-card">
+            <div class="calendar-grid weekday-row">
+              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div class="calendar-grid mood-calendar-grid" id="moodCalendarGrid"></div>
+          </div>
+        </section>
+
+        <p class="mood-jar-note">No streaks, no guilt. Missing days simply stay empty. ☁️</p>
       </section>
 
       <section class="view" id="entriesView">
@@ -214,6 +286,25 @@
       <button class="nav-item" data-nav="letters"><span>✉</span><small>Letters</small></button>
       <button class="nav-item" data-nav="me"><span>♡</span><small>Me</small></button>
     </nav>
+  </div>
+
+
+  <div class="mood-checkin-modal hidden" id="moodCheckinModal" role="dialog" aria-modal="true" aria-labelledby="moodCheckinTitle">
+    <div class="mood-checkin-sheet">
+      <div class="mood-checkin-cloud" aria-hidden="true">☁️</div>
+      <p class="eyebrow">A tiny check-in</p>
+      <h2 id="moodCheckinTitle">How are you feeling today?</h2>
+      <p class="muted">One tap is enough. You don't have to write anything.</p>
+      <div class="mood-checkin-options" id="moodCheckinOptions">
+        <button type="button" data-checkin-mood="amazing"><span>🥰</span><small>Amazing</small></button>
+        <button type="button" data-checkin-mood="good"><span>🙂</span><small>Good</small></button>
+        <button type="button" data-checkin-mood="neutral"><span>😐</span><small>Neutral</small></button>
+        <button type="button" data-checkin-mood="tired"><span>😮‍💨</span><small>Tired</small></button>
+        <button type="button" data-checkin-mood="sad"><span>😔</span><small>Sad</small></button>
+        <button type="button" data-checkin-mood="angry"><span>😤</span><small>Angry</small></button>
+      </div>
+      <button type="button" class="text-btn mood-skip-btn" id="skipMoodCheckin">Skip for now</button>
+    </div>
   </div>
 
   <div class="photo-viewer hidden" id="photoViewer" role="dialog" aria-modal="true" aria-label="Photo viewer">

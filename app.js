@@ -1,18 +1,19 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
   entries: [],
   tinyJoys: [],
   letters: [],
+  moodCheckins: [],
   selectedMood: "good",
   theme: "pink"
 };
@@ -21,6 +22,7 @@ let state = structuredClone(defaultState);
 let currentView = "home";
 let editorMedia = [];
 let removedMediaIds = new Set();
+let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
 // Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
 // in localStorage so the content database and display preferences stay separate.
@@ -138,12 +140,15 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters] = await Promise.all(CONTENT_STORES.map(store => this.getAll(store)));
-    return { entries, tinyJoys, letters };
+    const [entries, tinyJoys, letters, moodCheckins] = await Promise.all([
+      ...CONTENT_STORES.map(store => this.getAll(store)),
+      this.getAll("moodCheckins")
+    ]);
+    return { entries, tinyJoys, letters, moodCheckins };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -153,11 +158,14 @@ const diaryRepository = {
     const mediaStore = transaction.objectStore("media");
     mediaStore.clear();
     mediaRecords.forEach(record => mediaStore.put(record));
+    const moodStore = transaction.objectStore("moodCheckins");
+    moodStore.clear();
+    (data.moodCheckins || []).forEach(record => moodStore.put(record));
     await transactionDone(transaction);
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -422,6 +430,21 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mimeMatch[1] });
 }
 
+
+function validateMoodCheckins(checkins) {
+  if (checkins === undefined) return [];
+  if (!Array.isArray(checkins)) throw new Error("moodCheckins must be an array");
+  const ids = new Set();
+  checkins.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id || typeof record.date !== "string" || !moodEmoji[record.mood]) {
+      throw new Error("moodCheckins contains an invalid record");
+    }
+    if (ids.has(record.id)) throw new Error("moodCheckins contains duplicate IDs");
+    ids.add(record.id);
+  });
+  return checkins;
+}
+
 function validateMediaBackup(media) {
   if (media === undefined) return [];
   if (!Array.isArray(media)) throw new Error("media must be an array");
@@ -435,6 +458,166 @@ function validateMediaBackup(media) {
     if (typeof record.dataUrl !== "string") throw new Error("media record is missing photo data");
   });
   return media;
+}
+
+
+const moodLabels = {
+  amazing: "Amazing",
+  good: "Good",
+  neutral: "Neutral",
+  tired: "Tired",
+  sad: "Sad",
+  angry: "Angry"
+};
+
+const moodBeadClass = {
+  amazing: "bead-amazing",
+  good: "bead-good",
+  neutral: "bead-neutral",
+  tired: "bead-tired",
+  sad: "bead-sad",
+  angry: "bead-angry"
+};
+
+function monthKeyFromDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function moodCheckinsForMonth(date) {
+  const prefix = `${monthKeyFromDate(date)}-`;
+  return [...state.moodCheckins]
+    .filter(item => item.date.startsWith(prefix))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function getTodayMoodCheckin() {
+  return state.moodCheckins.find(item => item.date === isoToday()) || null;
+}
+
+function moodBeadsMarkup(checkins, max = 31) {
+  return checkins.slice(0, max).map((item, index) => `
+    <span class="mood-bead ${moodBeadClass[item.mood] || "bead-neutral"}"
+      style="--bead-i:${index}"
+      title="${escapeHtml(formatDate(item.date))} · ${escapeHtml(moodLabels[item.mood] || item.mood)}"></span>
+  `).join("");
+}
+
+function renderHomeMoodJar() {
+  const checkins = moodCheckinsForMonth(new Date());
+  const today = getTodayMoodCheckin();
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date());
+  $("moodJarMonthLabel").textContent = monthName;
+  $("homeMoodJarBeads").innerHTML = moodBeadsMarkup(checkins);
+  $("moodJarSummary").textContent = checkins.length
+    ? `${checkins.length} check-in${checkins.length === 1 ? "" : "s"} tucked into your jar.`
+    : "No check-ins yet. Your first little bead is waiting.";
+  $("moodJarTodayStatus").textContent = today
+    ? `${moodEmoji[today.mood]} Today: ${moodLabels[today.mood]} · tap to open`
+    : "♡ Check in today";
+}
+
+function renderMoodJarView() {
+  const checkins = moodCheckinsForMonth(moodJarCursor);
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(moodJarCursor);
+  $("moodJarViewMonth").textContent = monthName;
+  $("moodJarLargeBeads").innerHTML = moodBeadsMarkup(checkins);
+  $("moodJarCheckinCount").textContent = `${checkins.length} check-in${checkins.length === 1 ? "" : "s"}`;
+
+  const counts = Object.keys(moodEmoji).reduce((acc, mood) => {
+    acc[mood] = checkins.filter(item => item.mood === mood).length;
+    return acc;
+  }, {});
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  $("moodJarMostCommon").textContent = top && top[1] > 0
+    ? `Most common: ${moodEmoji[top[0]]} ${moodLabels[top[0]]}`
+    : "Your jar is waiting for its first mood.";
+
+  $("moodCountGrid").innerHTML = Object.keys(moodEmoji).map(mood => `
+    <div class="mood-count-card">
+      <span>${moodEmoji[mood]}</span>
+      <strong>${counts[mood]}</strong>
+      <small>${moodLabels[mood]}</small>
+    </div>
+  `).join("");
+
+  renderMoodCalendar();
+  const next = new Date(moodJarCursor.getFullYear(), moodJarCursor.getMonth() + 1, 1);
+  const current = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  $("moodJarNextMonth").disabled = next > current;
+}
+
+function renderMoodCalendar() {
+  const grid = $("moodCalendarGrid");
+  grid.innerHTML = "";
+  const year = moodJarCursor.getFullYear();
+  const month = moodJarCursor.getMonth();
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < startOffset; i++) {
+    const blank = document.createElement("span");
+    blank.className = "calendar-day empty";
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const checkin = state.moodCheckins.find(item => item.date === date);
+    const cell = document.createElement("div");
+    cell.className = "mood-calendar-day";
+    if (date === isoToday()) cell.classList.add("today");
+    cell.innerHTML = `<span>${day}</span><strong>${checkin ? moodEmoji[checkin.mood] : ""}</strong>`;
+    if (checkin) cell.title = `${formatDate(date)} · ${moodLabels[checkin.mood]}`;
+    grid.appendChild(cell);
+  }
+}
+
+function openMoodCheckin(force = false) {
+  const today = getTodayMoodCheckin();
+  document.querySelectorAll("[data-checkin-mood]").forEach(button => {
+    button.classList.toggle("selected", today?.mood === button.dataset.checkinMood);
+  });
+  $("moodCheckinTitle").textContent = today ? "How are you feeling now?" : "How are you feeling today?";
+  $("skipMoodCheckin").textContent = today ? "Keep current mood" : "Skip for now";
+  $("moodCheckinModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeMoodCheckin() {
+  $("moodCheckinModal").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+async function saveMoodCheckin(mood) {
+  if (!moodEmoji[mood]) return;
+  const date = isoToday();
+  const existing = getTodayMoodCheckin();
+  const record = {
+    id: date,
+    date,
+    mood,
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  try {
+    await diaryRepository.save("moodCheckins", record);
+    const index = state.moodCheckins.findIndex(item => item.id === date);
+    if (index >= 0) state.moodCheckins[index] = record;
+    else state.moodCheckins.push(record);
+    closeMoodCheckin();
+    renderAll();
+    toast(existing ? "Today's mood updated ☁️" : "A little mood tucked into your jar 🫙");
+  } catch (error) {
+    console.error("Could not save mood check-in.", error);
+    toast("Fuwa couldn't save that check-in. Please try again.");
+  }
+}
+
+function maybeShowDailyMoodCheckin() {
+  if (getTodayMoodCheckin()) return;
+  setTimeout(() => openMoodCheckin(), 350);
 }
 
 function toast(message) {
@@ -632,6 +815,8 @@ function renderAll() {
   }).format(new Date());
 
   renderMoodPicker();
+  renderHomeMoodJar();
+  renderMoodJarView();
   renderCalendar();
   renderRecentEntries();
   renderEntries($("entrySearch")?.value || "");
@@ -828,7 +1013,7 @@ async function exportBackup() {
 
     const payload = {
       app: "Fuwa",
-      version: 2,
+      version: 3,
       exportedAt: new Date().toISOString(),
       data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme }
     };
@@ -855,6 +1040,7 @@ function importBackup(file) {
       const parsed = JSON.parse(reader.result);
       const incoming = parsed.data || parsed;
       validateContentData(incoming);
+      incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -872,6 +1058,7 @@ function importBackup(file) {
         entries: incoming.entries,
         tinyJoys: incoming.tinyJoys,
         letters: incoming.letters,
+        moodCheckins: Array.isArray(incoming.moodCheckins) ? incoming.moodCheckins : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme
       };
@@ -909,6 +1096,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await diaryRepository.migrateLegacyData();
     await loadState();
     renderAll();
+    maybeShowDailyMoodCheckin();
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
     alert("Fuwa could not open its local diary. Please reload and try again.");
@@ -924,6 +1112,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       state.selectedMood = button.dataset.mood;
       saveState();
     });
+  });
+
+
+  $("openMoodJarButton").addEventListener("click", () => {
+    moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    renderMoodJarView();
+    navigate("moodjar");
+  });
+  $("moodJarCard").addEventListener("click", () => {
+    moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    renderMoodJarView();
+    navigate("moodjar");
+  });
+  $("moodJarCheckInButton").addEventListener("click", () => openMoodCheckin(true));
+  $("moodJarPrevMonth").addEventListener("click", () => {
+    moodJarCursor = new Date(moodJarCursor.getFullYear(), moodJarCursor.getMonth() - 1, 1);
+    renderMoodJarView();
+  });
+  $("moodJarNextMonth").addEventListener("click", () => {
+    const candidate = new Date(moodJarCursor.getFullYear(), moodJarCursor.getMonth() + 1, 1);
+    const current = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    if (candidate <= current) {
+      moodJarCursor = candidate;
+      renderMoodJarView();
+    }
+  });
+  document.querySelectorAll("[data-checkin-mood]").forEach(button => {
+    button.addEventListener("click", () => saveMoodCheckin(button.dataset.checkinMood));
+  });
+  $("skipMoodCheckin").addEventListener("click", closeMoodCheckin);
+  $("moodCheckinModal").addEventListener("click", event => {
+    if (event.target === $("moodCheckinModal")) closeMoodCheckin();
   });
 
   $("writeTodayButton").addEventListener("click", () => openEditor(null, isoToday()));
