@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v41";
+const CACHE_NAME = "fuwa-shell-v43";
 
 const CORE_ASSETS = [
   "./",
@@ -98,5 +98,22 @@ self.addEventListener("fetch", event => {
 
   event.respondWith(
     cacheFirst(event.request).catch(() => Response.error())
+  );
+});
+
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || "./?view=life";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clients => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          try { client.navigate(targetUrl); } catch (_) {}
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow ? self.clients.openWindow(targetUrl) : undefined;
+    })
   );
 });

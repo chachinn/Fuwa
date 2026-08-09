@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v41-thread-card-fix -->
+  <!-- FUWA_BUILD: v43-life-pages -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -243,6 +243,7 @@
         <section class="drawer-group">
           <p class="drawer-section-label">Journal</p>
           <div class="drawer-menu-list">
+            <button class="drawer-menu-item" data-nav="life" type="button"><span class="drawer-item-icon life-pages-icon">✦</span><span><strong>Daily Life Pages</strong><small>Check in once. Fuwa builds the trackers.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="threads" type="button"><span class="drawer-item-icon drawer-thread-icon"></span><span><strong>Memory Threads</strong><small>Stories that keep returning.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="bookmarks" type="button"><span class="drawer-item-icon drawer-bookmark-icon"></span><span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></span><b>›</b></button>
@@ -791,6 +792,7 @@
         <div class="explore-section">
           <p class="eyebrow">Reflect</p>
           <div class="explore-grid">
+            <button class="explore-card" data-nav="life" type="button"><span class="explore-icon life-pages-icon">✦</span><strong>Daily Life Pages</strong><small>One check-in creates all your trackers.</small></button>
             <button class="explore-card" data-nav="moodjar" type="button"><span class="explore-icon mood-explore-icon"></span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></button>
             <button class="explore-card" data-nav="thenNow" type="button"><span class="explore-icon mirror-icon"></span><strong>Then & Now</strong><small>Meet an older version of you.</small></button>
             <button class="explore-card" data-nav="monthly" type="button"><span class="explore-icon story-icon"></span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></button>
@@ -939,6 +941,166 @@
           <div class="sanctuary-customize-heading"><div><p class="eyebrow">Room story</p><h3>Things that found their way home</h3></div></div>
           <div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div>
         </div>
+      </section>
+
+      <section class="view" id="lifeView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Your everyday pages</p><h2>Daily Life Pages</h2></div>
+          <span class="page-cute-icon life-pages-header-icon">✦</span>
+        </div>
+        <p class="muted feature-intro">Check in once. Fuwa turns the little answers into your mood, sleep, habit, reading, weather, and life trackers automatically.</p>
+
+        <div class="life-tab-bar" role="tablist" aria-label="Daily Life Pages">
+          <button class="active" type="button" data-life-tab="today">Today</button>
+          <button type="button" data-life-tab="trackers">Trackers</button>
+          <button type="button" data-life-tab="collections">Collections</button>
+        </div>
+
+        <section class="life-panel active" id="lifeTodayPanel">
+          <div class="life-today-card">
+            <div class="life-today-heading">
+              <div><span class="soft-label" id="lifeTodayDateLabel">Today</span><h3>How did today feel?</h3></div>
+              <span class="life-save-status" id="lifeSaveStatus">Not checked in</span>
+            </div>
+
+            <form id="lifeDailyForm" class="life-daily-form">
+              <div class="life-question">
+                <div class="life-question-title"><strong>Rate your day</strong><small>Overall, how was it?</small></div>
+                <div class="life-rating" id="lifeDayRating" aria-label="Rate your day from 1 to 5">
+                  <button type="button" data-rating="1">☆</button><button type="button" data-rating="2">☆</button><button type="button" data-rating="3">☆</button><button type="button" data-rating="4">☆</button><button type="button" data-rating="5">☆</button>
+                </div>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title"><strong>Mood</strong><small>Choose the closest feeling.</small></div>
+                <div class="life-mood-grid" id="lifeMoodPicker">
+                  <button type="button" data-life-mood="amazing">🥰<span>Amazing</span></button>
+                  <button type="button" data-life-mood="good">🙂<span>Good</span></button>
+                  <button type="button" data-life-mood="neutral">😐<span>Okay</span></button>
+                  <button type="button" data-life-mood="tired">😮‍💨<span>Tired</span></button>
+                  <button type="button" data-life-mood="sad">😔<span>Sad</span></button>
+                  <button type="button" data-life-mood="angry">😤<span>Stressed</span></button>
+                </div>
+              </div>
+
+              <label class="life-question life-text-question"><span><strong>Highlight of the day ✨</strong><small>One thing you want to remember.</small></span><input id="lifeHighlight" maxlength="220" placeholder="The best little part of today…" /></label>
+
+              <div class="life-quick-grid">
+                <label class="life-mini-question"><span>Sleep</span><div><input id="lifeSleepHours" type="number" min="0" max="24" step="0.5" inputmode="decimal" placeholder="7.5"><small>hours</small></div></label>
+                <label class="life-mini-question"><span>Energy</span><select id="lifeEnergy"><option value="">—</option><option value="1">Very low</option><option value="2">Low</option><option value="3">Okay</option><option value="4">Good</option><option value="5">High</option></select></label>
+                <label class="life-mini-question"><span>Stress</span><select id="lifeStress"><option value="">—</option><option value="1">Peaceful</option><option value="2">Low</option><option value="3">Moderate</option><option value="4">High</option><option value="5">Overwhelmed</option></select></label>
+                <label class="life-mini-question"><span>Social battery</span><select id="lifeSocial"><option value="">—</option><option value="1">Empty</option><option value="2">Low</option><option value="3">Half</option><option value="4">Good</option><option value="5">Full</option></select></label>
+                <label class="life-mini-question"><span>Water</span><div><input id="lifeWater" type="number" min="0" max="30" step="1" inputmode="numeric" placeholder="6"><small>glasses</small></div></label>
+                <label class="life-mini-question"><span>Reading</span><div><input id="lifeReadingPages" type="number" min="0" max="5000" step="1" inputmode="numeric" placeholder="20"><small>pages</small></div></label>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title"><strong>Movement</strong><small>What did your body do today?</small></div>
+                <div class="life-choice-row" id="lifeMovementChoices">
+                  <button type="button" data-life-choice="movement" data-value="none">Rest</button>
+                  <button type="button" data-life-choice="movement" data-value="walk">Walk</button>
+                  <button type="button" data-life-choice="movement" data-value="cardio">Cardio</button>
+                  <button type="button" data-life-choice="movement" data-value="strength">Strength</button>
+                  <button type="button" data-life-choice="movement" data-value="yoga">Yoga</button>
+                </div>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title"><strong>Weather</strong><small>The day outside.</small></div>
+                <div class="life-choice-row" id="lifeWeatherChoices">
+                  <button type="button" data-life-choice="weather" data-value="sunny">☀ Sunny</button>
+                  <button type="button" data-life-choice="weather" data-value="partly">⛅ Partly</button>
+                  <button type="button" data-life-choice="weather" data-value="cloudy">☁ Cloudy</button>
+                  <button type="button" data-life-choice="weather" data-value="rainy">☂ Rainy</button>
+                </div>
+                <label class="life-inline-input">Temperature <input id="lifeTemperature" type="number" min="-50" max="60" step="0.5" inputmode="decimal" placeholder="°C"></label>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title"><strong>Dream</strong><small>If you remember one.</small></div>
+                <div class="life-choice-row" id="lifeDreamChoices">
+                  <button type="button" data-life-choice="dream" data-value="happy">Happy</button>
+                  <button type="button" data-life-choice="dream" data-value="sad">Sad</button>
+                  <button type="button" data-life-choice="dream" data-value="scary">Scary</button>
+                  <button type="button" data-life-choice="dream" data-value="weird">Weird</button>
+                  <button type="button" data-life-choice="dream" data-value="none">Don't remember</button>
+                </div>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title"><strong>Cycle</strong><small>Optional. Leave blank if you do not track this.</small></div>
+                <div class="life-choice-row" id="lifeCycleChoices">
+                  <button type="button" data-life-choice="cycle" data-value="none">None</button>
+                  <button type="button" data-life-choice="cycle" data-value="spotting">Spotting</button>
+                  <button type="button" data-life-choice="cycle" data-value="light">Light</button>
+                  <button type="button" data-life-choice="cycle" data-value="regular">Regular</button>
+                  <button type="button" data-life-choice="cycle" data-value="heavy">Heavy</button>
+                </div>
+              </div>
+
+              <div class="life-question">
+                <div class="life-question-title life-habit-heading"><div><strong>Adulting & habits</strong><small>Tap everything you did today.</small></div><button type="button" id="lifeManageHabitsButton">Edit habits</button></div>
+                <div class="life-habit-grid" id="lifeHabitGrid"></div>
+              </div>
+
+              <label class="life-question life-text-question"><span><strong>Gratitude ♡</strong><small>One thing you appreciated today.</small></span><input id="lifeGratitude" maxlength="220" placeholder="I'm grateful for…" /></label>
+              <label class="life-question life-text-question"><span><strong>Something I learned</strong><small>Big or tiny.</small></span><input id="lifeLearned" maxlength="220" placeholder="Today I learned…" /></label>
+              <label class="life-question life-text-question"><span><strong>Song of the day 🎧</strong><small>The soundtrack of today.</small></span><input id="lifeSong" maxlength="160" placeholder="Song — Artist" /></label>
+              <label class="life-question life-text-question"><span><strong>Little note</strong><small>Anything else you want tucked into today.</small></span><textarea id="lifeNote" maxlength="1200" rows="4" placeholder="Today felt like…"></textarea></label>
+
+              <button class="primary-btn life-complete-button" type="submit">Complete Today ♡</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="life-panel" id="lifeTrackersPanel">
+          <div class="tracker-toolbar">
+            <button type="button" id="lifeTrackerPrevYear">‹</button>
+            <strong id="lifeTrackerYear">2026</strong>
+            <button type="button" id="lifeTrackerNextYear">›</button>
+          </div>
+          <label class="tracker-metric-select">Show me
+            <select id="lifeTrackerMetric">
+              <option value="rating">Day rating</option>
+              <option value="mood">Mood</option>
+              <option value="sleep">Sleep</option>
+              <option value="energy">Energy</option>
+              <option value="stress">Stress</option>
+              <option value="reading">Reading</option>
+              <option value="movement">Movement</option>
+              <option value="weather">Weather</option>
+              <option value="dream">Dreams</option>
+              <option value="cycle">Cycle</option>
+            </select>
+          </label>
+          <div class="year-tracker-card">
+            <div class="year-tracker-scroll"><div class="year-tracker-grid" id="lifeYearTracker"></div></div>
+            <div class="year-tracker-legend" id="lifeTrackerLegend"></div>
+          </div>
+          <div class="life-history-list" id="lifeHistoryList"></div>
+        </section>
+
+        <section class="life-panel" id="lifeCollectionsPanel">
+          <div class="collection-category-row" id="lifeCollectionCategories">
+            <button class="active" type="button" data-collection-category="cup">☕ Fill My Cup</button>
+            <button type="button" data-collection-category="wishlist">☆ Wishlist</button>
+            <button type="button" data-collection-category="playlist">♫ Playlist</button>
+            <button type="button" data-collection-category="watched">▣ Watched</button>
+            <button type="button" data-collection-category="reminder">✉ Reminders</button>
+          </div>
+
+          <form class="life-collection-form" id="lifeCollectionForm">
+            <input id="lifeCollectionTitle" maxlength="140" placeholder="Add something…" required />
+            <input id="lifeCollectionNote" maxlength="220" placeholder="Optional note" />
+            <div class="life-collection-extra">
+              <label id="lifeCollectionRatingWrap" class="hidden">Rating
+                <select id="lifeCollectionRating"><option value="">—</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select>
+              </label>
+              <button class="primary-btn" type="submit">Add</button>
+            </div>
+          </form>
+          <div class="life-collection-list" id="lifeCollectionList"></div>
+        </section>
       </section>
 
       <section class="view" id="entriesView">
@@ -1106,6 +1268,51 @@
           </div>
 
           <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
+        </div>
+
+        <div class="notification-settings-card">
+          <div class="notification-settings-heading">
+            <div>
+              <p class="eyebrow">Gentle Reminders</p>
+              <h3>Come back to Fuwa</h3>
+            </div>
+            <span class="notification-status-badge" id="notificationPermissionBadge">Not enabled</span>
+          </div>
+
+          <p class="muted notification-settings-copy">Choose when Fuwa should gently nudge you to finish your Daily Life Pages. Notification permission and testing work now; reliable closed-app scheduling can be connected later.</p>
+
+          <div class="notification-setting-row">
+            <div>
+              <strong>Daily Fuwa reminder</strong>
+              <small id="notificationSupportNote">Checking this device…</small>
+            </div>
+            <label class="fuwa-switch">
+              <input id="dailyReminderToggle" type="checkbox" />
+              <span></span>
+            </label>
+          </div>
+
+          <label class="notification-time-row">
+            <span>Reminder time</span>
+            <input id="dailyReminderTime" type="time" value="20:00" />
+          </label>
+
+          <label class="notification-style-row">
+            <span>Reminder style</span>
+            <select id="dailyReminderStyle">
+              <option value="rotate">Rotate gentle messages</option>
+              <option value="checkin">How was your day?</option>
+              <option value="remember">Anything to remember?</option>
+              <option value="soft">A little moment for yourself</option>
+            </select>
+          </label>
+
+          <div class="notification-action-row">
+            <button class="primary-btn" id="enableNotificationsButton" type="button">Enable Notifications</button>
+            <button class="secondary-btn" id="testNotificationButton" type="button">Send Test</button>
+          </div>
+
+          <small class="notification-footnote">On iPhone, Fuwa must be installed to the Home Screen for web push. The free client-only build cannot reliably wake itself at a chosen time while closed, so the daily schedule is saved now and will become active when we connect a push sender.</small>
         </div>
 
         <div class="cloud-backup-card">

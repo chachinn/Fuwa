@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -22,6 +22,9 @@ const defaultState = {
   unsentLetters: [],
   thoughtBubbles: [],
   dreams: [],
+  dailyCheckins: [],
+  lifeCollections: [],
+  habitDefinitions: [],
   selectedMood: "good",
   theme: "pink",
   wallpaperEnabled: false,
@@ -52,6 +55,203 @@ let moodJarPhysicsFrame = null;
 let moodJarOrientationBound = false;
 let moodJarOrientationPermissionRequested = false;
 let moodJarGravity = { x: 0, y: 0.78 };
+
+const FUWA_NOTIFICATION_PREFS_KEY = "fuwaNotificationPreferencesV1";
+
+const defaultNotificationPreferences = {
+  enabled: false,
+  time: "20:00",
+  style: "rotate"
+};
+
+let notificationPreferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FUWA_NOTIFICATION_PREFS_KEY) || "{}");
+    return {
+      enabled: typeof saved.enabled === "boolean" ? saved.enabled : false,
+      time: /^\d{2}:\d{2}$/.test(saved.time || "") ? saved.time : "20:00",
+      style: ["rotate","checkin","remember","soft"].includes(saved.style) ? saved.style : "rotate"
+    };
+  } catch (_) {
+    return { ...defaultNotificationPreferences };
+  }
+})();
+
+function saveNotificationPreferences() {
+  try {
+    localStorage.setItem(FUWA_NOTIFICATION_PREFS_KEY, JSON.stringify(notificationPreferences));
+  } catch (error) {
+    console.warn("Fuwa could not save notification preferences.", error);
+  }
+}
+
+function isStandalonePWA() {
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+}
+
+function notificationSupported() {
+  return "Notification" in window && "serviceWorker" in navigator;
+}
+
+function reminderCopy(style = notificationPreferences.style) {
+  const rotating = [
+    { title: "How was your day? 🌙", body: "Your Daily Life Pages are waiting in Fuwa." },
+    { title: "One tiny check-in 🌷", body: "A minute is enough to tuck today into Fuwa." },
+    { title: "Your day is waiting ☁️", body: "Finish today’s mood, habits, sleep, and little highlight." },
+    { title: "Before the day slips away", body: "Keep one small piece of today." }
+  ];
+
+  if (style === "checkin") return { title: "Fuwa is here ☁️", body: "How was your day?" };
+  if (style === "remember") return { title: "Anything to remember? 🌷", body: "Keep one small piece of today in Fuwa." };
+  if (style === "soft") return { title: "A little moment for yourself ☁️", body: "Your soft little diary is waiting." };
+
+  return rotating[new Date().getDate() % rotating.length];
+}
+
+async function showFuwaNotification({ test = false } = {}) {
+  if (!notificationSupported()) throw new Error("notifications-unsupported");
+  if (Notification.permission !== "granted") throw new Error("notifications-not-granted");
+
+  const registration = await navigator.serviceWorker.ready;
+  const copy = reminderCopy();
+
+  await registration.showNotification(
+    test ? "Fuwa notification test ☁️" : copy.title,
+    {
+      body: test ? "Notifications are working on this device." : copy.body,
+      icon: "./icon/icon-192.png",
+      badge: "./icon/favicon-32.png",
+      tag: test ? "fuwa-test-notification" : "fuwa-daily-reminder",
+      renotify: false,
+      data: { url: "./?view=life" }
+    }
+  );
+}
+
+function refreshNotificationSettingsUI() {
+  const supported = notificationSupported();
+  const permission = supported ? Notification.permission : "unsupported";
+  const standalone = isStandalonePWA();
+
+  const badge = $("notificationPermissionBadge");
+  const note = $("notificationSupportNote");
+  const toggle = $("dailyReminderToggle");
+  const time = $("dailyReminderTime");
+  const style = $("dailyReminderStyle");
+  const enable = $("enableNotificationsButton");
+  const test = $("testNotificationButton");
+
+  if (toggle) toggle.checked = !!notificationPreferences.enabled;
+  if (time) time.value = notificationPreferences.time;
+  if (style) style.value = notificationPreferences.style;
+
+  if (!supported) {
+    if (badge) badge.textContent = "Unavailable";
+    if (note) note.textContent = "This browser does not support web notifications.";
+    if (enable) enable.disabled = true;
+    if (test) test.disabled = true;
+    if (toggle) toggle.disabled = true;
+    return;
+  }
+
+  if (badge) {
+    badge.textContent = permission === "granted" ? "Allowed ✓" : permission === "denied" ? "Blocked" : "Not enabled";
+  }
+
+  if (note) {
+    if (!standalone && /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      note.textContent = "Install Fuwa to your Home Screen first.";
+    } else if (permission === "granted") {
+      note.textContent = "Permission is ready. Daily scheduling still needs push delivery.";
+    } else if (permission === "denied") {
+      note.textContent = "Notifications are blocked in iPhone settings.";
+    } else {
+      note.textContent = "Tap Enable Notifications when you're ready.";
+    }
+  }
+
+  if (enable) {
+    enable.disabled = permission === "granted";
+    enable.textContent = permission === "granted" ? "Notifications Enabled" : "Enable Notifications";
+  }
+
+  if (test) test.disabled = permission !== "granted";
+}
+
+async function enableFuwaNotifications() {
+  if (!notificationSupported()) {
+    toast("Notifications aren't supported on this device.");
+    return;
+  }
+
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent) && !isStandalonePWA()) {
+    window.alert("On iPhone, install Fuwa to your Home Screen first. Then open the installed Fuwa app and enable notifications from Me.");
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      notificationPreferences.enabled = true;
+      saveNotificationPreferences();
+      toast("Fuwa notifications are enabled ☁️");
+    } else if (permission === "denied") {
+      notificationPreferences.enabled = false;
+      saveNotificationPreferences();
+      toast("Notifications are blocked for Fuwa.");
+    }
+    refreshNotificationSettingsUI();
+  } catch (error) {
+    console.error("Fuwa notification permission failed.", error);
+    toast("Fuwa couldn't enable notifications.");
+  }
+}
+
+async function sendFuwaTestNotification() {
+  try {
+    await showFuwaNotification({ test: true });
+    toast("Test notification sent ☁️");
+  } catch (error) {
+    console.error("Fuwa test notification failed.", error);
+    toast("Enable notifications first.");
+    refreshNotificationSettingsUI();
+  }
+}
+
+function bindNotificationSettings() {
+  refreshNotificationSettingsUI();
+
+  $("enableNotificationsButton")?.addEventListener("click", enableFuwaNotifications);
+  $("testNotificationButton")?.addEventListener("click", sendFuwaTestNotification);
+
+  $("dailyReminderToggle")?.addEventListener("change", event => {
+    notificationPreferences.enabled = !!event.target.checked;
+    saveNotificationPreferences();
+
+    if (notificationPreferences.enabled && Notification.permission !== "granted") {
+      enableFuwaNotifications();
+    } else {
+      refreshNotificationSettingsUI();
+    }
+  });
+
+  $("dailyReminderTime")?.addEventListener("change", event => {
+    if (/^\d{2}:\d{2}$/.test(event.target.value)) {
+      notificationPreferences.time = event.target.value;
+      saveNotificationPreferences();
+      toast(`Reminder preference saved for ${event.target.value}.`);
+    }
+  });
+
+  $("dailyReminderStyle")?.addEventListener("change", event => {
+    notificationPreferences.style = event.target.value;
+    saveNotificationPreferences();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshNotificationSettingsUI();
+  });
+}
 
 const SANCTUARY_PREFS_KEY = "fuwaSanctuaryPreferencesV2";
 const defaultSanctuaryPreferences = { theme: "rose", visibleObjects: ["lamp","plant","books","stars","cushion","tea","garland","frame"] };
@@ -249,7 +449,7 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
       this.getAll("threads"),
@@ -259,13 +459,16 @@ const diaryRepository = {
       this.getAll("comfortItems"),
       this.getAll("unsentLetters"),
       this.getAll("thoughtBubbles"),
-      this.getAll("dreams")
+      this.getAll("dreams"),
+      this.getAll("dailyCheckins"),
+      this.getAll("lifeCollections"),
+      this.getAll("habitDefinitions")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -288,7 +491,7 @@ const diaryRepository = {
     nightlyStore.clear();
     (data.nightlyReflections || []).forEach(record => nightlyStore.put(record));
 
-    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"].forEach(storeName => {
+    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"].forEach(storeName => {
       const store = transaction.objectStore(storeName);
       store.clear();
       (data[storeName] || []).forEach(record => store.put(record));
@@ -314,7 +517,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -3744,6 +3947,7 @@ function navigate(view) {
     button.classList.toggle("active", button.dataset.nav === view);
   });
 
+  if (view === "life") renderLifePages();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -4216,6 +4420,305 @@ function renderLetters() {
   bindSwipeActions(container);
 }
 
+
+const LIFE_DEFAULT_HABITS = ["Made bed","Vitamins","Sunscreen","Flossed","Dishes","Read","Outside","Meditated"];
+let lifeActiveTab = "today";
+let lifeTrackerYear = new Date().getFullYear();
+let lifeTrackerMetric = "rating";
+let lifeCollectionCategory = "cup";
+let lifeDraft = { rating: 0, mood: "", movement: "", weather: "", dream: "", cycle: "", habits: {} };
+
+function ensureLifeHabits() {
+  if (state.habitDefinitions.length) return;
+  state.habitDefinitions = LIFE_DEFAULT_HABITS.map((name, index) => ({
+    id: `habit_${index+1}`,
+    name,
+    active: true,
+    createdAt: Date.now() + index
+  }));
+  Promise.all(state.habitDefinitions.map(record => diaryRepository.save("habitDefinitions", record))).catch(error => {
+    console.error("Could not seed Fuwa habits.", error);
+  });
+}
+
+function lifeTodayRecord() {
+  return state.dailyCheckins.find(record => record.date === isoToday()) || null;
+}
+
+function lifeSetChoice(group, value) {
+  lifeDraft[group] = value;
+  document.querySelectorAll(`[data-life-choice="${group}"]`).forEach(button => {
+    button.classList.toggle("selected", button.dataset.value === value);
+  });
+}
+
+function loadLifeTodayForm() {
+  ensureLifeHabits();
+  const record = lifeTodayRecord();
+  lifeDraft = {
+    rating: Number(record?.rating || 0),
+    mood: record?.mood || "",
+    movement: record?.movement || "",
+    weather: record?.weather || "",
+    dream: record?.dream || "",
+    cycle: record?.cycle || "",
+    habits: { ...(record?.habits || {}) }
+  };
+
+  $("lifeTodayDateLabel").textContent = new Intl.DateTimeFormat("en-US",{weekday:"long",month:"long",day:"numeric"}).format(new Date());
+  $("lifeSaveStatus").textContent = record ? "Saved ✓" : "Not checked in";
+
+  $("lifeHighlight").value = record?.highlight || "";
+  $("lifeSleepHours").value = record?.sleepHours ?? "";
+  $("lifeEnergy").value = record?.energy ?? "";
+  $("lifeStress").value = record?.stress ?? "";
+  $("lifeSocial").value = record?.social ?? "";
+  $("lifeWater").value = record?.water ?? "";
+  $("lifeReadingPages").value = record?.readingPages ?? "";
+  $("lifeTemperature").value = record?.temperature ?? "";
+  $("lifeGratitude").value = record?.gratitude || "";
+  $("lifeLearned").value = record?.learned || "";
+  $("lifeSong").value = record?.song || "";
+  $("lifeNote").value = record?.note || "";
+
+  document.querySelectorAll("#lifeDayRating button").forEach(button => {
+    const active = Number(button.dataset.rating) <= lifeDraft.rating;
+    button.classList.toggle("selected", active);
+    button.textContent = active ? "★" : "☆";
+  });
+  document.querySelectorAll("#lifeMoodPicker button").forEach(button => {
+    button.classList.toggle("selected", button.dataset.lifeMood === lifeDraft.mood);
+  });
+  ["movement","weather","dream","cycle"].forEach(group => lifeSetChoice(group, lifeDraft[group] || ""));
+
+  renderLifeHabits();
+}
+
+function renderLifeHabits() {
+  const host = $("lifeHabitGrid");
+  if (!host) return;
+  const habits = state.habitDefinitions.filter(h => h.active !== false).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  host.innerHTML = habits.map(habit => `
+    <button type="button" class="${lifeDraft.habits?.[habit.id] ? "done" : ""}" data-life-habit="${escapeHtml(habit.id)}">
+      <span>${lifeDraft.habits?.[habit.id] ? "✓" : "○"}</span><strong>${escapeHtml(habit.name)}</strong>
+    </button>`).join("");
+  host.querySelectorAll("[data-life-habit]").forEach(button => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.lifeHabit;
+      lifeDraft.habits[id] = !lifeDraft.habits[id];
+      renderLifeHabits();
+    });
+  });
+}
+
+async function manageLifeHabits() {
+  const current = state.habitDefinitions.filter(h=>h.active!==false).map(h=>h.name).join(", ");
+  const value = window.prompt("Your daily habits — separate each with a comma.", current);
+  if (value === null) return;
+  const names = value.split(",").map(v=>v.trim()).filter(Boolean).slice(0,12);
+  if (!names.length) return toast("Keep at least one habit.");
+
+  const existingByName = new Map(state.habitDefinitions.map(h=>[h.name.toLowerCase(),h]));
+  const next = names.map((name,index)=>{
+    const existing = existingByName.get(name.toLowerCase());
+    return existing ? {...existing,name,active:true,updatedAt:Date.now()} : {id:uid("habit"),name,active:true,createdAt:Date.now()+index};
+  });
+  const keepIds = new Set(next.map(h=>h.id));
+  const removed = state.habitDefinitions.filter(h=>!keepIds.has(h.id)).map(h=>({...h,active:false,updatedAt:Date.now()}));
+  const all = [...next, ...removed];
+  await Promise.all(all.map(record=>diaryRepository.save("habitDefinitions",record)));
+  state.habitDefinitions = all;
+  renderLifeHabits();
+  toast("Habits updated ♡");
+}
+
+async function saveLifeToday(event) {
+  event.preventDefault();
+  const existing = lifeTodayRecord();
+  const record = {
+    id: existing?.id || `daily_${isoToday()}`,
+    date: isoToday(),
+    rating: Number(lifeDraft.rating || 0),
+    mood: lifeDraft.mood || "",
+    highlight: $("lifeHighlight").value.trim(),
+    sleepHours: $("lifeSleepHours").value === "" ? null : Number($("lifeSleepHours").value),
+    energy: $("lifeEnergy").value === "" ? null : Number($("lifeEnergy").value),
+    stress: $("lifeStress").value === "" ? null : Number($("lifeStress").value),
+    social: $("lifeSocial").value === "" ? null : Number($("lifeSocial").value),
+    water: $("lifeWater").value === "" ? null : Number($("lifeWater").value),
+    readingPages: $("lifeReadingPages").value === "" ? null : Number($("lifeReadingPages").value),
+    movement: lifeDraft.movement || "",
+    weather: lifeDraft.weather || "",
+    temperature: $("lifeTemperature").value === "" ? null : Number($("lifeTemperature").value),
+    dream: lifeDraft.dream || "",
+    cycle: lifeDraft.cycle || "",
+    habits: { ...lifeDraft.habits },
+    gratitude: $("lifeGratitude").value.trim(),
+    learned: $("lifeLearned").value.trim(),
+    song: $("lifeSong").value.trim(),
+    note: $("lifeNote").value.trim(),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+  await diaryRepository.save("dailyCheckins", record);
+  state.dailyCheckins = existing ? state.dailyCheckins.map(x=>x.id===record.id?record:x) : [...state.dailyCheckins,record];
+  $("lifeSaveStatus").textContent = "Saved ✓";
+  renderLifeTracker();
+  renderLifeHistory();
+  toast("Today is tucked into Fuwa ♡");
+}
+
+function lifeMetricValue(record, metric) {
+  if (metric === "rating") return record.rating || null;
+  if (metric === "mood") return ({amazing:5,good:4,neutral:3,tired:2,sad:1,angry:1})[record.mood] || null;
+  if (metric === "sleep") return record.sleepHours ?? null;
+  if (metric === "energy") return record.energy ?? null;
+  if (metric === "stress") return record.stress ?? null;
+  if (metric === "reading") return record.readingPages ?? null;
+  if (metric === "movement") return record.movement ? ({none:1,walk:2,yoga:3,cardio:4,strength:5})[record.movement] || 2 : null;
+  if (metric === "weather") return record.weather ? ({rainy:1,cloudy:2,partly:3,sunny:4})[record.weather] || 2 : null;
+  if (metric === "dream") return record.dream ? ({none:1,scary:2,sad:2,weird:3,happy:5})[record.dream] || 3 : null;
+  if (metric === "cycle") return record.cycle ? ({none:1,spotting:2,light:3,regular:4,heavy:5})[record.cycle] || 1 : null;
+  return null;
+}
+
+function lifeMetricLevel(metric, value) {
+  if (value == null || value === "") return 0;
+  if (metric === "sleep") return value >= 8 ? 5 : value >= 7 ? 4 : value >= 6 ? 3 : value >= 5 ? 2 : 1;
+  if (metric === "reading") return value >= 80 ? 5 : value >= 50 ? 4 : value >= 20 ? 3 : value > 0 ? 2 : 1;
+  return Math.max(1, Math.min(5, Math.round(Number(value))));
+}
+
+function renderLifeTracker() {
+  const host = $("lifeYearTracker");
+  if (!host) return;
+  $("lifeTrackerYear").textContent = lifeTrackerYear;
+  const records = new Map(state.dailyCheckins.filter(r=>String(r.date).startsWith(`${lifeTrackerYear}-`)).map(r=>[r.date,r]));
+  const months = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+  let html = `<div class="tracker-corner"></div>${months.map(m=>`<div class="tracker-month-label">${m}</div>`).join("")}`;
+  for (let day=1; day<=31; day++) {
+    html += `<div class="tracker-day-label">${day}</div>`;
+    for (let month=1; month<=12; month++) {
+      const maxDay = new Date(lifeTrackerYear, month, 0).getDate();
+      if (day > maxDay) { html += `<div class="tracker-cell invalid"></div>`; continue; }
+      const date = `${lifeTrackerYear}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const record = records.get(date);
+      const value = record ? lifeMetricValue(record, lifeTrackerMetric) : null;
+      const level = lifeMetricLevel(lifeTrackerMetric, value);
+      html += `<button type="button" class="tracker-cell level-${level}" data-life-history-date="${date}" aria-label="${date}${value!=null?`: ${value}`:""}"></button>`;
+    }
+  }
+  host.innerHTML = html;
+  host.querySelectorAll("[data-life-history-date]").forEach(button=>button.addEventListener("click",()=>showLifeHistoryDate(button.dataset.lifeHistoryDate)));
+  renderLifeTrackerLegend();
+}
+
+function renderLifeTrackerLegend() {
+  const labels = {
+    rating:["No entry","1","2","3","4","5"],
+    mood:["No entry","Heavy","Low","Okay","Good","Amazing"],
+    sleep:["No entry","<5h","5–6h","6–7h","7–8h","8h+"],
+    energy:["No entry","Very low","Low","Okay","Good","High"],
+    stress:["No entry","Peaceful","Low","Moderate","High","Overwhelmed"],
+    reading:["No entry","0","1–19","20–49","50–79","80+"],
+    movement:["No entry","Rest","Walk","Yoga","Cardio","Strength"],
+    weather:["No entry","Rain","Cloud","Partly","Sunny","Sunny"],
+    dream:["No entry","No dream","Heavy","Weird","Good","Happy"],
+    cycle:["No entry","None","Spotting","Light","Regular","Heavy"]
+  }[lifeTrackerMetric] || [];
+  $("lifeTrackerLegend").innerHTML = labels.map((label,index)=>`<span><i class="level-${index}"></i>${label}</span>`).join("");
+}
+
+function showLifeHistoryDate(date) {
+  const record = state.dailyCheckins.find(r=>r.date===date);
+  if (!record) return;
+  const item = $("lifeHistoryList");
+  item.innerHTML = `<article class="life-history-card"><span>${escapeHtml(formatDate(date))}</span><strong>${record.highlight?escapeHtml(record.highlight):"A daily check-in"}</strong><p>${escapeHtml(record.note||record.gratitude||record.learned||"")}</p><small>${record.rating?`${"★".repeat(record.rating)} `:""}${record.mood?moodLabels[record.mood]||record.mood:""}</small></article>`;
+  item.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+
+function renderLifeHistory() {
+  const host = $("lifeHistoryList");
+  if (!host) return;
+  const items = [...state.dailyCheckins].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,8);
+  host.innerHTML = items.length ? items.map(record=>`<article class="life-history-card"><span>${escapeHtml(formatDate(record.date))}</span><strong>${escapeHtml(record.highlight||"Daily check-in")}</strong><p>${escapeHtml(record.gratitude||record.note||"")}</p><small>${record.rating?`${"★".repeat(record.rating)} `:""}${record.mood?moodLabels[record.mood]||record.mood:""}</small></article>`).join("") : `<div class="empty-state">Your tracker starts with your first Daily Life check-in.</div>`;
+}
+
+function lifeCollectionCategoryLabel(category) {
+  return ({cup:"Fill My Cup",wishlist:"Wishlist",playlist:"Playlist",watched:"Shows & Movies",reminder:"Reminders"})[category] || "Collection";
+}
+
+function renderLifeCollections() {
+  const host = $("lifeCollectionList");
+  if (!host) return;
+  const items = state.lifeCollections.filter(item=>item.category===lifeCollectionCategory).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  $("lifeCollectionRatingWrap").classList.toggle("hidden", lifeCollectionCategory !== "watched");
+  host.innerHTML = items.length ? items.map(item=>`
+    <article class="life-collection-item">
+      <div><span>${escapeHtml(lifeCollectionCategoryLabel(item.category))}</span><strong>${escapeHtml(item.title)}</strong>${item.note?`<p>${escapeHtml(item.note)}</p>`:""}${item.rating?`<small>${"★".repeat(Number(item.rating))}</small>`:""}</div>
+      <button type="button" data-life-collection-delete="${escapeHtml(item.id)}" aria-label="Delete">×</button>
+    </article>`).join("") : `<div class="empty-state">Nothing here yet. Add the first little thing.</div>`;
+  host.querySelectorAll("[data-life-collection-delete]").forEach(button=>button.addEventListener("click",async()=>{
+    if(!confirm("Remove this item?")) return;
+    await diaryRepository.remove("lifeCollections",button.dataset.lifeCollectionDelete);
+    state.lifeCollections=state.lifeCollections.filter(x=>x.id!==button.dataset.lifeCollectionDelete);
+    renderLifeCollections();
+  }));
+}
+
+async function saveLifeCollection(event) {
+  event.preventDefault();
+  const title=$("lifeCollectionTitle").value.trim();
+  if(!title) return;
+  const record={id:uid("collection"),category:lifeCollectionCategory,title,note:$("lifeCollectionNote").value.trim(),rating:lifeCollectionCategory==="watched"?Number($("lifeCollectionRating").value||0):0,createdAt:Date.now(),updatedAt:Date.now()};
+  await diaryRepository.save("lifeCollections",record);
+  state.lifeCollections.push(record);
+  event.target.reset();
+  renderLifeCollections();
+  toast("Added to your Fuwa pages ♡");
+}
+
+function setLifeTab(tab) {
+  lifeActiveTab=tab;
+  document.querySelectorAll("[data-life-tab]").forEach(button=>button.classList.toggle("active",button.dataset.lifeTab===tab));
+  $("lifeTodayPanel").classList.toggle("active",tab==="today");
+  $("lifeTrackersPanel").classList.toggle("active",tab==="trackers");
+  $("lifeCollectionsPanel").classList.toggle("active",tab==="collections");
+  if(tab==="today") loadLifeTodayForm();
+  if(tab==="trackers"){ renderLifeTracker(); renderLifeHistory(); }
+  if(tab==="collections") renderLifeCollections();
+}
+
+function renderLifePages() {
+  if (!$("lifeView")) return;
+  if (currentView === "life") setLifeTab(lifeActiveTab);
+}
+
+function bindLifePages() {
+  document.querySelectorAll("[data-life-tab]").forEach(button=>button.addEventListener("click",()=>setLifeTab(button.dataset.lifeTab)));
+  document.querySelectorAll("#lifeDayRating button").forEach(button=>button.addEventListener("click",()=>{
+    lifeDraft.rating=Number(button.dataset.rating);
+    document.querySelectorAll("#lifeDayRating button").forEach(b=>{const active=Number(b.dataset.rating)<=lifeDraft.rating;b.classList.toggle("selected",active);b.textContent=active?"★":"☆";});
+  }));
+  document.querySelectorAll("#lifeMoodPicker button").forEach(button=>button.addEventListener("click",()=>{
+    lifeDraft.mood=button.dataset.lifeMood;
+    document.querySelectorAll("#lifeMoodPicker button").forEach(b=>b.classList.toggle("selected",b===button));
+  }));
+  document.querySelectorAll("[data-life-choice]").forEach(button=>button.addEventListener("click",()=>lifeSetChoice(button.dataset.lifeChoice,button.dataset.value)));
+  $("lifeManageHabitsButton")?.addEventListener("click",manageLifeHabits);
+  $("lifeDailyForm")?.addEventListener("submit",saveLifeToday);
+  $("lifeTrackerMetric")?.addEventListener("change",event=>{lifeTrackerMetric=event.target.value;renderLifeTracker();});
+  $("lifeTrackerPrevYear")?.addEventListener("click",()=>{lifeTrackerYear--;renderLifeTracker();});
+  $("lifeTrackerNextYear")?.addEventListener("click",()=>{lifeTrackerYear++;renderLifeTracker();});
+  $("lifeCollectionCategories")?.querySelectorAll("[data-collection-category]").forEach(button=>button.addEventListener("click",()=>{
+    lifeCollectionCategory=button.dataset.collectionCategory;
+    document.querySelectorAll("[data-collection-category]").forEach(b=>b.classList.toggle("active",b===button));
+    renderLifeCollections();
+  }));
+  $("lifeCollectionForm")?.addEventListener("submit",saveLifeCollection);
+  loadLifeTodayForm();
+}
+
 function renderStats() {
   $("entryCount").textContent = state.entries.length;
   $("joyCount").textContent = state.tinyJoys.length;
@@ -4247,6 +4750,7 @@ function renderAll() {
   renderEntries($("entrySearch")?.value || "");
   renderTinyJoys();
   renderLetters();
+  renderLifePages();
   renderStats();
   applyTheme();
 }
@@ -4443,7 +4947,10 @@ function cloudBackupRecordCount(data) {
     "comfortItems",
     "unsentLetters",
     "thoughtBubbles",
-    "dreams"
+    "dreams",
+    "dailyCheckins",
+    "lifeCollections",
+    "habitDefinitions"
   ].reduce((total, storeName) => total + (Array.isArray(data?.[storeName]) ? data[storeName].length : 0), 0);
 }
 
@@ -4461,6 +4968,9 @@ async function createCloudBackupPayload() {
   validateSimpleStore(currentData.unsentLetters, "unsentLetters");
   validateSimpleStore(currentData.thoughtBubbles, "thoughtBubbles");
   validateSimpleStore(currentData.dreams, "dreams");
+  validateSimpleStore(currentData.dailyCheckins, "dailyCheckins");
+  validateSimpleStore(currentData.lifeCollections, "lifeCollections");
+  validateSimpleStore(currentData.habitDefinitions, "habitDefinitions");
 
   const data = {
     ...currentData,
@@ -4605,7 +5115,7 @@ function restoredRecordCount(data) {
   return [
     "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
     "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
-    "thoughtBubbles", "dreams"
+    "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"
   ].reduce((total, key) => total + (Array.isArray(data?.[key]) ? data[key].length : 0), 0);
 }
 
@@ -4614,7 +5124,7 @@ async function verifyRestoredContent(expected) {
   const storeNames = [
     "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
     "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
-    "thoughtBubbles", "dreams"
+    "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"
   ];
 
   for (const storeName of storeNames) {
@@ -4657,6 +5167,9 @@ async function applyCloudRestorePayload(payload) {
   incoming.unsentLetters = validateSimpleStore(incoming.unsentLetters, "unsentLetters");
   incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
   incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
+  incoming.dailyCheckins = validateSimpleStore(incoming.dailyCheckins, "dailyCheckins");
+  incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
+  incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
 
   const existingMedia = await diaryRepository.readAllMedia();
 
@@ -4683,6 +5196,9 @@ async function applyCloudRestorePayload(payload) {
     unsentLetters: Array.isArray(incoming.unsentLetters) ? incoming.unsentLetters : [],
     thoughtBubbles: Array.isArray(incoming.thoughtBubbles) ? incoming.thoughtBubbles : [],
     dreams: Array.isArray(incoming.dreams) ? incoming.dreams : [],
+    dailyCheckins: Array.isArray(incoming.dailyCheckins) ? incoming.dailyCheckins : [],
+    lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
+    habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
     selectedMood: incoming.selectedMood || defaultState.selectedMood,
     theme: incoming.theme || defaultState.theme,
     wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
@@ -4738,6 +5254,9 @@ function importBackup(file) {
       incoming.unsentLetters = validateSimpleStore(incoming.unsentLetters, "unsentLetters");
       incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
       incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
+      incoming.dailyCheckins = validateSimpleStore(incoming.dailyCheckins, "dailyCheckins");
+      incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
+      incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -4764,6 +5283,9 @@ function importBackup(file) {
         unsentLetters: Array.isArray(incoming.unsentLetters) ? incoming.unsentLetters : [],
         thoughtBubbles: Array.isArray(incoming.thoughtBubbles) ? incoming.thoughtBubbles : [],
         dreams: Array.isArray(incoming.dreams) ? incoming.dreams : [],
+        dailyCheckins: Array.isArray(incoming.dailyCheckins) ? incoming.dailyCheckins : [],
+        lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
+        habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
@@ -4848,6 +5370,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     await diaryRepository.migrateLegacyData();
     await loadState();
     renderAll();
+    const requestedView = new URLSearchParams(window.location.search).get("view");
+    if (requestedView === "life") { navigate("life"); history.replaceState(null, "", window.location.pathname); }
     await applyWallpaper();
     renderSleepControls();
     await detectBiometricAvailability();
@@ -4943,6 +5467,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("unlockBiometricButton").addEventListener("click", tryBiometricUnlock);
 
   bindSanctuaryStaticControls();
+  bindNotificationSettings();
+  bindLifePages();
 
   $("featureCancelButton").addEventListener("click", closeFeatureModal);
   $("featureForm").addEventListener("submit", saveFeatureModal);
