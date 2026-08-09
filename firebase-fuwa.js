@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Backup/Restore — V29
+// Fuwa Firebase Authentication + Firestore Backup/Restore — V31
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -593,14 +593,10 @@ async function handleCloudRestoreConfirm() {
 
     closeCloudRestoreModal();
 
-    // Download only after the app restore has completed and been verified. This
-    // avoids iOS leaving Fuwa midway through the restore.
-    try {
-      window.fuwaDownloadRestoreSafetyBackup?.(safetyBackup);
-    } catch (downloadError) {
-      console.warn("Restore succeeded, but iOS did not save the optional safety file.", downloadError);
-    }
-
+    // The in-memory safety snapshot already protected this restore attempt.
+    // Do not auto-download it after success; on iPhone that opens a JSON preview
+    // and interrupts the Fuwa experience. Users can still export a local backup
+    // manually from Me whenever they want a file copy.
     window.alert(`Fuwa restored ${result.recordCount} cloud records successfully. ☁️`);
     window.setTimeout(() => window.location.reload(), 250);
   } catch (error) {
