@@ -6499,3 +6499,72 @@ body.drawer-open .bottom-nav{pointer-events:none}
     transition-duration: .01ms;
   }
 }
+
+
+/* =========================================================
+   FUWA V33 — SWIPE ACTION VISIBILITY FIX
+   Actions are fully hidden at rest and only appear while swiping/open.
+   ========================================================= */
+
+.fuwa-swipe-row {
+  background: transparent;
+}
+
+.fuwa-swipe-content {
+  z-index: 3;
+  background: var(--surface-solid, #fffdfc);
+  border-radius: inherit;
+}
+
+.fuwa-swipe-content > * {
+  width: 100%;
+  box-sizing: border-box;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.fuwa-swipe-actions {
+  z-index: 1;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .12s ease;
+}
+
+.fuwa-swipe-row.is-swiping .fuwa-swipe-actions,
+.fuwa-swipe-row.is-open-left .fuwa-swipe-actions-right,
+.fuwa-swipe-row.is-open-right .fuwa-swipe-actions-left {
+  opacity: 1;
+  visibility: visible;
+}
+
+.fuwa-swipe-row.is-open-left .fuwa-swipe-actions-right,
+.fuwa-swipe-row.is-open-right .fuwa-swipe-actions-left {
+  pointer-events: auto;
+}
+
+/* Only show the action that corresponds to the swipe direction. */
+.fuwa-swipe-row.is-open-left .fuwa-swipe-actions-left,
+.fuwa-swipe-row.is-open-right .fuwa-swipe-actions-right {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Ensure rounded cards fully cover the hidden action layer at rest. */
+.fuwa-swipe-row .entry-card,
+.fuwa-swipe-row .letter-card,
+.fuwa-swipe-row .feature-card,
+.fuwa-swipe-row .thread-card,
+.fuwa-swipe-row .bookmark-card,
+.fuwa-swipe-row .nightly-history-card,
+.fuwa-swipe-row .joy-item,
+.fuwa-swipe-row .thought-bubble {
+  width: 100%;
+  margin: 0;
+}
+
+/* Keep action text crisp but subtle. */
+.fuwa-swipe-action {
+  opacity: 1;
+}

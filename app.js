@@ -1684,10 +1684,12 @@ function bindSwipeActions(container) {
         if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
         if (Math.abs(dy) > Math.abs(dx)) {
           dragging = false;
+          row.classList.remove("is-swiping");
           resetInline();
           return;
         }
         horizontal = true;
+        row.classList.add("is-swiping");
       }
 
       deltaX = Math.max(-maxReveal, Math.min(maxReveal, dx));
@@ -1700,7 +1702,7 @@ function bindSwipeActions(container) {
       content.style.transition = "";
 
       const threshold = 42;
-      row.classList.remove("is-open-left", "is-open-right");
+      row.classList.remove("is-swiping", "is-open-left", "is-open-right");
 
       if (deltaX <= -threshold) {
         row.classList.add("is-open-left");
