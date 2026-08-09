@@ -82,6 +82,18 @@
           <div class="thread-preview-row" id="homeThreadPreview"></div>
         </section>
 
+
+        <section class="section-block" id="bookmarksHomeCard">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">For Future You</p>
+              <h3>Fuwa Bookmarks</h3>
+            </div>
+            <button class="text-btn" id="openBookmarksButton">View all</button>
+          </div>
+          <div id="homeBookmarkPreview"></div>
+        </section>
+
         <section class="section-block">
           <div class="section-heading">
             <div>
@@ -200,6 +212,24 @@
         <div class="thread-timeline" id="threadTimeline"></div>
       </section>
 
+
+      <section class="view" id="bookmarksView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Thoughts across time</p>
+            <h2>Fuwa Bookmarks</h2>
+          </div>
+          <div class="bookmark-page-icon" aria-hidden="true">🔖</div>
+        </div>
+        <p class="muted bookmark-intro">Tuck away a sentence from today. Fuwa will bring it back when Future You is ready to meet it.</p>
+        <div class="stack" id="bookmarksList"></div>
+      </section>
+
+      <section class="view" id="bookmarkDetailView">
+        <button class="text-btn thread-back" id="bookmarksBackButton">← All bookmarks</button>
+        <div id="bookmarkDetailContent"></div>
+      </section>
+
       <section class="view" id="entriesView">
         <div class="page-title-row">
           <div>
@@ -240,6 +270,19 @@
 
           <input id="entryTitle" class="title-input" maxlength="100" placeholder="Title your day…" required />
           <textarea id="entryBody" rows="12" placeholder="Write anything. This space is yours…" required></textarea>
+
+
+          <div class="editor-section bookmark-editor-section">
+            <div class="bookmark-editor-heading">
+              <div>
+                <label>Fuwa Bookmarks</label>
+                <small>Save a sentence and let Future You find it again.</small>
+              </div>
+              <button class="bookmark-add-btn" id="addBookmarkButton" type="button">🔖 Bookmark thought</button>
+            </div>
+            <div class="entry-bookmarks" id="entryBookmarks"></div>
+          </div>
+
 
 
           <div class="editor-section">
@@ -317,6 +360,7 @@
           <div class="stat-card"><strong id="entryCount">0</strong><span>Entries</span></div>
           <div class="stat-card"><strong id="joyCount">0</strong><span>Tiny Joys</span></div>
           <div class="stat-card"><strong id="letterCount">0</strong><span>Letters</span></div>
+          <div class="stat-card"><strong id="bookmarkCount">0</strong><span>Bookmarks</span></div>
         </div>
 
         <div class="settings-card">
@@ -340,6 +384,39 @@
   </div>
 
 
+
+
+  <div class="bookmark-composer hidden" id="bookmarkComposer" role="dialog" aria-modal="true" aria-labelledby="bookmarkComposerTitle">
+    <form class="bookmark-composer-sheet" id="bookmarkComposerForm">
+      <div class="bookmark-composer-top">
+        <button class="text-btn" id="cancelBookmarkComposer" type="button">Cancel</button>
+        <strong id="bookmarkComposerTitle">Place a Fuwa Bookmark</strong>
+        <button class="text-btn strong" type="submit">Save</button>
+      </div>
+      <div class="bookmark-ribbon-art" aria-hidden="true">🔖</div>
+      <label>
+        Thought to bring back
+        <textarea id="bookmarkQuoteInput" rows="4" maxlength="1000" placeholder="Select a sentence in your diary first, or type it here…"></textarea>
+      </label>
+      <label>
+        A note for Future You <span class="optional-label">optional</span>
+        <textarea id="bookmarkNoteInput" rows="3" maxlength="500" placeholder="Why does this matter right now?"></textarea>
+      </label>
+      <div class="bookmark-presets">
+        <span>Bring it back in</span>
+        <div>
+          <button type="button" data-bookmark-months="1">1 month</button>
+          <button type="button" data-bookmark-months="3">3 months</button>
+          <button type="button" data-bookmark-months="6">6 months</button>
+          <button type="button" data-bookmark-months="12">1 year</button>
+        </div>
+      </div>
+      <label>
+        Return date
+        <input id="bookmarkRevisitDate" type="date" required />
+      </label>
+    </form>
+  </div>
 
   <div class="thread-modal hidden" id="threadModal" role="dialog" aria-modal="true" aria-labelledby="threadModalTitle">
     <form class="thread-sheet" id="threadForm">

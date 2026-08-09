@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -15,6 +15,7 @@ const defaultState = {
   letters: [],
   moodCheckins: [],
   threads: [],
+  bookmarks: [],
   selectedMood: "good",
   theme: "pink"
 };
@@ -26,6 +27,8 @@ let removedMediaIds = new Set();
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let editingThreadId = null;
 let activeThreadId = null;
+let activeBookmarkId = null;
+let bookmarkEditorEntryId = null;
 
 // Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
 // in localStorage so the content database and display preferences stay separate.
@@ -86,6 +89,14 @@ const diaryRepository = {
       if (!mediaStore.indexNames.contains("entryId")) {
         mediaStore.createIndex("entryId", "entryId", { unique: false });
       }
+
+      const bookmarkStore = request.transaction.objectStore("bookmarks");
+      if (!bookmarkStore.indexNames.contains("entryId")) {
+        bookmarkStore.createIndex("entryId", "entryId", { unique: false });
+      }
+      if (!bookmarkStore.indexNames.contains("revisitDate")) {
+        bookmarkStore.createIndex("revisitDate", "revisitDate", { unique: false });
+      }
     };
     this.db = await requestResult(request);
   },
@@ -124,6 +135,16 @@ const diaryRepository = {
     return this.getAll("media");
   },
 
+  async getBookmarksForEntry(entryId) {
+    const transaction = this.db.transaction("bookmarks", "readonly");
+    const store = transaction.objectStore("bookmarks");
+    if (store.indexNames.contains("entryId")) {
+      return requestResult(store.index("entryId").getAll(entryId));
+    }
+    const all = await requestResult(store.getAll());
+    return all.filter(record => record.entryId === entryId);
+  },
+
   async saveEntryWithMedia(entry, newMediaRecords, removedIds) {
     const transaction = this.db.transaction(["entries", "media"], "readwrite");
     transaction.objectStore("entries").put(entry);
@@ -134,25 +155,31 @@ const diaryRepository = {
   },
 
   async deleteEntryWithMedia(entryId) {
-    const mediaRecords = await this.getMediaForEntry(entryId);
-    const transaction = this.db.transaction(["entries", "media"], "readwrite");
+    const [mediaRecords, bookmarkRecords] = await Promise.all([
+      this.getMediaForEntry(entryId),
+      this.getBookmarksForEntry(entryId)
+    ]);
+    const transaction = this.db.transaction(["entries", "media", "bookmarks"], "readwrite");
     transaction.objectStore("entries").delete(entryId);
     const mediaStore = transaction.objectStore("media");
     mediaRecords.forEach(record => mediaStore.delete(record.id));
+    const bookmarkStore = transaction.objectStore("bookmarks");
+    bookmarkRecords.forEach(record => bookmarkStore.delete(record.id));
     await transactionDone(transaction);
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
-      this.getAll("threads")
+      this.getAll("threads"),
+      this.getAll("bookmarks")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -168,6 +195,9 @@ const diaryRepository = {
     const threadStore = transaction.objectStore("threads");
     threadStore.clear();
     (data.threads || []).forEach(record => threadStore.put(record));
+    const bookmarkStore = transaction.objectStore("bookmarks");
+    bookmarkStore.clear();
+    (data.bookmarks || []).forEach(record => bookmarkStore.put(record));
     await transactionDone(transaction);
   },
 
@@ -175,7 +205,7 @@ const diaryRepository = {
     const transaction = this.db.transaction(["threads", "entries"], "readwrite");
     transaction.objectStore("threads").delete(threadId);
     const entryStore = transaction.objectStore("entries");
-    const entries = await requestToPromise(entryStore.getAll());
+    const entries = await requestResult(entryStore.getAll());
     entries.forEach(entry => {
       if (Array.isArray(entry.threadIds) && entry.threadIds.includes(threadId)) {
         entry.threadIds = entry.threadIds.filter(id => id !== threadId);
@@ -187,7 +217,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -454,6 +484,22 @@ function dataUrlToBlob(dataUrl) {
 
 
 
+
+function validateBookmarks(bookmarks) {
+  if (bookmarks === undefined) return [];
+  if (!Array.isArray(bookmarks)) throw new Error("bookmarks must be an array");
+  const ids = new Set();
+  bookmarks.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id || typeof record.entryId !== "string" || !record.entryId ||
+        typeof record.quote !== "string" || !record.quote.trim() || typeof record.revisitDate !== "string") {
+      throw new Error("bookmarks contains an invalid record");
+    }
+    if (ids.has(record.id)) throw new Error("bookmarks contains duplicate IDs");
+    ids.add(record.id);
+  });
+  return bookmarks;
+}
+
 function validateThreads(threads) {
   if (threads === undefined) return [];
   if (!Array.isArray(threads)) throw new Error("threads must be an array");
@@ -706,6 +752,344 @@ function threadChipsForEntry(entry) {
     const thread = state.threads.find(item => item.id === id);
     return thread ? `<span class="tag thread-tag">${escapeHtml(thread.emoji || "🧵")} ${escapeHtml(thread.title)}</span>` : "";
   }).join("");
+}
+
+
+function addMonthsToIsoDate(dateString, months) {
+  const date = new Date(`${dateString}T12:00:00`);
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
+function bookmarkStatus(bookmark) {
+  if (bookmark.archived) return "archived";
+  return bookmark.revisitDate <= isoToday() ? "ready" : "waiting";
+}
+
+function bookmarkEntry(bookmark) {
+  return state.entries.find(entry => entry.id === bookmark.entryId) || null;
+}
+
+function sortedBookmarks() {
+  return [...state.bookmarks].sort((a, b) => {
+    const statusOrder = { ready: 0, waiting: 1, archived: 2 };
+    const statusDiff = statusOrder[bookmarkStatus(a)] - statusOrder[bookmarkStatus(b)];
+    if (statusDiff) return statusDiff;
+    return a.revisitDate.localeCompare(b.revisitDate);
+  });
+}
+
+function renderHomeBookmarks() {
+  const host = $("homeBookmarkPreview");
+  if (!host) return;
+
+  const ready = sortedBookmarks().filter(item => bookmarkStatus(item) === "ready");
+  const waiting = sortedBookmarks().filter(item => bookmarkStatus(item) === "waiting");
+
+  if (ready.length) {
+    const bookmark = ready[0];
+    const entry = bookmarkEntry(bookmark);
+    host.innerHTML = `
+      <button class="past-you-card ready" type="button" data-bookmark-open="${escapeHtml(bookmark.id)}">
+        <div class="past-you-ribbon">A thought from Past You</div>
+        <blockquote>“${escapeHtml(bookmark.quote)}”</blockquote>
+        <div class="past-you-meta">${escapeHtml(formatDate(entry?.date || bookmark.createdDate))} · Ready for you</div>
+        <strong>Is this still true? →</strong>
+      </button>`;
+  } else if (waiting.length) {
+    const bookmark = waiting[0];
+    host.innerHTML = `
+      <button class="past-you-card waiting" type="button" data-bookmark-open="${escapeHtml(bookmark.id)}">
+        <div class="past-you-ribbon">Tucked away for later</div>
+        <blockquote>“${escapeHtml(bookmark.quote)}”</blockquote>
+        <div class="past-you-meta">Returns ${escapeHtml(formatDate(bookmark.revisitDate))}</div>
+        <strong>Open Bookmarks →</strong>
+      </button>`;
+  } else {
+    host.innerHTML = `
+      <button class="past-you-card empty" type="button" id="emptyBookmarkOpen">
+        <div class="past-you-bookmark-icon">🔖</div>
+        <strong>Save a sentence for Future You</strong>
+        <span>Choose a thought from any diary entry and let Fuwa bring it back later.</span>
+      </button>`;
+    $("emptyBookmarkOpen")?.addEventListener("click", () => navigate("bookmarks"));
+  }
+
+  host.querySelectorAll("[data-bookmark-open]").forEach(button => {
+    button.addEventListener("click", () => openBookmarkDetail(button.dataset.bookmarkOpen));
+  });
+}
+
+function renderBookmarks() {
+  const host = $("bookmarksList");
+  if (!host) return;
+  const items = sortedBookmarks();
+
+  if (!items.length) {
+    host.innerHTML = `<div class="empty-state bookmark-empty-state"><div>🔖</div><strong>No Fuwa Bookmarks yet</strong><p>Open a diary entry, select a sentence, and tuck it away for Future You.</p></div>`;
+    return;
+  }
+
+  host.innerHTML = items.map(bookmark => {
+    const entry = bookmarkEntry(bookmark);
+    const status = bookmarkStatus(bookmark);
+    const responseCount = Array.isArray(bookmark.responses) ? bookmark.responses.length : 0;
+    return `
+      <article class="bookmark-card ${status}">
+        <button type="button" data-bookmark-open="${escapeHtml(bookmark.id)}">
+          <div class="bookmark-card-top">
+            <span class="bookmark-status-pill">${status === "ready" ? "☁️ Ready now" : status === "archived" ? "♡ Kept" : "🔖 Waiting"}</span>
+            <time>${status === "ready" ? "From " + escapeHtml(formatDate(entry?.date || bookmark.createdDate)) : "Returns " + escapeHtml(formatDate(bookmark.revisitDate))}</time>
+          </div>
+          <blockquote>“${escapeHtml(bookmark.quote)}”</blockquote>
+          ${bookmark.note ? `<p>${escapeHtml(bookmark.note)}</p>` : ""}
+          <small>${responseCount ? `${responseCount} ${responseCount === 1 ? "reply" : "replies"} across time` : entry ? escapeHtml(entry.title) : "Saved thought"}</small>
+        </button>
+      </article>`;
+  }).join("");
+
+  host.querySelectorAll("[data-bookmark-open]").forEach(button => {
+    button.addEventListener("click", () => openBookmarkDetail(button.dataset.bookmarkOpen));
+  });
+}
+
+function renderEntryBookmarks(entryId) {
+  const host = $("entryBookmarks");
+  if (!host) return;
+  bookmarkEditorEntryId = entryId;
+  if (!entryId) {
+    host.innerHTML = `<p class="muted bookmark-editor-hint">Save the diary entry first, then you can bookmark a sentence from it.</p>`;
+    $("addBookmarkButton").disabled = true;
+    return;
+  }
+  $("addBookmarkButton").disabled = false;
+  const items = state.bookmarks.filter(item => item.entryId === entryId).sort((a, b) => b.createdAt - a.createdAt);
+  host.innerHTML = items.length ? items.map(bookmark => `
+    <button class="entry-bookmark-chip" type="button" data-bookmark-open="${escapeHtml(bookmark.id)}">
+      <span>🔖</span>
+      <span>“${escapeHtml(bookmark.quote.slice(0, 64))}${bookmark.quote.length > 64 ? "…" : ""}”</span>
+      <small>${bookmarkStatus(bookmark) === "ready" ? "Ready" : formatDate(bookmark.revisitDate, { month: "short", day: "numeric" })}</small>
+    </button>
+  `).join("") : `<p class="muted bookmark-editor-hint">Select a sentence from your entry and save it for later.</p>`;
+
+  host.querySelectorAll("[data-bookmark-open]").forEach(button => {
+    button.addEventListener("click", () => openBookmarkDetail(button.dataset.bookmarkOpen));
+  });
+}
+
+function selectedEntryText() {
+  const textarea = $("entryBody");
+  const start = textarea.selectionStart ?? 0;
+  const end = textarea.selectionEnd ?? 0;
+  return start !== end ? textarea.value.slice(start, end).trim() : "";
+}
+
+function openBookmarkComposer() {
+  if (!bookmarkEditorEntryId) {
+    toast("Save this diary entry first, then add a Fuwa Bookmark.");
+    return;
+  }
+  const selected = selectedEntryText();
+  $("bookmarkQuoteInput").value = selected;
+  $("bookmarkNoteInput").value = "";
+  $("bookmarkRevisitDate").value = addMonthsToIsoDate(isoToday(), 1);
+  $("bookmarkComposer").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => (selected ? $("bookmarkNoteInput") : $("bookmarkQuoteInput")).focus(), 80);
+}
+
+function closeBookmarkComposer() {
+  $("bookmarkComposer").classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
+function setBookmarkPreset(months) {
+  $("bookmarkRevisitDate").value = addMonthsToIsoDate(isoToday(), months);
+}
+
+async function saveBookmarkFromComposer(event) {
+  event.preventDefault();
+  const quote = $("bookmarkQuoteInput").value.trim();
+  const revisitDate = $("bookmarkRevisitDate").value;
+
+  if (!quote) {
+    toast("Add the sentence you want Future You to see.");
+    return;
+  }
+  if (!revisitDate || revisitDate < isoToday()) {
+    toast("Choose today or a future date.");
+    return;
+  }
+
+  const entry = state.entries.find(item => item.id === bookmarkEditorEntryId);
+  if (!entry) {
+    toast("Fuwa couldn't find that diary entry.");
+    return;
+  }
+
+  const record = {
+    id: uid("bookmark"),
+    entryId: entry.id,
+    quote,
+    note: $("bookmarkNoteInput").value.trim(),
+    revisitDate,
+    createdDate: entry.date,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    archived: false,
+    responses: []
+  };
+
+  try {
+    await diaryRepository.save("bookmarks", record);
+    state.bookmarks.push(record);
+    closeBookmarkComposer();
+    renderAll();
+    renderEntryBookmarks(entry.id);
+    toast("Tucked away for Future You 🔖");
+  } catch (error) {
+    console.error("Could not save Fuwa Bookmark.", error);
+    toast("Fuwa couldn't save that bookmark.");
+  }
+}
+
+function openBookmarkDetail(bookmarkId) {
+  activeBookmarkId = bookmarkId;
+  renderBookmarkDetail();
+  navigate("bookmarkDetail");
+}
+
+function renderBookmarkDetail() {
+  const bookmark = state.bookmarks.find(item => item.id === activeBookmarkId);
+  if (!bookmark) return;
+  const entry = bookmarkEntry(bookmark);
+  const status = bookmarkStatus(bookmark);
+  const responses = Array.isArray(bookmark.responses) ? bookmark.responses : [];
+
+  $("bookmarkDetailContent").innerHTML = `
+    <div class="bookmark-detail-card ${status}">
+      <div class="bookmark-detail-ribbon">${status === "ready" ? "A thought from Past You" : status === "archived" ? "A thought you kept" : "Waiting for Future You"}</div>
+      <blockquote>“${escapeHtml(bookmark.quote)}”</blockquote>
+      ${bookmark.note ? `<p class="bookmark-note">${escapeHtml(bookmark.note)}</p>` : ""}
+      <div class="bookmark-origin">
+        <span>${escapeHtml(formatDate(entry?.date || bookmark.createdDate))}</span>
+        ${entry ? `<button class="text-btn" type="button" id="openBookmarkEntry">Open original entry</button>` : ""}
+      </div>
+      <div class="bookmark-return-date">Returns: <strong>${escapeHtml(formatDate(bookmark.revisitDate))}</strong></div>
+    </div>
+
+    <section class="bookmark-replies">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Across time</p>
+          <h3>Your replies</h3>
+        </div>
+      </div>
+      <div class="bookmark-response-list">
+        ${responses.length ? responses.map(response => `
+          <div class="bookmark-response">
+            <time>${escapeHtml(formatDate(response.date))}</time>
+            <p>${escapeHtml(response.text)}</p>
+          </div>
+        `).join("") : `<div class="empty-state compact">No replies yet.</div>`}
+      </div>
+      ${status === "ready" ? `
+        <form class="bookmark-reply-form" id="bookmarkReplyForm">
+          <label>Is this still true?</label>
+          <textarea id="bookmarkReplyInput" rows="4" maxlength="800" placeholder="Write back to Past You…"></textarea>
+          <button class="primary-btn compact" type="submit">Save my reply</button>
+        </form>
+      ` : ""}
+      <div class="bookmark-detail-actions">
+        <button class="secondary-btn" type="button" id="bookmarkRescheduleButton">Change return date</button>
+        <button class="secondary-btn" type="button" id="bookmarkArchiveButton">${bookmark.archived ? "Restore bookmark" : "Keep & archive"}</button>
+        <button class="danger-btn" type="button" id="bookmarkDeleteButton">Delete</button>
+      </div>
+    </section>`;
+
+  $("openBookmarkEntry")?.addEventListener("click", () => openEditor(bookmark.entryId));
+  $("bookmarkReplyForm")?.addEventListener("submit", saveBookmarkReply);
+  $("bookmarkRescheduleButton").addEventListener("click", rescheduleActiveBookmark);
+  $("bookmarkArchiveButton").addEventListener("click", toggleArchiveActiveBookmark);
+  $("bookmarkDeleteButton").addEventListener("click", deleteActiveBookmark);
+}
+
+async function saveBookmarkReply(event) {
+  event.preventDefault();
+  const bookmark = state.bookmarks.find(item => item.id === activeBookmarkId);
+  const input = $("bookmarkReplyInput");
+  const text = input.value.trim();
+  if (!bookmark || !text) return;
+
+  const updated = {
+    ...bookmark,
+    responses: [...(bookmark.responses || []), { id: uid("reply"), date: isoToday(), text, createdAt: Date.now() }],
+    updatedAt: Date.now()
+  };
+  try {
+    await diaryRepository.save("bookmarks", updated);
+    state.bookmarks = state.bookmarks.map(item => item.id === updated.id ? updated : item);
+    renderAll();
+    renderBookmarkDetail();
+    toast("Reply saved for this thread through time ☁️");
+  } catch (error) {
+    console.error("Could not save bookmark reply.", error);
+    toast("Fuwa couldn't save your reply.");
+  }
+}
+
+async function rescheduleActiveBookmark() {
+  const bookmark = state.bookmarks.find(item => item.id === activeBookmarkId);
+  if (!bookmark) return;
+  const next = prompt("Return this thought on (YYYY-MM-DD):", bookmark.revisitDate);
+  if (!next) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(next) || next < isoToday()) {
+    toast("Choose today or a future date.");
+    return;
+  }
+  const updated = { ...bookmark, revisitDate: next, archived: false, updatedAt: Date.now() };
+  try {
+    await diaryRepository.save("bookmarks", updated);
+    state.bookmarks = state.bookmarks.map(item => item.id === updated.id ? updated : item);
+    renderAll();
+    renderBookmarkDetail();
+    toast("Return date changed 🔖");
+  } catch (error) {
+    console.error("Could not reschedule bookmark.", error);
+  }
+}
+
+async function toggleArchiveActiveBookmark() {
+  const bookmark = state.bookmarks.find(item => item.id === activeBookmarkId);
+  if (!bookmark) return;
+  const updated = { ...bookmark, archived: !bookmark.archived, updatedAt: Date.now() };
+  try {
+    await diaryRepository.save("bookmarks", updated);
+    state.bookmarks = state.bookmarks.map(item => item.id === updated.id ? updated : item);
+    renderAll();
+    renderBookmarkDetail();
+  } catch (error) {
+    console.error("Could not update bookmark.", error);
+  }
+}
+
+async function deleteActiveBookmark() {
+  const bookmark = state.bookmarks.find(item => item.id === activeBookmarkId);
+  if (!bookmark || !confirm("Delete this Fuwa Bookmark?")) return;
+  try {
+    await diaryRepository.remove("bookmarks", bookmark.id);
+    state.bookmarks = state.bookmarks.filter(item => item.id !== bookmark.id);
+    activeBookmarkId = null;
+    renderAll();
+    navigate("bookmarks");
+    toast("Bookmark deleted");
+  } catch (error) {
+    console.error("Could not delete bookmark.", error);
+  }
+}
+
+function dueBookmarkCount() {
+  return state.bookmarks.filter(item => bookmarkStatus(item) === "ready").length;
 }
 
 const moodLabels = {
@@ -1052,6 +1436,7 @@ function renderStats() {
   $("entryCount").textContent = state.entries.length;
   $("joyCount").textContent = state.tinyJoys.length;
   $("letterCount").textContent = state.letters.length;
+  if ($("bookmarkCount")) $("bookmarkCount").textContent = state.bookmarks.length;
 }
 
 function renderAll() {
@@ -1066,6 +1451,8 @@ function renderAll() {
   renderMoodJarView();
   renderHomeThreads();
   renderThreads();
+  renderHomeBookmarks();
+  renderBookmarks();
   if (activeThreadId) renderThreadDetail();
   renderCalendar();
   renderRecentEntries();
@@ -1104,6 +1491,8 @@ async function openEditor(entryId = null, dateOverride = null) {
   $("editorHeading").textContent = entry ? "Edit Entry" : "New Entry";
   $("deleteEntryButton").classList.toggle("hidden", !entry);
   renderEditorMedia();
+  renderEntryThreadPicker(entry?.threadIds || []);
+  renderEntryBookmarks(entry?.id || null);
 
   navigate("editor");
   setTimeout(() => $("entryTitle").focus(), 80);
@@ -1126,6 +1515,7 @@ async function saveEntry() {
     title,
     body,
     tags: $("entryTags").value.split(",").map(t => t.trim().replace(/^#/, "")).filter(Boolean),
+    threadIds: selectedEditorThreadIds(),
     afterthought: $("entryAfterthought").value.trim(),
     createdAt: id ? (state.entries.find(e => e.id === id)?.createdAt || Date.now()) : Date.now(),
     updatedAt: Date.now()
@@ -1263,7 +1653,7 @@ async function exportBackup() {
 
     const payload = {
       app: "Fuwa",
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
       data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme }
     };
@@ -1292,6 +1682,7 @@ function importBackup(file) {
       validateContentData(incoming);
       incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
       incoming.threads = validateThreads(incoming.threads);
+      incoming.bookmarks = validateBookmarks(incoming.bookmarks);
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -1311,6 +1702,7 @@ function importBackup(file) {
         letters: incoming.letters,
         moodCheckins: Array.isArray(incoming.moodCheckins) ? incoming.moodCheckins : [],
         threads: Array.isArray(incoming.threads) ? incoming.threads : [],
+        bookmarks: Array.isArray(incoming.bookmarks) ? incoming.bookmarks : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme
       };
@@ -1367,6 +1759,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
 
+
+
+  $("openBookmarksButton").addEventListener("click", () => navigate("bookmarks"));
+  $("bookmarksHomeCard").addEventListener("click", event => {
+    if (!event.target.closest("[data-bookmark-open]")) navigate("bookmarks");
+  });
+  $("bookmarksBackButton").addEventListener("click", () => navigate("bookmarks"));
+  $("addBookmarkButton").addEventListener("click", openBookmarkComposer);
+  $("cancelBookmarkComposer").addEventListener("click", closeBookmarkComposer);
+  $("bookmarkComposerForm").addEventListener("submit", saveBookmarkFromComposer);
+  document.querySelectorAll("[data-bookmark-months]").forEach(button => {
+    button.addEventListener("click", () => setBookmarkPreset(Number(button.dataset.bookmarkMonths)));
+  });
+  $("bookmarkComposer").addEventListener("click", event => {
+    if (event.target === $("bookmarkComposer")) closeBookmarkComposer();
+  });
 
   $("openThreadsButton").addEventListener("click", () => navigate("threads"));
   $("newThreadButton").addEventListener("click", () => openThreadModal());
