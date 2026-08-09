@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 8;
+const DATABASE_VERSION = 9;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -25,6 +25,7 @@ const defaultState = {
   dailyCheckins: [],
   lifeCollections: [],
   habitDefinitions: [],
+  moments: [],
   selectedMood: "good",
   theme: "pink",
   wallpaperEnabled: false,
@@ -449,7 +450,7 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
       this.getAll("threads"),
@@ -462,13 +463,14 @@ const diaryRepository = {
       this.getAll("dreams"),
       this.getAll("dailyCheckins"),
       this.getAll("lifeCollections"),
-      this.getAll("habitDefinitions")
+      this.getAll("habitDefinitions"),
+      this.getAll("moments")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -491,7 +493,7 @@ const diaryRepository = {
     nightlyStore.clear();
     (data.nightlyReflections || []).forEach(record => nightlyStore.put(record));
 
-    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"].forEach(storeName => {
+    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"].forEach(storeName => {
       const store = transaction.objectStore(storeName);
       store.clear();
       (data[storeName] || []).forEach(record => store.put(record));
@@ -517,7 +519,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -4455,9 +4457,67 @@ function renderLifeHistory(){const host=$("lifeHistoryList");if(!host)return;con
 function lifeCollectionCategoryLabel(c){return({cup:"Fill My Cup",wishlist:"Wishlist",playlist:"Playlist",watched:"Shows & Movies",reminder:"Reminders"})[c]||"Collection"}
 function renderLifeCollections(){const host=$("lifeCollectionList");if(!host)return;const items=state.lifeCollections.filter(i=>i.category===lifeCollectionCategory).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));$("lifeCollectionRatingWrap").classList.toggle("hidden",lifeCollectionCategory!=="watched");host.innerHTML=items.length?items.map(i=>`<article class="life-collection-item"><div><span>${escapeHtml(lifeCollectionCategoryLabel(i.category))}</span><strong>${escapeHtml(i.title)}</strong>${i.note?`<p>${escapeHtml(i.note)}</p>`:""}${i.rating?`<small>${"★".repeat(Number(i.rating))}</small>`:""}</div><button type="button" data-life-collection-delete="${escapeHtml(i.id)}">×</button></article>`).join(""):`<div class="empty-state">Nothing here yet. Add the first little thing.</div>`;host.querySelectorAll("[data-life-collection-delete]").forEach(b=>b.addEventListener("click",async()=>{if(!confirm("Remove this item?"))return;await diaryRepository.remove("lifeCollections",b.dataset.lifeCollectionDelete);state.lifeCollections=state.lifeCollections.filter(x=>x.id!==b.dataset.lifeCollectionDelete);renderLifeCollections()}))}
 async function saveLifeCollection(e){e.preventDefault();const title=$("lifeCollectionTitle").value.trim();if(!title)return;const r={id:uid("collection"),category:lifeCollectionCategory,title,note:$("lifeCollectionNote").value.trim(),rating:lifeCollectionCategory==="watched"?Number($("lifeCollectionRating").value||0):0,createdAt:Date.now(),updatedAt:Date.now()};await diaryRepository.save("lifeCollections",r);state.lifeCollections.push(r);e.target.reset();renderLifeCollections();toast("Added to your Fuwa pages ♡")}
-function setLifeTab(tab){lifeActiveTab=tab;document.querySelectorAll("[data-life-tab]").forEach(b=>b.classList.toggle("active",b.dataset.lifeTab===tab));$("lifeTodayPanel").classList.toggle("active",tab==="today");$("lifeTrackersPanel").classList.toggle("active",tab==="trackers");$("lifeCollectionsPanel").classList.toggle("active",tab==="collections");if(tab==="today")loadLifeTodayForm();if(tab==="trackers"){renderLifeTracker();renderLifeHistory()}if(tab==="collections")renderLifeCollections()}
+
+const MOMENT_TYPES={food:{label:"Food / Restaurant",icon:"🍜"},purchase:{label:"Purchase",icon:"🛍"},trip:{label:"Trip",icon:"✈️"},first:{label:"First",icon:"🌱"},achievement:{label:"Achievement",icon:"🏆"},quote:{label:"Funny Quote",icon:"😂"},event:{label:"Event",icon:"🎉"},person:{label:"Person",icon:"💗"},gift:{label:"Gift",icon:"🎁"},place:{label:"Place",icon:"📍"},other:{label:"Other",icon:"✨"}};
+let momentFilter="all";
+function momentTypeMeta(type){return MOMENT_TYPES[type]||MOMENT_TYPES.other;}
+
+function renderMomentAdaptiveFields(){
+  const type=$("momentType")?.value||"other",host=$("momentAdaptiveFields");if(!host)return;
+  let html="";
+  if(type==="food")html=`<div class="moment-two-field"><label>Dish / order<input id="momentExtraA" maxlength="160" placeholder="What did you have?"></label><label>Rating<select id="momentRating"><option value="">—</option><option value="1">★</option><option value="2">★★</option><option value="3">★★★</option><option value="4">★★★★</option><option value="5">★★★★★</option></select></label></div>`;
+  else if(type==="purchase")html=`<div class="moment-two-field"><label>Item<input id="momentExtraA" maxlength="160" placeholder="What did you buy?"></label><label>Amount<input id="momentAmount" type="number" min="0" step="0.01" inputmode="decimal"></label></div>`;
+  else if(type==="quote")html=`<label>Who said it?<input id="momentExtraA" maxlength="120" placeholder="Name or nickname"></label><label>Exact quote<textarea id="momentQuote" rows="4" maxlength="500" placeholder="“...”"></textarea></label>`;
+  else if(type==="trip")html=`<div class="moment-two-field"><label>Destination<input id="momentExtraA" maxlength="160"></label><label>Trip note<input id="momentExtraB" maxlength="160" placeholder="Day trip, vacation…"></label></div>`;
+  else if(type==="first")html=`<label>First time doing…<input id="momentExtraA" maxlength="180"></label>`;
+  else if(type==="achievement")html=`<label>What did you accomplish?<input id="momentExtraA" maxlength="180"></label>`;
+  else html=`<label>Extra detail<input id="momentExtraA" maxlength="180" placeholder="Optional"></label>`;
+  host.innerHTML=html;
+}
+
+function openMomentModal(id=null){
+  const item=id?state.moments.find(x=>x.id===id):null;
+  $("momentModalTitle").textContent=item?"Edit Moment":"Add a little moment";
+  $("momentId").value=item?.id||"";$("momentTitle").value=item?.title||"";$("momentType").value=item?.type||"food";$("momentDate").value=item?.date||isoToday();$("momentPlace").value=item?.place||"";$("momentNote").value=item?.note||"";$("momentTags").value=(item?.tags||[]).join(", ");$("momentIncludeWrapped").checked=item?.includeWrapped!==false;$("momentDeleteButton").classList.toggle("hidden",!item);
+  renderMomentAdaptiveFields();
+  queueMicrotask(()=>{if($("momentExtraA"))$("momentExtraA").value=item?.extraA||"";if($("momentExtraB"))$("momentExtraB").value=item?.extraB||"";if($("momentAmount"))$("momentAmount").value=item?.amount??"";if($("momentRating"))$("momentRating").value=item?.rating??"";if($("momentQuote"))$("momentQuote").value=item?.quote||"";});
+  $("momentModal").classList.remove("hidden");document.body.style.overflow="hidden";
+}
+function closeMomentModal(){$("momentModal").classList.add("hidden");document.body.style.overflow="";}
+
+async function saveMoment(event){
+  event.preventDefault();const id=$("momentId").value,existing=id?state.moments.find(x=>x.id===id):null;
+  const amountEl=$("momentAmount"),ratingEl=$("momentRating");
+  const record={id:existing?.id||uid("moment"),title:$("momentTitle").value.trim(),type:$("momentType").value,date:$("momentDate").value||isoToday(),place:$("momentPlace").value.trim(),extraA:$("momentExtraA")?.value?.trim?.()||"",extraB:$("momentExtraB")?.value?.trim?.()||"",amount:amountEl&&amountEl.value!==""?Number(amountEl.value):null,rating:ratingEl&&ratingEl.value!==""?Number(ratingEl.value):null,quote:$("momentQuote")?.value?.trim?.()||"",note:$("momentNote").value.trim(),tags:$("momentTags").value.split(",").map(v=>v.trim().replace(/^#/,"")).filter(Boolean),includeWrapped:$("momentIncludeWrapped").checked,createdAt:existing?.createdAt||Date.now(),updatedAt:Date.now()};
+  if(!record.title)return toast("Add what happened first.");
+  await diaryRepository.save("moments",record);state.moments=existing?state.moments.map(x=>x.id===record.id?record:x):[...state.moments,record];closeMomentModal();renderMoments();renderWrappedPreview();toast("Little moment saved ✦");
+}
+async function deleteMoment(){const id=$("momentId").value;if(!id||!confirm("Delete this little moment?"))return;await diaryRepository.remove("moments",id);state.moments=state.moments.filter(x=>x.id!==id);closeMomentModal();renderMoments();renderWrappedPreview();}
+
+function renderMoments(){
+  const host=$("momentsList");if(!host)return;
+  const items=[...state.moments].filter(x=>momentFilter==="all"||x.type===momentFilter).sort((a,b)=>String(b.date).localeCompare(String(a.date))||(b.createdAt||0)-(a.createdAt||0));
+  host.innerHTML=items.length?items.map(item=>{const meta=momentTypeMeta(item.type),extra=item.quote?`“${escapeHtml(item.quote)}”`:item.extraA?escapeHtml(item.extraA):item.note?escapeHtml(item.note):"";return `<article class="moment-card"><button type="button" data-moment-open="${escapeHtml(item.id)}"><span class="moment-type-icon">${meta.icon}</span><div><small>${escapeHtml(formatDate(item.date))}${item.place?` · ${escapeHtml(item.place)}`:""}</small><strong>${escapeHtml(item.title)}</strong>${extra?`<p>${extra}</p>`:""}<span class="moment-type-label">${escapeHtml(meta.label)}${item.includeWrapped===false?" · Hidden from Wrapped":""}</span></div></button></article>`;}).join(""):`<div class="empty-state">No little moments yet. Add something Future You would smile at.</div>`;
+  host.querySelectorAll("[data-moment-open]").forEach(button=>button.addEventListener("click",()=>openMomentModal(button.dataset.momentOpen)));
+}
+function momentYearItems(year){return state.moments.filter(item=>String(item.date||"").startsWith(`${year}-`)&&item.includeWrapped!==false);}
+function wrappedStats(year){const items=momentYearItems(year),byType={};items.forEach(x=>byType[x.type]=(byType[x.type]||0)+1);const ratings=items.filter(x=>Number(x.rating)>0).sort((a,b)=>Number(b.rating)-Number(a.rating));const quote=items.find(x=>x.type==="quote"&&x.quote)||null,places=new Set(items.map(x=>x.place).filter(Boolean));return{items,byType,topRated:ratings[0]||null,quote,places:places.size};}
+function renderWrappedPreview(){const year=new Date().getFullYear(),s=wrappedStats(year);$("wrappedYearLabel").textContent=year;$("wrappedPreviewStats").innerHTML=`<span><strong>${s.items.length}</strong> moments</span><span><strong>${s.byType.first||0}</strong> firsts</span><span><strong>${s.byType.achievement||0}</strong> wins</span><span><strong>${s.places}</strong> places</span>`;}
+function wrappedDailySummary(year){const checkins=state.dailyCheckins.filter(x=>String(x.date||"").startsWith(`${year}-`)),moods={};checkins.forEach(x=>{if(x.mood)moods[x.mood]=(moods[x.mood]||0)+1;});const topMood=Object.entries(moods).sort((a,b)=>b[1]-a[1])[0]?.[0]||"";const rated=checkins.filter(x=>x.rating);return{count:checkins.length,topMood,avgRating:rated.length?(rated.reduce((s,x)=>s+Number(x.rating),0)/rated.length).toFixed(1):null};}
+function openWrapped(){const year=new Date().getFullYear(),s=wrappedStats(year),daily=wrappedDailySummary(year),topFood=s.items.filter(x=>x.type==="food"&&x.rating).sort((a,b)=>(b.rating||0)-(a.rating||0))[0];$("wrappedStory").innerHTML=`<section class="wrapped-slide intro"><span>☁️</span><p class="eyebrow">Fuwa Wrapped</p><h2>Your ${year}</h2><p>You kept <strong>${s.items.length}</strong> little moments.</p></section><section class="wrapped-slide"><span>🌱</span><p class="eyebrow">A year of firsts</p><h2>${s.byType.first||0}</h2><p>things you did for the first time.</p></section><section class="wrapped-slide"><span>🏆</span><p class="eyebrow">Things you did</p><h2>${s.byType.achievement||0}</h2><p>achievements worth remembering.</p></section><section class="wrapped-slide"><span>✈️</span><p class="eyebrow">Places & trips</p><h2>${s.byType.trip||0} trips · ${s.places} places</h2><p>little corners of the world that made it into Fuwa.</p></section><section class="wrapped-slide"><span>🍜</span><p class="eyebrow">Your food year</p><h2>${s.byType.food||0} food moments</h2><p>${topFood?`Most-loved: ${escapeHtml(topFood.title)} · ${"★".repeat(topFood.rating)}`:"Add restaurant ratings to see a favorite here."}</p></section><section class="wrapped-slide quote"><span>😂</span><p class="eyebrow">Quote of the year</p><h2>${s.quote?`“${escapeHtml(s.quote.quote)}”`:"Still waiting for a quote that deserves this spot."}</h2><p>${s.quote?.extraA?`— ${escapeHtml(s.quote.extraA)}`:""}</p></section><section class="wrapped-slide"><span>🌸</span><p class="eyebrow">Your Fuwa year</p><h2>${daily.count} daily journals</h2><p>${daily.topMood?`Most common mood: ${escapeHtml(moodLabels[daily.topMood]||daily.topMood)}.`:""} ${daily.avgRating?`Average day rating: ${daily.avgRating}/5.`:""}</p></section><section class="wrapped-slide outro"><span>♡</span><p class="eyebrow">${year} in little pieces</p><h2>You were here.</h2><p>Not every day needs to be big to be worth remembering.</p></section>`;$("wrappedSheet").classList.remove("hidden");document.body.style.overflow="hidden";}
+function closeWrapped(){$("wrappedSheet").classList.add("hidden");document.body.style.overflow="";}
+
+function setLifeTab(tab){lifeActiveTab=tab;document.querySelectorAll("[data-life-tab]").forEach(b=>b.classList.toggle("active",b.dataset.lifeTab===tab));$("lifeTodayPanel").classList.toggle("active",tab==="today");$("lifeTrackersPanel").classList.toggle("active",tab==="trackers");$("lifeMomentsPanel").classList.toggle("active",tab==="moments");$("lifeCollectionsPanel").classList.toggle("active",tab==="collections");if(tab==="today")loadLifeTodayForm();if(tab==="trackers"){renderLifeTracker();renderLifeHistory()}if(tab==="collections")renderLifeCollections()}
 function renderLifePages(){if(!$("lifeView"))return;if(currentView==="life")setLifeTab(lifeActiveTab)}
-function bindLifePages(){document.querySelectorAll("[data-life-tab]").forEach(b=>b.addEventListener("click",()=>setLifeTab(b.dataset.lifeTab)));document.querySelectorAll("#lifeDayRating button").forEach(b=>b.addEventListener("click",()=>{lifeDraft.rating=Number(b.dataset.rating);document.querySelectorAll("#lifeDayRating button").forEach(x=>{const a=Number(x.dataset.rating)<=lifeDraft.rating;x.classList.toggle("selected",a);x.textContent=a?"★":"☆"})}));document.querySelectorAll("#lifeMoodPicker button").forEach(b=>b.addEventListener("click",()=>{lifeDraft.mood=b.dataset.lifeMood;document.querySelectorAll("#lifeMoodPicker button").forEach(x=>x.classList.toggle("selected",x===b))}));document.querySelectorAll("[data-life-choice]").forEach(b=>b.addEventListener("click",()=>lifeSetChoice(b.dataset.lifeChoice,b.dataset.value)));$("lifeManageHabitsButton")?.addEventListener("click",manageLifeHabits);$("lifeManageCustomHabitsButton")?.addEventListener("click",manageCustomLifeHabits);$("journalNextButton")?.addEventListener("click",journalNext);$("journalSkipButton")?.addEventListener("click",journalNext);$("journalBackButton")?.addEventListener("click",journalBack);$("journalCustomizeButton")?.addEventListener("click",openJournalCustomizer);$("journalCustomizeClose")?.addEventListener("click",closeJournalCustomizer);$("journalCustomizeSave")?.addEventListener("click",saveJournalCustomizer);$("journalCloseButton")?.addEventListener("click",closeJournal);$("lifeDailyForm")?.addEventListener("submit",saveLifeToday);$("lifeTrackerMetric")?.addEventListener("change",e=>{lifeTrackerMetric=e.target.value;renderLifeTracker()});$("lifeTrackerPrevYear")?.addEventListener("click",()=>{lifeTrackerYear--;renderLifeTracker()});$("lifeTrackerNextYear")?.addEventListener("click",()=>{lifeTrackerYear++;renderLifeTracker()});$("lifeCollectionCategories")?.querySelectorAll("[data-collection-category]").forEach(b=>b.addEventListener("click",()=>{lifeCollectionCategory=b.dataset.collectionCategory;document.querySelectorAll("[data-collection-category]").forEach(x=>x.classList.toggle("active",x===b));renderLifeCollections()}));$("lifeCollectionForm")?.addEventListener("submit",saveLifeCollection);loadLifeTodayForm()}
+function bindLifePages(){document.querySelectorAll("[data-life-tab]").forEach(b=>b.addEventListener("click",()=>setLifeTab(b.dataset.lifeTab)));document.querySelectorAll("#lifeDayRating button").forEach(b=>b.addEventListener("click",()=>{lifeDraft.rating=Number(b.dataset.rating);document.querySelectorAll("#lifeDayRating button").forEach(x=>{const a=Number(x.dataset.rating)<=lifeDraft.rating;x.classList.toggle("selected",a);x.textContent=a?"★":"☆"})}));document.querySelectorAll("#lifeMoodPicker button").forEach(b=>b.addEventListener("click",()=>{lifeDraft.mood=b.dataset.lifeMood;document.querySelectorAll("#lifeMoodPicker button").forEach(x=>x.classList.toggle("selected",x===b))}));document.querySelectorAll("[data-life-choice]").forEach(b=>b.addEventListener("click",()=>lifeSetChoice(b.dataset.lifeChoice,b.dataset.value)));$("lifeManageHabitsButton")?.addEventListener("click",manageLifeHabits);$("lifeManageCustomHabitsButton")?.addEventListener("click",manageCustomLifeHabits);$("journalNextButton")?.addEventListener("click",journalNext);$("journalSkipButton")?.addEventListener("click",journalNext);$("journalBackButton")?.addEventListener("click",journalBack);$("journalCustomizeButton")?.addEventListener("click",openJournalCustomizer);$("journalCustomizeClose")?.addEventListener("click",closeJournalCustomizer);$("journalCustomizeSave")?.addEventListener("click",saveJournalCustomizer);$("journalCloseButton")?.addEventListener("click",closeJournal);$("lifeDailyForm")?.addEventListener("submit",saveLifeToday);$("lifeTrackerMetric")?.addEventListener("change",e=>{lifeTrackerMetric=e.target.value;renderLifeTracker()});$("lifeTrackerPrevYear")?.addEventListener("click",()=>{lifeTrackerYear--;renderLifeTracker()});$("lifeTrackerNextYear")?.addEventListener("click",()=>{lifeTrackerYear++;renderLifeTracker()});$("lifeCollectionCategories")?.querySelectorAll("[data-collection-category]").forEach(b=>b.addEventListener("click",()=>{lifeCollectionCategory=b.dataset.collectionCategory;document.querySelectorAll("[data-collection-category]").forEach(x=>x.classList.toggle("active",x===b));renderLifeCollections()}));$("lifeCollectionForm")?.addEventListener("submit",saveLifeCollection);
+  $("momentAddButton")?.addEventListener("click",()=>openMomentModal());
+  $("momentModalClose")?.addEventListener("click",closeMomentModal);
+  $("momentType")?.addEventListener("change",renderMomentAdaptiveFields);
+  $("momentForm")?.addEventListener("submit",saveMoment);
+  $("momentDeleteButton")?.addEventListener("click",deleteMoment);
+  $("momentFilterRow")?.querySelectorAll("[data-moment-filter]").forEach(button=>button.addEventListener("click",()=>{momentFilter=button.dataset.momentFilter;document.querySelectorAll("[data-moment-filter]").forEach(b=>b.classList.toggle("active",b===button));renderMoments();}));
+  $("openWrappedButton")?.addEventListener("click",openWrapped);
+  $("wrappedCloseButton")?.addEventListener("click",closeWrapped);loadLifeTodayForm()}
 
 function renderStats() {
   $("entryCount").textContent = state.entries.length;
@@ -4690,7 +4750,8 @@ function cloudBackupRecordCount(data) {
     "dreams",
     "dailyCheckins",
     "lifeCollections",
-    "habitDefinitions"
+    "habitDefinitions",
+    "moments"
   ].reduce((total, storeName) => total + (Array.isArray(data?.[storeName]) ? data[storeName].length : 0), 0);
 }
 
@@ -4711,6 +4772,7 @@ async function createCloudBackupPayload() {
   validateSimpleStore(currentData.dailyCheckins, "dailyCheckins");
   validateSimpleStore(currentData.lifeCollections, "lifeCollections");
   validateSimpleStore(currentData.habitDefinitions, "habitDefinitions");
+  validateSimpleStore(currentData.moments, "moments");
 
   const data = {
     ...currentData,
@@ -4910,6 +4972,7 @@ async function applyCloudRestorePayload(payload) {
   incoming.dailyCheckins = validateSimpleStore(incoming.dailyCheckins, "dailyCheckins");
   incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
   incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
+  incoming.moments = validateSimpleStore(incoming.moments, "moments");
 
   const existingMedia = await diaryRepository.readAllMedia();
 
@@ -4939,6 +5002,7 @@ async function applyCloudRestorePayload(payload) {
     dailyCheckins: Array.isArray(incoming.dailyCheckins) ? incoming.dailyCheckins : [],
     lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
     habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
+    moments: Array.isArray(incoming.moments) ? incoming.moments : [],
     selectedMood: incoming.selectedMood || defaultState.selectedMood,
     theme: incoming.theme || defaultState.theme,
     wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
@@ -4997,6 +5061,7 @@ function importBackup(file) {
       incoming.dailyCheckins = validateSimpleStore(incoming.dailyCheckins, "dailyCheckins");
       incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
       incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
+      incoming.moments = validateSimpleStore(incoming.moments, "moments");
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -5026,6 +5091,7 @@ function importBackup(file) {
         dailyCheckins: Array.isArray(incoming.dailyCheckins) ? incoming.dailyCheckins : [],
         lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
         habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
+        moments: Array.isArray(incoming.moments) ? incoming.moments : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v44-notebook-journal -->
+  <!-- FUWA_BUILD: v46-optional-login -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -176,6 +176,12 @@
         <span>Continue with Google</span>
       </button>
 
+      <div class="auth-local-divider" id="authLocalDivider"><span>or</span></div>
+      <button class="guest-auth-btn" id="continueLocalButton" type="button">
+        <span class="guest-auth-icon" aria-hidden="true">☁️</span>
+        <span>Continue without logging in</span>
+      </button>
+
       <form class="auth-form hidden" id="signupForm" novalidate>
         <label>
           <span>Email</span>
@@ -202,7 +208,7 @@
         <button class="text-btn" id="authSwitchButton" type="button">Create an account</button>
       </div>
 
-      <p class="auth-local-note">Your existing diary stays on this device for now. Cloud sync comes later.</p>
+      <p class="auth-local-note">You can use Fuwa fully on this device without an account. Sign in only when you want Fuwa Cloud backup.</p>
       <p class="auth-loading-note" id="authLoadingNote">Connecting Fuwa securely…</p>
     </div>
   </section>
@@ -950,9 +956,10 @@
         </div>
         <p class="muted feature-intro">Check in once. Fuwa turns the little answers into your mood, sleep, habit, reading, weather, and life trackers automatically.</p>
 
-        <div class="life-tab-bar" role="tablist" aria-label="Daily Life Pages">
+        <div class="life-tab-bar life-tab-bar-four" role="tablist" aria-label="Daily Life Pages">
           <button class="active" type="button" data-life-tab="today">Today</button>
           <button type="button" data-life-tab="trackers">Trackers</button>
+          <button type="button" data-life-tab="moments">Moments</button>
           <button type="button" data-life-tab="collections">Collections</button>
         </div>
 
@@ -1020,6 +1027,35 @@
             <div class="year-tracker-legend" id="lifeTrackerLegend"></div>
           </div>
           <div class="life-history-list" id="lifeHistoryList"></div>
+        </section>
+
+        <section class="life-panel" id="lifeMomentsPanel">
+          <div class="moments-hero-card">
+            <div>
+              <p class="eyebrow">Little things worth keeping</p>
+              <h3>Fuwa Moments</h3>
+              <p>Not a diary entry. Just a tiny life event you want Future You to remember.</p>
+            </div>
+            <button class="round-add" id="momentAddButton" type="button">＋</button>
+          </div>
+          <div class="moments-filter-row" id="momentFilterRow">
+            <button class="active" type="button" data-moment-filter="all">All</button>
+            <button type="button" data-moment-filter="food">🍜 Food</button>
+            <button type="button" data-moment-filter="purchase">🛍 Purchase</button>
+            <button type="button" data-moment-filter="trip">✈️ Trips</button>
+            <button type="button" data-moment-filter="first">🌱 Firsts</button>
+            <button type="button" data-moment-filter="achievement">🏆 Wins</button>
+            <button type="button" data-moment-filter="quote">😂 Quotes</button>
+          </div>
+          <div class="moments-list" id="momentsList"></div>
+          <div class="wrapped-card">
+            <div class="wrapped-heading">
+              <div><p class="eyebrow">Your year in little pieces</p><h3><span id="wrappedYearLabel">2026</span> Wrapped</h3></div>
+              <button class="secondary-btn" id="openWrappedButton" type="button">Open Wrapped</button>
+            </div>
+            <p>Fuwa quietly turns your little moments into a personal year-end recap.</p>
+            <div class="wrapped-preview-stats" id="wrappedPreviewStats"></div>
+          </div>
         </section>
 
         <section class="life-panel" id="lifeCollectionsPanel">
@@ -1185,18 +1221,18 @@
               <p class="eyebrow">Account & Login</p>
               <h3>Your private Fuwa</h3>
             </div>
-            <span class="firebase-session-pill">Signed in</span>
+            <span class="firebase-session-pill" id="firebaseSessionPill">Signed in</span>
           </div>
 
-          <div class="firebase-account-detail">
+          <div class="firebase-account-detail" id="firebaseEmailDetail">
             <span>Email</span>
             <strong id="firebaseAccountEmailProfile">Loading account…</strong>
           </div>
-          <div class="firebase-account-detail">
+          <div class="firebase-account-detail" id="firebaseProviderDetail">
             <span>Sign-in method</span>
             <strong id="firebaseAccountProviderProfile">Checking…</strong>
           </div>
-          <div class="firebase-account-detail">
+          <div class="firebase-account-detail" id="firebaseCloudDetail">
             <span>Cloud connection</span>
             <strong id="firebaseCloudConnectionStatus">Checking Firestore…</strong>
           </div>
@@ -1204,11 +1240,12 @@
           <div class="firebase-local-data-note">
             <span class="local-data-cloud" aria-hidden="true"></span>
             <div>
-              <strong>Your diary is still stored on this device.</strong>
-              <small>Firebase currently handles login only. Cloud sync will be added separately so your existing IndexedDB journal stays safe.</small>
+              <strong id="firebaseLocalDataTitle">Your diary is stored on this device.</strong>
+              <small id="firebaseLocalDataCopy">Your journal and device preferences remain local. Fuwa Cloud is available when you sign in.</small>
             </div>
           </div>
 
+          <button class="primary-btn firebase-profile-login hidden" id="firebaseProfileLoginButton" type="button">Log in or create an account</button>
           <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
         </div>
 
@@ -1257,7 +1294,7 @@
           <small class="notification-footnote">On iPhone, Fuwa must be installed to the Home Screen for web push. The free client-only build cannot reliably wake itself at a chosen time while closed, so the daily schedule is saved now and will become active when we connect a push sender.</small>
         </div>
 
-        <div class="cloud-backup-card">
+        <div class="cloud-backup-card" id="cloudBackupCard">
           <div class="cloud-backup-heading">
             <div>
               <p class="eyebrow">Cloud Backup</p>
@@ -1386,6 +1423,46 @@
       <div class="quick-hide-neutral-cloud" aria-hidden="true"></div>
       <h1>Fuwa</h1>
       <p>Tap to return.</p>
+    </div>
+  </div>
+
+  <div class="feature-modal hidden" id="momentModal" role="dialog" aria-modal="true" aria-label="Fuwa Moment">
+    <div class="feature-modal-card moment-modal-card">
+      <div class="feature-modal-head">
+        <div><p class="eyebrow">Fuwa Moments</p><h3 id="momentModalTitle">Add a little moment</h3></div>
+        <button type="button" id="momentModalClose" aria-label="Close">×</button>
+      </div>
+      <form id="momentForm" class="moment-form">
+        <input id="momentId" type="hidden">
+        <label>What happened?<input id="momentTitle" maxlength="180" required placeholder="Tried that tiny ramen place near work"></label>
+        <label>Type
+          <select id="momentType">
+            <option value="food">🍜 Food / Restaurant</option>
+            <option value="purchase">🛍 Purchase</option>
+            <option value="trip">✈️ Trip</option>
+            <option value="first">🌱 First</option>
+            <option value="achievement">🏆 Achievement</option>
+            <option value="quote">😂 Funny Quote</option>
+            <option value="event">🎉 Event</option>
+            <option value="person">💗 Person</option>
+            <option value="gift">🎁 Gift</option>
+            <option value="place">📍 Place</option>
+            <option value="other">✨ Other</option>
+          </select>
+        </label>
+        <div class="moment-two-field">
+          <label>Date<input id="momentDate" type="date"></label>
+          <label>Place<input id="momentPlace" maxlength="140" placeholder="Optional"></label>
+        </div>
+        <div id="momentAdaptiveFields"></div>
+        <label>Little note<textarea id="momentNote" rows="5" maxlength="900" placeholder="Anything Future You should remember about this?"></textarea></label>
+        <label>Tags<input id="momentTags" maxlength="180" placeholder="japan, food, funny"></label>
+        <label class="moment-wrapped-toggle"><input id="momentIncludeWrapped" type="checkbox" checked><span>Include this in my yearly Wrapped</span></label>
+        <div class="moment-form-actions">
+          <button class="secondary-btn hidden" id="momentDeleteButton" type="button">Delete</button>
+          <button class="primary-btn" type="submit">Save Moment ♡</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1587,6 +1664,13 @@
         <button type="button" data-checkin-mood="angry"><span class="fuwa-mood-svg mood-angry" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-angry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8f7"/><stop offset="1" stop-color="#f4d2d0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-angry)" stroke="#dd9598" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/></svg></span><small>Angry</small></button>
       </div>
       <button type="button" class="text-btn mood-skip-btn" id="skipMoodCheckin">Skip for now</button>
+    </div>
+  </div>
+
+  <div class="wrapped-sheet hidden" id="wrappedSheet" role="dialog" aria-modal="true" aria-label="Fuwa Wrapped">
+    <div class="wrapped-sheet-card">
+      <div class="wrapped-sheet-top"><button type="button" id="wrappedCloseButton" aria-label="Close">×</button></div>
+      <div id="wrappedStory"></div>
     </div>
   </div>
 

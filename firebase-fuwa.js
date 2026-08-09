@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Backup/Restore + Auto Sync — V38 Fast Startup
+// Fuwa Firebase Authentication + Firestore Backup/Restore + Auto Sync — V46 Optional Login
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -32,6 +32,12 @@ let cloudConflictDetected = false;
 const FUWA_CLOUD_DEVICE_ID_KEY = "fuwaCloudDeviceIdV1";
 const FUWA_CLOUD_BASELINE_KEY = "fuwaCloudBaselineV1";
 const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";
+const FUWA_LOCAL_MODE_KEY = "fuwaLocalModeV1";
+let firebaseInitialized = false;
+
+function isLocalModeChosen(){try{return localStorage.getItem(FUWA_LOCAL_MODE_KEY)==="1"}catch(_){return false}}
+function setLocalModeChosen(value){try{if(value)localStorage.setItem(FUWA_LOCAL_MODE_KEY,"1");else localStorage.removeItem(FUWA_LOCAL_MODE_KEY)}catch(_){}}
+
 
 function setPendingCloudSync(pending) {
   try {
@@ -82,7 +88,7 @@ function writeCloudBaseline(uid, backup = {}) {
 }
 
 function setAuthBusy(busy) {
-  ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton"].forEach(id => {
+  ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton", "continueLocalButton"].forEach(id => {
     const control = $auth(id);
     if (control) control.disabled = busy;
   });
@@ -140,6 +146,8 @@ function setAuthMode(mode) {
   $auth("signupForm")?.classList.toggle("hidden", !isSignup);
   $auth("googleSignInButton")?.classList.toggle("hidden", isSignup);
   $auth("authProviderDivider")?.classList.toggle("hidden", isSignup);
+  $auth("authLocalDivider")?.classList.toggle("hidden", isSignup);
+  $auth("continueLocalButton")?.classList.toggle("hidden", isSignup);
 
   if ($auth("authTitle")) $auth("authTitle").textContent = isSignup ? "Make your Fuwa" : "Welcome back to Fuwa";
   if ($auth("authSubtitle")) {
@@ -155,6 +163,36 @@ function setAuthMode(mode) {
   }, 60);
 }
 
+function revealLocalMode(){
+  document.body.classList.remove("auth-pending","auth-signed-out","auth-signed-in");
+  document.body.classList.add("auth-local");
+  $auth("fuwaAuthGate")?.classList.add("hidden");
+  stopAutoSync();
+
+  document.querySelector(".firebase-account-panel")?.classList.add("local-mode");
+  if($auth("firebaseSessionPill"))$auth("firebaseSessionPill").textContent="Local";
+  if($auth("firebaseAccountEmail"))$auth("firebaseAccountEmail").textContent="Using Fuwa without an account";
+  if($auth("firebaseAccountProviderDrawer"))$auth("firebaseAccountProviderDrawer").textContent="Stored on this device";
+  if($auth("firebaseAccountEmailProfile"))$auth("firebaseAccountEmailProfile").textContent="Using Fuwa without an account";
+  if($auth("firebaseLocalDataTitle"))$auth("firebaseLocalDataTitle").textContent="Using Fuwa without an account";
+  if($auth("firebaseLocalDataCopy"))$auth("firebaseLocalDataCopy").textContent="Your journal is stored on this device. You can log in later without deleting your local journal.";
+  $auth("firebaseProfileLoginButton")?.classList.remove("hidden");
+  $auth("firebaseProfileSignOutButton")?.classList.add("hidden");
+  $auth("cloudBackupCard")?.classList.add("local-hidden");
+
+  window.dispatchEvent(new CustomEvent("fuwa-auth-ready",{detail:{user:null,mode:"local"}}));
+}
+
+function prepareSignedInAccountUI(){
+  document.querySelector(".firebase-account-panel")?.classList.remove("local-mode");
+  if($auth("firebaseSessionPill"))$auth("firebaseSessionPill").textContent="Signed in";
+  if($auth("firebaseLocalDataTitle"))$auth("firebaseLocalDataTitle").textContent="Your diary is stored locally first.";
+  if($auth("firebaseLocalDataCopy"))$auth("firebaseLocalDataCopy").textContent="Fuwa Cloud can back up your journal text and records. Device-specific appearance stays on this device.";
+  $auth("firebaseProfileLoginButton")?.classList.add("hidden");
+  $auth("firebaseProfileSignOutButton")?.classList.remove("hidden");
+  $auth("cloudBackupCard")?.classList.remove("local-hidden");
+}
+
 function revealSignedOut() {
   document.body.classList.remove("auth-pending", "auth-signed-in");
   document.body.classList.add("auth-signed-out");
@@ -162,7 +200,9 @@ function revealSignedOut() {
 }
 
 function revealSignedIn(user) {
-  document.body.classList.remove("auth-pending", "auth-signed-out");
+  setLocalModeChosen(false);
+  prepareSignedInAccountUI();
+  document.body.classList.remove("auth-pending", "auth-signed-out", "auth-local");
   document.body.classList.add("auth-signed-in");
   $auth("fuwaAuthGate")?.classList.add("hidden");
 
@@ -290,6 +330,8 @@ async function ensureFirestoreReady() {
 }
 
 async function initializeFirebaseAuth() {
+  if (firebaseInitialized) return;
+  firebaseInitialized = true;
   try {
     // Load only the modules required to determine the saved login first.
     // Firestore is intentionally deferred until after Home is visible.
@@ -324,8 +366,8 @@ async function initializeFirebaseAuth() {
         cloudConflictDetected = false;
         startupReconciliationDoneForUid = null;
         setCloudConnectionStatus("Sign in to connect", "neutral");
-        setAuthMode("login");
-        revealSignedOut();
+        if (isLocalModeChosen()) revealLocalMode();
+        else { setAuthMode("login"); revealSignedOut(); }
       }
     }, error => {
       console.error("Fuwa auth-state observer failed.", error);
@@ -333,12 +375,26 @@ async function initializeFirebaseAuth() {
       revealSignedOut();
     });
   } catch (error) {
+    firebaseInitialized = false;
     console.error("Firebase Authentication could not initialize.", error);
     authReady = false;
     setCloudConnectionStatus("Unavailable", "error");
     revealSignedOut();
     showAuthMessage("Fuwa couldn't reach its login service. Check your internet connection and reload.");
   }
+}
+
+function handleContinueLocal(){
+  clearAuthMessage();
+  setLocalModeChosen(true);
+  revealLocalMode();
+}
+
+async function handleOpenLoginFromSettings(){
+  setLocalModeChosen(false);
+  setAuthMode("login");
+  revealSignedOut();
+  if(!firebaseInitialized) await initializeFirebaseAuth();
 }
 
 async function handleLogin(event) {
@@ -968,20 +1024,19 @@ async function handleCloudRestoreConfirm() {
   }
 }
 
-async function handleSignOut() {
-  if (!auth || !authApi) return;
-
-  const confirmed = window.confirm("Log out of Fuwa on this device?");
-  if (!confirmed) return;
-
-  try {
-    await authApi.signOut(auth);
-  } catch (error) {
-    console.error("Fuwa sign-out failed.", error);
+async function handleSignOut(){
+  const confirmed=window.confirm("Log out of your Fuwa account on this device? Your local journal will stay here.");
+  if(!confirmed)return;
+  try{
+    stopAutoSync();
+    setLocalModeChosen(true);
+    if(auth&&authApi)await authApi.signOut(auth);
+    revealLocalMode();
+  }catch(error){
+    console.error("Fuwa sign-out failed.",error);
     window.alert("Fuwa couldn't log out just now. Please try again.");
   }
 }
-
 
 function retryPendingCloudSync(reason = "resume") {
   if (!hasPendingCloudSync()) return;
@@ -1017,6 +1072,8 @@ function bindAuthUI() {
   $auth("signupForm")?.addEventListener("submit", handleSignup);
   $auth("forgotPasswordButton")?.addEventListener("click", handleForgotPassword);
   $auth("googleSignInButton")?.addEventListener("click", handleGoogleSignIn);
+  $auth("continueLocalButton")?.addEventListener("click", handleContinueLocal);
+  $auth("firebaseProfileLoginButton")?.addEventListener("click", handleOpenLoginFromSettings);
   $auth("firebaseSignOutButton")?.addEventListener("click", handleSignOut);
   $auth("firebaseProfileSignOutButton")?.addEventListener("click", handleSignOut);
   $auth("cloudBackupNowButton")?.addEventListener("click", handleCloudBackupRequest);
@@ -1033,4 +1090,5 @@ function bindAuthUI() {
 }
 
 bindAuthUI();
-initializeFirebaseAuth();
+if(isLocalModeChosen()) revealLocalMode();
+else initializeFirebaseAuth();
