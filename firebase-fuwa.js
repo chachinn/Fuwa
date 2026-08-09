@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication — V20
+// Fuwa Firebase Authentication — V24
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -20,7 +20,7 @@ let authMode = "login";
 let authReady = false;
 
 function setAuthBusy(busy) {
-  ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton"].forEach(id => {
+  ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton"].forEach(id => {
     const control = $auth(id);
     if (control) control.disabled = busy;
   });
@@ -76,6 +76,8 @@ function setAuthMode(mode) {
   const isSignup = authMode === "signup";
   $auth("loginForm")?.classList.toggle("hidden", isSignup);
   $auth("signupForm")?.classList.toggle("hidden", !isSignup);
+  $auth("googleSignInButton")?.classList.toggle("hidden", isSignup);
+  $auth("authProviderDivider")?.classList.toggle("hidden", isSignup);
 
   if ($auth("authTitle")) $auth("authTitle").textContent = isSignup ? "Make your Fuwa" : "Welcome back to Fuwa";
   if ($auth("authSubtitle")) {
@@ -243,6 +245,38 @@ async function handleForgotPassword() {
   }
 }
 
+async function handleGoogleSignIn() {
+  if (!auth || !authApi) {
+    showAuthMessage("Fuwa's login service is still loading. Try again in a moment.");
+    return;
+  }
+
+  clearAuthMessage();
+  setAuthBusy(true);
+
+  try {
+    const provider = new authApi.GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    await authApi.signInWithPopup(auth, provider);
+  } catch (error) {
+    console.error("Fuwa Google sign-in failed.", error);
+
+    if (error?.code === "auth/popup-closed-by-user") {
+      showAuthMessage("Google sign-in was closed before it finished.");
+    } else if (error?.code === "auth/popup-blocked") {
+      showAuthMessage("Your browser blocked the Google sign-in window. Allow pop-ups for Fuwa and try again.");
+    } else if (error?.code === "auth/cancelled-popup-request") {
+      // A second rapid tap can cancel the first popup. No extra warning needed.
+    } else if (error?.code === "auth/account-exists-with-different-credential") {
+      showAuthMessage("That email already has a Fuwa account using another sign-in method.");
+    } else {
+      showAuthMessage(friendlyAuthError(error));
+    }
+  } finally {
+    setAuthBusy(false);
+  }
+}
+
 async function handleSignOut() {
   if (!auth || !authApi) return;
 
@@ -261,6 +295,7 @@ function bindAuthUI() {
   $auth("loginForm")?.addEventListener("submit", handleLogin);
   $auth("signupForm")?.addEventListener("submit", handleSignup);
   $auth("forgotPasswordButton")?.addEventListener("click", handleForgotPassword);
+  $auth("googleSignInButton")?.addEventListener("click", handleGoogleSignIn);
   $auth("firebaseSignOutButton")?.addEventListener("click", handleSignOut);
 
   $auth("authSwitchButton")?.addEventListener("click", () => {
