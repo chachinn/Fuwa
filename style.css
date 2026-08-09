@@ -5511,3 +5511,275 @@ body.privacy-locked .app-shell {
     animation: none;
   }
 }
+
+
+
+/* =========================================================
+   FIREBASE AUTH FOUNDATION V20
+   ========================================================= */
+
+body.auth-pending,
+body.auth-signed-out {
+  overflow: hidden;
+}
+
+body.auth-pending .app-shell,
+body.auth-signed-out .app-shell {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.auth-signed-in .app-shell {
+  visibility: visible;
+}
+
+.fuwa-auth-gate {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  padding:
+    calc(28px + env(safe-area-inset-top, 0px))
+    22px
+    calc(28px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(249, 212, 225, .72), transparent 26%),
+    radial-gradient(circle at 88% 82%, rgba(226, 216, 242, .58), transparent 29%),
+    linear-gradient(180deg, #fff8fa 0%, #fffaf8 100%);
+}
+
+.fuwa-auth-card {
+  width: min(100%, 430px);
+  padding: 30px 23px 22px;
+  border: 1px solid rgba(234, 208, 218, .92);
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at 88% 3%, rgba(250, 224, 233, .52), transparent 28%),
+    rgba(255, 253, 252, .93);
+  box-shadow: 0 26px 70px rgba(94, 67, 79, .13);
+  text-align: center;
+}
+
+.auth-cloud {
+  position: relative;
+  width: 104px;
+  height: 50px;
+  margin: 3px auto 27px;
+  border: 1.5px solid #e49ab0;
+  border-radius: 999px;
+  background: linear-gradient(#fff8fb, #f4ceda);
+  box-shadow: 0 10px 22px rgba(215, 129, 155, .11);
+}
+
+.auth-cloud::before,
+.auth-cloud::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  border: inherit;
+  border-bottom: 0;
+  background: inherit;
+}
+
+.auth-cloud::before {
+  width: 54px;
+  height: 52px;
+  left: 16px;
+  top: -26px;
+}
+
+.auth-cloud::after {
+  width: 37px;
+  height: 36px;
+  right: 8px;
+  top: -13px;
+}
+
+.auth-cloud-face {
+  position: absolute;
+  z-index: 2;
+  left: 36px;
+  top: 22px;
+  width: 32px;
+  height: 11px;
+  border-bottom: 2px solid #77515e;
+  border-radius: 0 0 50% 50%;
+  background:
+    linear-gradient(12deg, transparent 43%, #77515e 46% 57%, transparent 60%) 0 0 / 10px 5px no-repeat,
+    linear-gradient(-12deg, transparent 43%, #77515e 46% 57%, transparent 60%) 22px 0 / 10px 5px no-repeat;
+}
+
+.auth-heading h1 {
+  margin: 5px 0 7px;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #44353d;
+  font-size: clamp(28px, 8vw, 35px);
+  line-height: 1.04;
+}
+
+.auth-heading > .muted {
+  max-width: 310px;
+  margin: 0 auto 21px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-form label > span {
+  padding-left: 2px;
+  color: #806b74;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid rgba(229, 204, 214, .95);
+  border-radius: 17px;
+  outline: none;
+  background: rgba(255,255,255,.88);
+  color: #4b3c43;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+
+.auth-form input:focus {
+  border-color: #df91a9;
+  box-shadow: 0 0 0 4px rgba(230, 145, 171, .10);
+}
+
+.auth-primary-btn {
+  width: 100%;
+  min-height: 53px;
+  margin-top: 3px;
+}
+
+.auth-link-btn {
+  justify-self: center;
+  margin-top: -2px;
+  min-height: 40px;
+}
+
+.auth-message {
+  margin: 13px 0 0;
+  padding: 11px 13px;
+  border-radius: 15px;
+  border: 1px solid rgba(220, 135, 149, .3);
+  background: rgba(250, 226, 230, .58);
+  color: #a95668;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.auth-message.success {
+  border-color: rgba(136, 181, 153, .32);
+  background: rgba(225, 243, 231, .64);
+  color: #5f8d6e;
+}
+
+.auth-switch-row {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(235, 214, 222, .85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.auth-local-note {
+  margin: 13px auto 0;
+  max-width: 315px;
+  color: #a49299;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.firebase-account-card {
+  margin-bottom: 14px;
+}
+
+.firebase-account-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 13px;
+}
+
+.firebase-account-heading h3 {
+  margin: 3px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.firebase-account-cloud {
+  position: relative;
+  width: 38px;
+  height: 19px;
+  border-radius: 999px;
+  background: linear-gradient(#f9dde6, #efb9c9);
+}
+
+.firebase-account-cloud::before {
+  content: "";
+  position: absolute;
+  width: 21px;
+  height: 21px;
+  left: 7px;
+  top: -10px;
+  border-radius: 50%;
+  background: inherit;
+}
+
+.firebase-account-user {
+  padding: 12px 4px 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+}
+
+.firebase-account-user span {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.firebase-account-user strong {
+  overflow-wrap: anywhere;
+  color: #58464f;
+  font-size: 12px;
+}
+
+@media (max-height: 650px) {
+  .fuwa-auth-gate {
+    place-items: start center;
+  }
+
+  .fuwa-auth-card {
+    margin: 12px 0;
+  }
+
+  .auth-cloud {
+    transform: scale(.82);
+    margin-bottom: 17px;
+  }
+}

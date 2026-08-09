@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v18-interaction-stability -->
+  <!-- FUWA_BUILD: v20-firebase-auth-foundation -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -15,13 +15,72 @@
   <link rel="icon" type="image/png" sizes="32x32" href="./icon/favicon-32.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="auth-pending">
   <div class="cozy-ambient" aria-hidden="true">
     <span class="ambient-cloud ambient-cloud-one"></span>
     <span class="ambient-cloud ambient-cloud-two"></span>
     <span class="ambient-glow ambient-glow-one"></span>
     <span class="ambient-glow ambient-glow-two"></span>
   </div>
+
+  <section class="fuwa-auth-gate" id="fuwaAuthGate" aria-live="polite">
+    <div class="fuwa-auth-card">
+      <div class="auth-cloud" aria-hidden="true">
+        <span class="auth-cloud-face"></span>
+      </div>
+
+      <div class="auth-heading">
+        <p class="eyebrow" id="authEyebrow">Your little place</p>
+        <h1 id="authTitle">Welcome back to Fuwa</h1>
+        <p class="muted" id="authSubtitle">Your soft little diary is waiting.</p>
+      </div>
+
+      <form class="auth-form" id="loginForm" novalidate>
+        <label>
+          <span>Email</span>
+          <input id="loginEmail" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required />
+        </label>
+
+        <label>
+          <span>Password</span>
+          <input id="loginPassword" type="password" autocomplete="current-password" minlength="6" placeholder="••••••••" required />
+        </label>
+
+        <button class="primary-btn auth-primary-btn" id="loginButton" type="submit">Log in</button>
+
+        <button class="text-btn auth-link-btn" id="forgotPasswordButton" type="button">Forgot password?</button>
+      </form>
+
+      <form class="auth-form hidden" id="signupForm" novalidate>
+        <label>
+          <span>Email</span>
+          <input id="signupEmail" type="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required />
+        </label>
+
+        <label>
+          <span>Password</span>
+          <input id="signupPassword" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required />
+        </label>
+
+        <label>
+          <span>Confirm password</span>
+          <input id="signupPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="Type it again" required />
+        </label>
+
+        <button class="primary-btn auth-primary-btn" id="signupButton" type="submit">Create account</button>
+      </form>
+
+      <p class="auth-message hidden" id="authMessage" role="status"></p>
+
+      <div class="auth-switch-row">
+        <span id="authSwitchCopy">New to Fuwa?</span>
+        <button class="text-btn" id="authSwitchButton" type="button">Create an account</button>
+      </div>
+
+      <p class="auth-local-note">Your existing diary stays on this device for now. Cloud sync comes later.</p>
+    </div>
+  </section>
+
   <div class="app-shell">
     <header class="topbar">
       <div>
@@ -799,6 +858,22 @@
           <div class="stat-card"><strong id="nightlyCount">0</strong><span>Wind-Downs</span></div>
         </div>
 
+
+        <div class="settings-card firebase-account-card">
+          <div class="firebase-account-heading">
+            <div>
+              <p class="eyebrow">Fuwa account</p>
+              <h3>Signed in</h3>
+            </div>
+            <span class="firebase-account-cloud" aria-hidden="true"></span>
+          </div>
+          <div class="firebase-account-user">
+            <span>Email</span>
+            <strong id="firebaseAccountEmail">—</strong>
+          </div>
+          <button id="firebaseSignOutButton" type="button">Log out <span>›</span></button>
+        </div>
+
         <div class="settings-card">
           <button id="exportButton">Backup & Export <span>›</span></button>
           <label class="import-row">
@@ -1081,6 +1156,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script type="module" src="firebase-auth.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
