@@ -6701,3 +6701,52 @@ body.drawer-open .bottom-nav{pointer-events:none}
 .sanctuary-unlocks{grid-template-columns:repeat(2,1fr)}.sanctuary-unlock{align-items:flex-start}.sanctuary-unlock>div{display:grid;gap:2px}.sanctuary-unlock small{color:inherit;opacity:.76;font-size:7.5px;line-height:1.25}
 .room-lamp,.room-plant,.room-books,.room-stars,.room-cloud-pet{outline:none}
 @media(max-width:370px){.sanctuary-object-options,.sanctuary-unlocks{grid-template-columns:1fr}}
+
+
+/* FUWA V41 — Memory Thread card layout fix */
+.thread-card-main {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 18px 17px;
+}
+
+.thread-card-main > div {
+  min-width: 0;
+}
+
+.thread-card-emoji {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  height: 48px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+  line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  font-size: 25px;
+}
+
+.thread-card h3,
+.thread-card p,
+.thread-card small {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.thread-card h3 {
+  line-height: 1.2;
+}
+
+.thread-card small {
+  display: block;
+  line-height: 1.35;
+}
+
+.thread-emoji-preview {
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+}

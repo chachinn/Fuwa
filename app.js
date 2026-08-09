@@ -781,6 +781,25 @@ function threadEntries(threadId) {
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
 }
 
+function safeThreadIcon(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "🧵";
+
+  // Thread icons are meant to be a single visual symbol, not a word.
+  // If older data contains text (for example "Something"), fall back cleanly.
+  if (/^[A-Za-z0-9]/.test(raw)) return "🧵";
+
+  try {
+    if (Intl?.Segmenter) {
+      const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+      const first = [...segmenter.segment(raw)][0]?.segment;
+      return first || "🧵";
+    }
+  } catch (_) {}
+
+  return Array.from(raw)[0] || "🧵";
+}
+
 function renderHomeThreads() {
   const host = $("homeThreadPreview");
   if (!host) return;
@@ -794,7 +813,7 @@ function renderHomeThreads() {
   }
   host.innerHTML = threads.map(thread => `
     <button class="thread-preview-card" type="button" data-thread-open="${escapeHtml(thread.id)}">
-      <span>${escapeHtml(thread.emoji || "🧵")}</span>
+      <span>${escapeHtml(safeThreadIcon(thread.emoji))}</span>
       <strong>${escapeHtml(thread.title)}</strong>
       <small>${threadEntryCount(thread.id)} ${threadEntryCount(thread.id) === 1 ? "memory" : "memories"}</small>
     </button>
@@ -819,7 +838,7 @@ function renderThreads() {
     return `
       ${swipeActionShell(`<article class="thread-card">
         <button class="thread-card-main" type="button" data-thread-open="${escapeHtml(thread.id)}">
-          <span class="thread-card-emoji">${escapeHtml(thread.emoji || "🧵")}</span>
+          <span class="thread-card-emoji">${escapeHtml(safeThreadIcon(thread.emoji))}</span>
           <div>
             <h3>${escapeHtml(thread.title)}</h3>
             <p>${escapeHtml(thread.description || "An ongoing story in your life.")}</p>
@@ -843,7 +862,7 @@ function renderEntryThreadPicker(selectedIds = null) {
   host.innerHTML = state.threads.map(thread => `
     <label class="thread-choice">
       <input type="checkbox" value="${escapeHtml(thread.id)}" ${current.includes(thread.id) ? "checked" : ""}>
-      <span>${escapeHtml(thread.emoji || "🧵")} ${escapeHtml(thread.title)}</span>
+      <span>${escapeHtml(safeThreadIcon(thread.emoji))} ${escapeHtml(thread.title)}</span>
     </label>
   `).join("");
 }
@@ -856,8 +875,8 @@ function openThreadModal(threadId = null) {
   editingThreadId = threadId;
   const thread = state.threads.find(item => item.id === threadId);
   $("threadModalTitle").textContent = thread ? "Edit Memory Thread" : "New Memory Thread";
-  $("threadEmojiInput").value = thread?.emoji || "🧵";
-  $("threadEmojiPreview").textContent = thread?.emoji || "🧵";
+  $("threadEmojiInput").value = safeThreadIcon(thread?.emoji);
+  $("threadEmojiPreview").textContent = safeThreadIcon(thread?.emoji);
   $("threadTitleInput").value = thread?.title || "";
   $("threadDescriptionInput").value = thread?.description || "";
   $("deleteThreadButton").classList.toggle("hidden", !thread);
@@ -880,7 +899,7 @@ async function saveThreadFromForm(event) {
   const record = {
     id: existing?.id || crypto.randomUUID(),
     title,
-    emoji: $("threadEmojiInput").value.trim() || "🧵",
+    emoji: safeThreadIcon($("threadEmojiInput").value),
     description: $("threadDescriptionInput").value.trim(),
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now()
@@ -935,7 +954,7 @@ function renderThreadDetail() {
   const first = entries[0];
   const latest = entries[entries.length - 1];
   $("threadDetailHero").innerHTML = `
-    <div class="thread-detail-icon">${escapeHtml(thread.emoji || "🧵")}</div>
+    <div class="thread-detail-icon">${escapeHtml(safeThreadIcon(thread.emoji))}</div>
     <div class="thread-detail-copy">
       <p class="eyebrow">Memory Thread</p>
       <h2>${escapeHtml(thread.title)}</h2>
@@ -971,7 +990,7 @@ function threadChipsForEntry(entry) {
   const ids = normalizeThreadIds(entry);
   return ids.map(id => {
     const thread = state.threads.find(item => item.id === id);
-    return thread ? `<span class="tag thread-tag">${escapeHtml(thread.emoji || "🧵")} ${escapeHtml(thread.title)}</span>` : "";
+    return thread ? `<span class="tag thread-tag">${escapeHtml(safeThreadIcon(thread.emoji))} ${escapeHtml(thread.title)}</span>` : "";
   }).join("");
 }
 
@@ -5005,7 +5024,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("cancelThreadButton").addEventListener("click", closeThreadModal);
   $("deleteThreadButton").addEventListener("click", deleteCurrentThread);
   $("threadEmojiInput").addEventListener("input", () => {
-    $("threadEmojiPreview").textContent = $("threadEmojiInput").value.trim() || "🧵";
+    $("threadEmojiPreview").textContent = safeThreadIcon($("threadEmojiInput").value);
   });
   $("threadModal").addEventListener("click", event => {
     if (event.target === $("threadModal")) closeThreadModal();
