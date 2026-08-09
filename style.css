@@ -6568,3 +6568,12 @@ body.drawer-open .bottom-nav{pointer-events:none}
 .fuwa-swipe-action {
   opacity: 1;
 }
+
+
+/* FUWA V34 — Automatic cloud sync status */
+#cloudAutoSyncStatus {
+  color: #8c7180;
+}
+
+/* FUWA V35 — startup reconciliation status */
+#cloudAutoSyncStatus { transition: opacity .18s ease; }

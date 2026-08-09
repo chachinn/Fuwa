@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v33-swipe-ui-fix -->
+  <!-- FUWA_BUILD: v35-startup-reconciliation -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1018,6 +1018,10 @@
           <div class="cloud-backup-meta">
             <span>Records</span>
             <strong id="cloudBackupRecordCount">Not backed up yet</strong>
+          </div>
+          <div class="cloud-backup-meta">
+            <span>Automatic sync</span>
+            <strong id="cloudAutoSyncStatus">On · waiting for changes</strong>
           </div>
           <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
           <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>

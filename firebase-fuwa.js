@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Backup/Restore — V31
+// Fuwa Firebase Authentication + Firestore Backup/Restore + Auto Sync — V35
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -21,6 +21,12 @@ let firestore = null;
 let authMode = "login";
 let authReady = false;
 let firestoreCheckPromise = null;
+let autoSyncTimer = null;
+let autoSyncInFlight = false;
+let autoSyncQueued = false;
+let suppressAutoSyncUntil = 0;
+let startupReconciliationDoneForUid = null;
+let startupReconciliationInFlight = false;
 
 function setAuthBusy(busy) {
   ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton"].forEach(id => {
@@ -175,7 +181,9 @@ async function verifyFirestoreConnection(user) {
 
       await firestoreApi.deleteDoc(testRef);
       setCloudConnectionStatus("Connected ✓", "success");
+      setAutoSyncStatus("On · waiting for changes");
       loadCloudBackupStatus(user);
+      reconcileStartupCloudState(user);
 
       window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
         detail: { uid: user.uid, connected: true }
@@ -371,6 +379,109 @@ async function handleGoogleSignIn() {
 }
 
 
+
+function setAutoSyncStatus(message) {
+  const el = $auth("cloudAutoSyncStatus");
+  if (el) el.textContent = message;
+}
+
+function formatAutoSyncClock(date = new Date()) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+async function performAutomaticCloudSync() {
+  const user = auth?.currentUser;
+
+  if (!user?.uid || !firestore || !firestoreApi) {
+    setAutoSyncStatus("On · waiting for cloud");
+    return false;
+  }
+
+  if (Date.now() < suppressAutoSyncUntil) return false;
+
+  if (autoSyncInFlight) {
+    autoSyncQueued = true;
+    return false;
+  }
+
+  if (typeof window.fuwaCreateCloudBackupPayload !== "function") {
+    setAutoSyncStatus("On · preparing local data");
+    return false;
+  }
+
+  autoSyncInFlight = true;
+  autoSyncQueued = false;
+  setAutoSyncStatus("Syncing…");
+
+  try {
+    const payload = await window.fuwaCreateCloudBackupPayload();
+    if (!payload || payload.app !== "Fuwa" || !payload.data) {
+      throw new Error("invalid-auto-sync-payload");
+    }
+
+    const serialized = JSON.stringify(payload);
+    const approximateBytes = new TextEncoder().encode(serialized).byteLength;
+    if (approximateBytes > 900000) {
+      throw new Error("cloud-backup-too-large");
+    }
+
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const cloudDocument = {
+      ...payload,
+      ownerUid: user.uid,
+      backedUpAt: firestoreApi.serverTimestamp(),
+      backedUpAtClient: new Date().toISOString(),
+      approximateBytes,
+      syncReason: "automatic-local-change"
+    };
+
+    await firestoreApi.setDoc(backupRef, cloudDocument);
+
+    setCloudBackupUI({
+      busy: false,
+      status: "Backed up ✓",
+      lastBackup: cloudDocument.backedUpAtClient,
+      recordCount: Number(payload.recordCount || 0)
+    });
+    setAutoSyncStatus(`On · synced ${formatAutoSyncClock()}`);
+
+    return true;
+  } catch (error) {
+    console.error("Fuwa automatic cloud sync failed.", error);
+    setAutoSyncStatus(
+      error?.message === "cloud-backup-too-large"
+        ? "On · manual backup needed"
+        : "On · will retry"
+    );
+    return false;
+  } finally {
+    autoSyncInFlight = false;
+
+    if (autoSyncQueued) {
+      autoSyncQueued = false;
+      window.setTimeout(() => performAutomaticCloudSync(), 700);
+    }
+  }
+}
+
+function scheduleAutomaticCloudSync() {
+  if (Date.now() < suppressAutoSyncUntil) return;
+
+  window.clearTimeout(autoSyncTimer);
+  setAutoSyncStatus("On · changes waiting");
+  autoSyncTimer = window.setTimeout(() => {
+    performAutomaticCloudSync();
+  }, 1200);
+}
+
+window.addEventListener("fuwa-local-data-changed", event => {
+  if (event?.detail?.source !== "local") return;
+  scheduleAutomaticCloudSync();
+});
+
 function formatCloudBackupTime(value) {
   if (!value) return "No cloud backup yet";
   const date = value?.toDate ? value.toDate() : new Date(value);
@@ -398,6 +509,53 @@ function setCloudBackupUI({ busy = false, status = "Ready", lastBackup = null, r
   if (lastTime && lastBackup !== undefined) lastTime.textContent = formatCloudBackupTime(lastBackup);
   if (count && recordCount !== undefined && recordCount !== null) {
     count.textContent = `${recordCount} record${recordCount === 1 ? "" : "s"}`;
+  }
+}
+
+
+async function reconcileStartupCloudState(user = auth?.currentUser) {
+  if (!user?.uid || !firestore || !firestoreApi) return;
+  if (startupReconciliationInFlight || startupReconciliationDoneForUid === user.uid) return;
+
+  startupReconciliationInFlight = true;
+  setAutoSyncStatus("On · checking cloud…");
+
+  try {
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const snapshot = await firestoreApi.getDoc(backupRef);
+
+    if (!snapshot.exists()) {
+      startupReconciliationDoneForUid = user.uid;
+      setAutoSyncStatus("On · waiting for changes");
+      return;
+    }
+
+    const cloud = snapshot.data() || {};
+    const cloudCount = Number(cloud.recordCount || 0);
+    const local = typeof window.fuwaGetLocalCloudSummary === "function"
+      ? await window.fuwaGetLocalCloudSummary()
+      : { recordCount: 0, hasJournalData: false };
+
+    // Step 2 is intentionally conservative:
+    // never overwrite a non-empty device automatically.
+    if (!local.hasJournalData && cloudCount > 0) {
+      setAutoSyncStatus("Cloud backup found · restore available");
+      setCloudBackupUI({
+        busy: false,
+        status: "Cloud copy found",
+        lastBackup: cloud.backedUpAt || cloud.backedUpAtClient || cloud.createdAt,
+        recordCount: cloudCount
+      });
+    } else {
+      setAutoSyncStatus("On · local data protected");
+    }
+
+    startupReconciliationDoneForUid = user.uid;
+  } catch (error) {
+    console.error("Fuwa startup reconciliation failed.", error);
+    setAutoSyncStatus("On · cloud check will retry");
+  } finally {
+    startupReconciliationInFlight = false;
   }
 }
 
@@ -482,6 +640,7 @@ async function handleCloudBackupRequest(event) {
       lastBackup: verified.backedUpAt || verified.backedUpAtClient,
       recordCount: Number(verified.recordCount || payload.recordCount || 0)
     });
+    setAutoSyncStatus(`On · synced ${formatAutoSyncClock()}`);
 
     window.dispatchEvent(new CustomEvent("fuwa-cloud-backup-complete", {
       detail: {
@@ -585,6 +744,7 @@ async function handleCloudRestoreConfirm() {
     }
 
     const safetyBackup = await window.fuwaCreateRestoreSafetyBackup();
+    suppressAutoSyncUntil = Date.now() + 5000;
 
     if (button) button.textContent = "Restoring & verifying…";
 

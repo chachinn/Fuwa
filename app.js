@@ -113,6 +113,16 @@ function transactionDone(transaction) {
   });
 }
 
+function announceLocalDataChange(detail = {}) {
+  window.dispatchEvent(new CustomEvent("fuwa-local-data-changed", {
+    detail: {
+      source: "local",
+      at: Date.now(),
+      ...detail
+    }
+  }));
+}
+
 const diaryRepository = {
   db: null,
 
@@ -155,12 +165,14 @@ const diaryRepository = {
     const transaction = this.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).put(record);
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "save", storeName, recordId: record?.id || null });
   },
 
   async remove(storeName, id) {
     const transaction = this.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).delete(id);
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "remove", storeName, recordId: id });
   },
 
   async getMediaForEntry(entryId) {
@@ -194,6 +206,7 @@ const diaryRepository = {
     newMediaRecords.forEach(record => mediaStore.put(record));
     removedIds.forEach(id => mediaStore.delete(id));
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "save-entry", storeName: "entries", recordId: entry?.id || null });
   },
 
   async deleteEntryWithMedia(entryId) {
@@ -208,6 +221,7 @@ const diaryRepository = {
     const bookmarkStore = transaction.objectStore("bookmarks");
     bookmarkRecords.forEach(record => bookmarkStore.delete(record.id));
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "delete-entry", storeName: "entries", recordId: entryId });
   },
 
   async readCurrentData() {
@@ -272,6 +286,7 @@ const diaryRepository = {
       }
     });
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "delete-thread", storeName: "threads", recordId: threadId });
   },
 
   async clearDiaryData() {
@@ -279,6 +294,7 @@ const diaryRepository = {
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
+    announceLocalDataChange({ action: "clear-diary", storeName: "all" });
   },
 
   async getSetting(key) {
@@ -4277,6 +4293,14 @@ async function createCloudBackupPayload() {
     data
   };
 }
+
+window.fuwaGetLocalCloudSummary = async function () {
+  const currentData = await diaryRepository.readCurrentData();
+  return {
+    recordCount: cloudBackupRecordCount(currentData),
+    hasJournalData: cloudBackupRecordCount(currentData) > 0
+  };
+};
 
 window.fuwaCreateCloudBackupPayload = createCloudBackupPayload;
 
