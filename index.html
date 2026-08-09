@@ -135,6 +135,57 @@
           <div class="stack" id="recentEntries"></div>
         </section>
 
+
+        <section class="section-block nightly-home-section" id="nightlyHomeSection">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Before today floats away</p>
+              <h3>Nightly Wind-Down</h3>
+            </div>
+            <button class="text-btn" id="openNightlyButton">Open</button>
+          </div>
+          <button class="nightly-card" id="nightlyCard" type="button">
+            <div class="nightly-visual" aria-hidden="true">
+              <div class="night-cloud">
+                <span class="night-cloud-face"></span>
+              </div>
+              <div class="night-moon"></div>
+              <span class="night-star star-one"></span>
+              <span class="night-star star-two"></span>
+            </div>
+            <div class="nightly-copy">
+              <strong id="nightlyStatusTitle">A tiny place to put today down.</strong>
+              <span id="nightlyStatusText">One grateful thing, one thing to leave here, and a note to tomorrow.</span>
+              <small id="nightlyStatusAction">Wind down tonight →</small>
+            </div>
+          </button>
+        </section>
+
+
+        <section class="section-block sleep-home-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Drift off softly</p>
+              <h3>Sleep Corner</h3>
+            </div>
+            <button class="text-btn" id="openSleepCornerButton">Open</button>
+          </div>
+
+          <button class="sleep-home-card" id="sleepHomeCard" type="button">
+            <div class="sleep-home-art" aria-hidden="true">
+              <div class="sleep-pillow"></div>
+              <div class="sleep-cloud-small"><span></span></div>
+              <span class="sleep-z z-one">z</span>
+              <span class="sleep-z z-two">z</span>
+            </div>
+            <div class="sleep-home-copy">
+              <strong id="sleepHomeTitle">Something soft to fall asleep to.</strong>
+              <span id="sleepHomeText">Rain, waves, fireplace, wind, forest night, café, brown noise, and white noise.</span>
+              <small id="sleepHomeAction">Choose a sound →</small>
+            </div>
+          </button>
+        </section>
+
         <section class="section-block">
           <div class="section-heading">
             <div>
@@ -254,6 +305,192 @@
       <section class="view" id="bookmarkDetailView">
         <button class="text-btn thread-back" id="bookmarksBackButton">← All bookmarks</button>
         <div id="bookmarkDetailContent"></div>
+      </section>
+
+
+      <section class="view" id="nightlyView">
+        <button class="text-btn thread-back" id="nightlyBackButton">← Home</button>
+
+        <div class="nightly-page-hero">
+          <div class="nightly-page-art" aria-hidden="true">
+            <div class="night-cloud large">
+              <span class="night-cloud-face"></span>
+            </div>
+            <div class="night-moon large"></div>
+            <span class="night-star star-one"></span>
+            <span class="night-star star-two"></span>
+            <span class="night-star star-three"></span>
+          </div>
+          <p class="eyebrow">Nightly Wind-Down</p>
+          <h2>Before today floats away…</h2>
+          <p class="muted">You don't have to make today meaningful. Just put it down gently.</p>
+        </div>
+
+        <form class="nightly-form" id="nightlyForm">
+          <div class="nightly-prompt-card">
+            <div class="nightly-prompt-icon">♡</div>
+            <label for="nightlyGrateful">One thing I'm grateful for</label>
+            <textarea id="nightlyGrateful" rows="4" maxlength="500" placeholder="Something small is enough…"></textarea>
+          </div>
+
+          <div class="nightly-prompt-card">
+            <div class="nightly-prompt-icon release">⌁</div>
+            <label for="nightlyRelease">One thing I want to leave here</label>
+            <textarea id="nightlyRelease" rows="4" maxlength="500" placeholder="You don't need to carry everything into tomorrow…"></textarea>
+          </div>
+
+          <div class="nightly-prompt-card">
+            <div class="nightly-prompt-icon tomorrow">☾</div>
+            <label for="nightlyTomorrow">A tiny note to tomorrow <span>optional</span></label>
+            <textarea id="nightlyTomorrow" rows="4" maxlength="500" placeholder="Dear tomorrow…"></textarea>
+          </div>
+
+          <div class="nightly-form-actions">
+            <button class="primary-btn" type="submit">Put today to rest</button>
+            <button class="text-btn nightly-skip" type="button" id="nightlySkipButton">Not tonight</button>
+          </div>
+        </form>
+
+        <section class="section-block nightly-history-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Quiet nights</p>
+              <h3>Past wind-downs</h3>
+            </div>
+          </div>
+          <div class="nightly-history" id="nightlyHistory"></div>
+        </section>
+      </section>
+
+
+      <section class="view" id="sleepView">
+        <button class="text-btn thread-back" id="sleepBackButton">← Home</button>
+
+        <div class="sleep-page-hero">
+          <div class="sleep-page-art" aria-hidden="true">
+            <div class="sleep-cloud-large"><span></span></div>
+            <div class="sleep-moon-large"></div>
+            <span class="sleep-star sleep-star-a"></span>
+            <span class="sleep-star sleep-star-b"></span>
+            <span class="sleep-star sleep-star-c"></span>
+          </div>
+          <p class="eyebrow">Sleep Corner</p>
+          <h2>Let Fuwa hum you to sleep.</h2>
+          <p class="muted">Choose a sound, set a timer, and Fuwa will gently fade it out when time is up.</p>
+        </div>
+
+        <section class="sleep-section">
+          <div class="sleep-section-heading">
+            <div>
+              <p class="eyebrow">Choose your sound</p>
+              <h3>Soundscape</h3>
+            </div>
+          </div>
+
+          <div class="sleep-sound-grid" id="sleepSoundGrid">
+            <button type="button" class="sleep-sound-card" data-sleep-sound="rain">
+              <span class="sleep-sound-icon sound-rain" aria-hidden="true"></span>
+              <strong>Soft Rain</strong>
+              <small>Gentle rainfall</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="waves">
+              <span class="sleep-sound-icon sound-waves" aria-hidden="true"></span>
+              <strong>Night Waves</strong>
+              <small>Slow ocean wash</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="fireplace">
+              <span class="sleep-sound-icon sound-fireplace" aria-hidden="true"></span>
+              <strong>Fireplace</strong>
+              <small>Warm crackle</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="wind">
+              <span class="sleep-sound-icon sound-wind" aria-hidden="true"></span>
+              <strong>Gentle Wind</strong>
+              <small>Soft moving air</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="forest">
+              <span class="sleep-sound-icon sound-forest" aria-hidden="true"></span>
+              <strong>Forest Night</strong>
+              <small>Quiet night woods</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="cafe">
+              <span class="sleep-sound-icon sound-cafe" aria-hidden="true"></span>
+              <strong>Cozy Café</strong>
+              <small>Soft room ambience</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="brown">
+              <span class="sleep-sound-icon sound-brown" aria-hidden="true"></span>
+              <strong>Brown Noise</strong>
+              <small>Deep steady hush</small>
+            </button>
+            <button type="button" class="sleep-sound-card" data-sleep-sound="white">
+              <span class="sleep-sound-icon sound-white" aria-hidden="true"></span>
+              <strong>White Noise</strong>
+              <small>Clean steady hush</small>
+            </button>
+          </div>
+        </section>
+
+        <section class="sleep-section">
+          <div class="sleep-section-heading">
+            <div>
+              <p class="eyebrow">How long?</p>
+              <h3>Sleep timer</h3>
+            </div>
+          </div>
+
+          <div class="sleep-timer-options" id="sleepTimerOptions">
+            <button type="button" data-sleep-minutes="15">15 min</button>
+            <button type="button" data-sleep-minutes="30">30 min</button>
+            <button type="button" data-sleep-minutes="45">45 min</button>
+            <button type="button" data-sleep-minutes="60">1 hour</button>
+            <button type="button" data-sleep-minutes="120">2 hours</button>
+          </div>
+
+          <label class="sleep-custom-timer">
+            <span>Custom minutes</span>
+            <input id="sleepCustomMinutes" type="number" min="5" max="480" step="5" placeholder="90" inputmode="numeric" />
+          </label>
+        </section>
+
+        <section class="sleep-section">
+          <div class="sleep-section-heading">
+            <div>
+              <p class="eyebrow">How soft?</p>
+              <h3>Volume</h3>
+            </div>
+            <span id="sleepVolumeLabel">45%</span>
+          </div>
+
+          <input class="sleep-volume-slider" id="sleepVolumeSlider" type="range" min="0" max="100" value="45" />
+        </section>
+
+        <section class="sleep-player-card" id="sleepPlayerCard">
+          <div class="sleep-player-top">
+            <div class="sleep-now-art" aria-hidden="true">
+              <div class="sleep-now-cloud"><span></span></div>
+            </div>
+            <div>
+              <p class="eyebrow">Now playing</p>
+              <h3 id="sleepNowPlaying">Soft Rain</h3>
+              <span id="sleepCountdown">30:00 remaining</span>
+            </div>
+          </div>
+
+          <div class="sleep-progress">
+            <span id="sleepProgressBar"></span>
+          </div>
+
+          <div class="sleep-player-actions">
+            <button class="sleep-play-btn" id="sleepPlayPauseButton" type="button">
+              <span id="sleepPlayPauseIcon">▶</span>
+              <span id="sleepPlayPauseText">Play</span>
+            </button>
+            <button class="sleep-stop-btn" id="sleepStopButton" type="button">Stop</button>
+          </div>
+
+          <p class="sleep-player-note">When the timer ends, Fuwa fades the sound out gently instead of stopping suddenly.</p>
+        </section>
       </section>
 
       <section class="view" id="entriesView">
@@ -387,6 +624,7 @@
           <div class="stat-card"><strong id="joyCount">0</strong><span>Tiny Joys</span></div>
           <div class="stat-card"><strong id="letterCount">0</strong><span>Letters</span></div>
           <div class="stat-card"><strong id="bookmarkCount">0</strong><span>Bookmarks</span></div>
+          <div class="stat-card"><strong id="nightlyCount">0</strong><span>Wind-Downs</span></div>
         </div>
 
         <div class="settings-card">

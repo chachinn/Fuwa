@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -16,10 +16,14 @@ const defaultState = {
   moodCheckins: [],
   threads: [],
   bookmarks: [],
+  nightlyReflections: [],
   selectedMood: "good",
   theme: "pink",
   wallpaperEnabled: false,
-  wallpaperOverlay: "medium"
+  wallpaperOverlay: "medium",
+  sleepSound: "rain",
+  sleepMinutes: 30,
+  sleepVolume: 45
 };
 
 let state = structuredClone(defaultState);
@@ -41,7 +45,10 @@ function loadPreferences() {
       selectedMood: typeof saved.selectedMood === "string" ? saved.selectedMood : defaultState.selectedMood,
       theme: typeof saved.theme === "string" ? saved.theme : defaultState.theme,
       wallpaperEnabled: typeof saved.wallpaperEnabled === "boolean" ? saved.wallpaperEnabled : defaultState.wallpaperEnabled,
-      wallpaperOverlay: ["light", "medium", "strong"].includes(saved.wallpaperOverlay) ? saved.wallpaperOverlay : defaultState.wallpaperOverlay
+      wallpaperOverlay: ["light", "medium", "strong"].includes(saved.wallpaperOverlay) ? saved.wallpaperOverlay : defaultState.wallpaperOverlay,
+      sleepSound: typeof saved.sleepSound === "string" ? saved.sleepSound : defaultState.sleepSound,
+      sleepMinutes: Number.isFinite(saved.sleepMinutes) ? saved.sleepMinutes : defaultState.sleepMinutes,
+      sleepVolume: Number.isFinite(saved.sleepVolume) ? saved.sleepVolume : defaultState.sleepVolume
     };
   } catch (error) {
     console.error("Could not read Fuwa preferences.", error);
@@ -55,7 +62,10 @@ function savePreferences() {
       selectedMood: state.selectedMood,
       theme: state.theme,
       wallpaperEnabled: state.wallpaperEnabled,
-      wallpaperOverlay: state.wallpaperOverlay
+      wallpaperOverlay: state.wallpaperOverlay,
+      sleepSound: state.sleepSound,
+      sleepMinutes: state.sleepMinutes,
+      sleepVolume: state.sleepVolume
     }));
   } catch (error) {
     console.error("Could not save Fuwa preferences.", error);
@@ -175,17 +185,18 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
       this.getAll("threads"),
-      this.getAll("bookmarks")
+      this.getAll("bookmarks"),
+      this.getAll("nightlyReflections")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -204,6 +215,9 @@ const diaryRepository = {
     const bookmarkStore = transaction.objectStore("bookmarks");
     bookmarkStore.clear();
     (data.bookmarks || []).forEach(record => bookmarkStore.put(record));
+    const nightlyStore = transaction.objectStore("nightlyReflections");
+    nightlyStore.clear();
+    (data.nightlyReflections || []).forEach(record => nightlyStore.put(record));
     await transactionDone(transaction);
   },
 
@@ -223,7 +237,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -513,6 +527,21 @@ function dataUrlToBlob(dataUrl) {
 
 
 
+
+function validateNightlyReflections(items) {
+  if (items === undefined) return [];
+  if (!Array.isArray(items)) throw new Error("nightlyReflections must be an array");
+  const ids = new Set();
+  items.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id || typeof record.date !== "string") {
+      throw new Error("nightlyReflections contains an invalid record");
+    }
+    if (ids.has(record.id)) throw new Error("nightlyReflections contains duplicate IDs");
+    ids.add(record.id);
+  });
+  return items;
+}
+
 function validateBookmarks(bookmarks) {
   if (bookmarks === undefined) return [];
   if (!Array.isArray(bookmarks)) throw new Error("bookmarks must be an array");
@@ -784,6 +813,592 @@ function threadChipsForEntry(entry) {
 
 
 
+
+
+const sleepSoundNames = {
+  rain: "Soft Rain",
+  waves: "Night Waves",
+  fireplace: "Fireplace",
+  wind: "Gentle Wind",
+  forest: "Forest Night",
+  cafe: "Cozy Café",
+  brown: "Brown Noise",
+  white: "White Noise"
+};
+
+function ensureSleepAudioContext() {
+  if (!sleepAudioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) throw new Error("Web Audio is not supported on this device.");
+
+    sleepAudioContext = new AudioCtx({ latencyHint: "playback" });
+    sleepMasterGain = sleepAudioContext.createGain();
+    sleepMasterGain.gain.value = Math.max(0, Math.min(1, state.sleepVolume / 100));
+    sleepMasterGain.connect(sleepAudioContext.destination);
+  }
+  return sleepAudioContext;
+}
+
+function getSleepNoiseBuffer() {
+  const ctx = ensureSleepAudioContext();
+  if (sleepNoiseBuffer && sleepNoiseBuffer.sampleRate === ctx.sampleRate) return sleepNoiseBuffer;
+
+  // 4 seconds is long enough to avoid an obvious tiny loop while staying lightweight.
+  const length = ctx.sampleRate * 4;
+  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+
+  sleepNoiseBuffer = buffer;
+  return buffer;
+}
+
+function createNoiseSource() {
+  const ctx = ensureSleepAudioContext();
+  const source = ctx.createBufferSource();
+  source.buffer = getSleepNoiseBuffer();
+  source.loop = true;
+  return source;
+}
+
+function trackSleepNode(node) {
+  sleepNodes.push(node);
+  return node;
+}
+
+function connectSleepNode(source, destination = sleepMasterGain) {
+  source.connect(destination);
+  trackSleepNode(source);
+  return source;
+}
+
+function createFilteredNoise({ type = "lowpass", frequency = 1000, q = 0.7, gain = 0.3 } = {}) {
+  const ctx = ensureSleepAudioContext();
+  const source = createNoiseSource();
+  const filter = ctx.createBiquadFilter();
+  filter.type = type;
+  filter.frequency.value = frequency;
+  filter.Q.value = q;
+
+  const localGain = ctx.createGain();
+  localGain.gain.value = gain;
+
+  source.connect(filter);
+  filter.connect(localGain);
+  localGain.connect(sleepMasterGain);
+
+  trackSleepNode(source);
+  trackSleepNode(filter);
+  trackSleepNode(localGain);
+  source.start();
+
+  return { source, filter, gain: localGain };
+}
+
+function createLfo(targetParam, frequency, depth, center) {
+  const ctx = ensureSleepAudioContext();
+  const lfo = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  lfo.frequency.value = frequency;
+  lfoGain.gain.value = depth;
+  targetParam.value = center;
+  lfo.connect(lfoGain);
+  lfoGain.connect(targetParam);
+  lfo.start();
+
+  trackSleepNode(lfo);
+  trackSleepNode(lfoGain);
+  return { lfo, lfoGain };
+}
+
+function createSoftTone(frequency, gain = 0.02, type = "sine") {
+  const ctx = ensureSleepAudioContext();
+  const osc = ctx.createOscillator();
+  const localGain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.value = frequency;
+  localGain.gain.value = gain;
+  osc.connect(localGain);
+  localGain.connect(sleepMasterGain);
+  trackSleepNode(osc);
+  trackSleepNode(localGain);
+  osc.start();
+  return { osc, gain: localGain };
+}
+
+function buildRainSound() {
+  const rain = createFilteredNoise({ type: "highpass", frequency: 900, q: 0.4, gain: 0.21 });
+  const body = createFilteredNoise({ type: "bandpass", frequency: 1800, q: 0.6, gain: 0.08 });
+  createLfo(rain.gain.gain, 0.12, 0.035, 0.19);
+  createLfo(body.gain.gain, 0.19, 0.02, 0.07);
+}
+
+function buildWaveSound() {
+  const sea = createFilteredNoise({ type: "lowpass", frequency: 650, q: 0.8, gain: 0.18 });
+  const foam = createFilteredNoise({ type: "bandpass", frequency: 1400, q: 0.8, gain: 0.055 });
+  createLfo(sea.gain.gain, 0.085, 0.12, 0.13);
+  createLfo(foam.gain.gain, 0.09, 0.04, 0.035);
+}
+
+function buildFireplaceSound() {
+  const fire = createFilteredNoise({ type: "bandpass", frequency: 950, q: 0.9, gain: 0.12 });
+  const warmth = createFilteredNoise({ type: "lowpass", frequency: 260, q: 0.5, gain: 0.055 });
+  createLfo(fire.gain.gain, 1.7, 0.035, 0.10);
+  createLfo(warmth.gain.gain, 0.18, 0.015, 0.05);
+}
+
+function buildWindSound() {
+  const wind = createFilteredNoise({ type: "lowpass", frequency: 950, q: 0.9, gain: 0.12 });
+  createLfo(wind.filter.frequency, 0.07, 380, 760);
+  createLfo(wind.gain.gain, 0.095, 0.07, 0.10);
+}
+
+function buildForestSound() {
+  const air = createFilteredNoise({ type: "lowpass", frequency: 1200, q: 0.6, gain: 0.085 });
+  const insects = createFilteredNoise({ type: "bandpass", frequency: 3900, q: 2.2, gain: 0.018 });
+  createLfo(air.gain.gain, 0.06, 0.025, 0.075);
+  createLfo(insects.gain.gain, 0.45, 0.008, 0.015);
+  createSoftTone(2400, 0.0035, "sine");
+}
+
+function buildCafeSound() {
+  const room = createFilteredNoise({ type: "bandpass", frequency: 650, q: 0.5, gain: 0.08 });
+  const softHiss = createFilteredNoise({ type: "highpass", frequency: 2200, q: 0.4, gain: 0.018 });
+  createLfo(room.gain.gain, 0.11, 0.025, 0.07);
+  createSoftTone(110, 0.008, "sine");
+  createSoftTone(165, 0.004, "sine");
+}
+
+function buildBrownNoise() {
+  // Low-pass filtered white noise approximates the deep spectrum of brown noise
+  // with far less CPU than per-sample realtime processing.
+  const brown = createFilteredNoise({ type: "lowpass", frequency: 380, q: 0.35, gain: 0.30 });
+  createLfo(brown.gain.gain, 0.025, 0.012, 0.285);
+}
+
+function buildWhiteNoise() {
+  createFilteredNoise({ type: "allpass", frequency: 1000, q: 0.5, gain: 0.16 });
+}
+
+function buildSelectedSleepSound() {
+  stopSleepNodesOnly();
+  switch (state.sleepSound) {
+    case "waves": buildWaveSound(); break;
+    case "fireplace": buildFireplaceSound(); break;
+    case "wind": buildWindSound(); break;
+    case "forest": buildForestSound(); break;
+    case "cafe": buildCafeSound(); break;
+    case "brown": buildBrownNoise(); break;
+    case "white": buildWhiteNoise(); break;
+    default: buildRainSound();
+  }
+}
+
+function stopSleepNodesOnly() {
+  sleepNodes.forEach(node => {
+    try {
+      if (typeof node.stop === "function") node.stop();
+    } catch (_) {}
+    try {
+      node.disconnect();
+    } catch (_) {}
+  });
+  sleepNodes = [];
+}
+
+function selectedSleepMinutes() {
+  const custom = Number($("sleepCustomMinutes")?.value || 0);
+  if (custom >= 5 && custom <= 480) return custom;
+  return Math.max(5, Number(state.sleepMinutes) || 30);
+}
+
+function formatSleepCountdown(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function renderSleepControls() {
+  document.querySelectorAll("[data-sleep-sound]").forEach(button => {
+    button.classList.toggle("selected", button.dataset.sleepSound === state.sleepSound);
+  });
+
+  document.querySelectorAll("[data-sleep-minutes]").forEach(button => {
+    button.classList.toggle("selected", Number(button.dataset.sleepMinutes) === Number(state.sleepMinutes) && !$("sleepCustomMinutes")?.value);
+  });
+
+  if ($("sleepVolumeSlider")) $("sleepVolumeSlider").value = String(state.sleepVolume);
+  if ($("sleepVolumeLabel")) $("sleepVolumeLabel").textContent = `${state.sleepVolume}%`;
+
+  if ($("sleepNowPlaying")) $("sleepNowPlaying").textContent = sleepSoundNames[state.sleepSound] || sleepSoundNames.rain;
+
+  const remaining = sleepIsPlaying || sleepIsPaused
+    ? sleepRemainingMs
+    : (Number(state.sleepMinutes) || 30) * 60000;
+
+  if ($("sleepCountdown")) $("sleepCountdown").textContent = `${formatSleepCountdown(remaining)} remaining`;
+
+  const icon = $("sleepPlayPauseIcon");
+  const text = $("sleepPlayPauseText");
+  if (icon && text) {
+    icon.textContent = sleepIsPlaying ? "Ⅱ" : "▶";
+    text.textContent = sleepIsPlaying ? "Pause" : sleepIsPaused ? "Resume" : "Play";
+  }
+
+  renderSleepProgress();
+  renderSleepHome();
+}
+
+function renderSleepHome() {
+  if (!$("sleepHomeTitle")) return;
+  if (sleepIsPlaying) {
+    $("sleepHomeTitle").textContent = sleepSoundNames[state.sleepSound] || "Sleep sound";
+    $("sleepHomeText").textContent = `${formatSleepCountdown(sleepRemainingMs)} remaining · ${state.sleepVolume}% volume`;
+    $("sleepHomeAction").textContent = "Open player →";
+  } else if (sleepIsPaused) {
+    $("sleepHomeTitle").textContent = `${sleepSoundNames[state.sleepSound]} is paused.`;
+    $("sleepHomeText").textContent = `${formatSleepCountdown(sleepRemainingMs)} left on your timer.`;
+    $("sleepHomeAction").textContent = "Resume →";
+  } else {
+    $("sleepHomeTitle").textContent = "Something soft to fall asleep to.";
+    $("sleepHomeText").textContent = "Rain, waves, fireplace, wind, forest night, café, brown noise, and white noise.";
+    $("sleepHomeAction").textContent = "Choose a sound →";
+  }
+}
+
+function renderSleepProgress() {
+  const bar = $("sleepProgressBar");
+  if (!bar) return;
+
+  if (!sleepTimerDurationMs || (!sleepIsPlaying && !sleepIsPaused)) {
+    bar.style.width = "0%";
+    return;
+  }
+
+  const elapsed = sleepTimerDurationMs - sleepRemainingMs;
+  const percent = Math.max(0, Math.min(100, elapsed / sleepTimerDurationMs * 100));
+  bar.style.width = `${percent}%`;
+}
+
+function updateSleepCountdown() {
+  if (!sleepIsPlaying) return;
+  sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
+
+  if (sleepRemainingMs <= 20000 && sleepMasterGain && sleepRemainingMs > 0) {
+    const ctx = sleepAudioContext;
+    const now = ctx.currentTime;
+    sleepMasterGain.gain.cancelScheduledValues(now);
+    sleepMasterGain.gain.setValueAtTime(sleepMasterGain.gain.value, now);
+    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, now + Math.max(0.5, sleepRemainingMs / 1000));
+  }
+
+  if (sleepRemainingMs <= 0) {
+    stopSleepSound(true);
+    return;
+  }
+
+  renderSleepControls();
+}
+
+function startSleepTimer(minutes) {
+  sleepTimerDurationMs = minutes * 60000;
+  sleepRemainingMs = sleepTimerDurationMs;
+  sleepTimerStartedAt = Date.now();
+  sleepTimerEndAt = sleepTimerStartedAt + sleepTimerDurationMs;
+
+  clearInterval(sleepTimerInterval);
+  sleepTimerInterval = setInterval(updateSleepCountdown, 1000);
+}
+
+async function startSleepSound() {
+  try {
+    const ctx = ensureSleepAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+
+    if (sleepFadeTimeout) {
+      clearTimeout(sleepFadeTimeout);
+      sleepFadeTimeout = null;
+    }
+
+    sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
+    sleepMasterGain.gain.setValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime);
+
+    buildSelectedSleepSound();
+
+    const minutes = selectedSleepMinutes();
+    state.sleepMinutes = minutes;
+    savePreferences();
+
+    sleepIsPlaying = true;
+    sleepIsPaused = false;
+    startSleepTimer(minutes);
+    renderSleepControls();
+  } catch (error) {
+    console.error("Could not start Fuwa sleep sound.", error);
+    toast("Fuwa couldn't start audio on this device.");
+  }
+}
+
+async function pauseSleepSound() {
+  if (!sleepAudioContext || !sleepIsPlaying) return;
+
+  sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
+  sleepIsPlaying = false;
+  sleepIsPaused = true;
+  clearInterval(sleepTimerInterval);
+  sleepTimerInterval = null;
+
+  try {
+    await sleepAudioContext.suspend();
+  } catch (_) {}
+
+  renderSleepControls();
+}
+
+async function resumeSleepSound() {
+  if (!sleepAudioContext || !sleepIsPaused) {
+    await startSleepSound();
+    return;
+  }
+
+  try {
+    await sleepAudioContext.resume();
+  } catch (_) {}
+
+  sleepMasterGain.gain.cancelScheduledValues(sleepAudioContext.currentTime);
+  sleepMasterGain.gain.setValueAtTime(Math.max(0.0001, state.sleepVolume / 100), sleepAudioContext.currentTime);
+
+  sleepIsPaused = false;
+  sleepIsPlaying = true;
+  sleepTimerEndAt = Date.now() + sleepRemainingMs;
+
+  clearInterval(sleepTimerInterval);
+  sleepTimerInterval = setInterval(updateSleepCountdown, 1000);
+  renderSleepControls();
+}
+
+async function stopSleepSound(fromTimer = false) {
+  clearInterval(sleepTimerInterval);
+  sleepTimerInterval = null;
+
+  stopSleepNodesOnly();
+
+  if (sleepAudioContext && sleepAudioContext.state === "running") {
+    try {
+      sleepMasterGain.gain.cancelScheduledValues(sleepAudioContext.currentTime);
+      sleepMasterGain.gain.value = Math.max(0.0001, state.sleepVolume / 100);
+    } catch (_) {}
+  }
+
+  sleepIsPlaying = false;
+  sleepIsPaused = false;
+  sleepRemainingMs = 0;
+  sleepTimerDurationMs = 0;
+  sleepTimerEndAt = 0;
+
+  renderSleepControls();
+
+  if (fromTimer) toast("Sleep timer finished. Good night ☁️");
+}
+
+async function toggleSleepPlayback() {
+  if (sleepIsPlaying) {
+    await pauseSleepSound();
+  } else if (sleepIsPaused) {
+    await resumeSleepSound();
+  } else {
+    await startSleepSound();
+  }
+}
+
+async function selectSleepSound(sound) {
+  if (!sleepSoundNames[sound]) return;
+  state.sleepSound = sound;
+  savePreferences();
+
+  if (sleepIsPlaying) {
+    const ctx = ensureSleepAudioContext();
+    const currentGain = sleepMasterGain.gain.value;
+    sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
+    sleepMasterGain.gain.setValueAtTime(currentGain, ctx.currentTime);
+    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.20);
+
+    setTimeout(() => {
+      if (!sleepIsPlaying) return;
+      stopSleepNodesOnly();
+      buildSelectedSleepSound();
+      sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
+      sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 0.35);
+    }, 220);
+  }
+
+  renderSleepControls();
+}
+
+function setSleepTimerPreset(minutes) {
+  state.sleepMinutes = minutes;
+  $("sleepCustomMinutes").value = "";
+  savePreferences();
+
+  if (sleepIsPlaying) startSleepTimer(minutes);
+  else {
+    sleepRemainingMs = minutes * 60000;
+    sleepTimerDurationMs = 0;
+  }
+
+  renderSleepControls();
+}
+
+function setSleepCustomTimer() {
+  const minutes = Number($("sleepCustomMinutes").value);
+  if (!minutes || minutes < 5 || minutes > 480) return;
+  state.sleepMinutes = minutes;
+  savePreferences();
+
+  if (sleepIsPlaying) startSleepTimer(minutes);
+  else {
+    sleepRemainingMs = minutes * 60000;
+    sleepTimerDurationMs = 0;
+  }
+
+  renderSleepControls();
+}
+
+function setSleepVolume(value) {
+  state.sleepVolume = Math.max(0, Math.min(100, Number(value) || 0));
+  savePreferences();
+
+  if (sleepMasterGain && sleepAudioContext) {
+    const now = sleepAudioContext.currentTime;
+    sleepMasterGain.gain.cancelScheduledValues(now);
+    sleepMasterGain.gain.setTargetAtTime(Math.max(0.0001, state.sleepVolume / 100), now, 0.04);
+  }
+
+  renderSleepControls();
+}
+
+function openSleepCorner() {
+  renderSleepControls();
+  navigate("sleep");
+}
+
+
+function isEveningTime() {
+  const hour = new Date().getHours();
+  return hour >= 18 || hour < 3;
+}
+
+function todaysNightlyReflection() {
+  return state.nightlyReflections.find(item => item.date === isoToday()) || null;
+}
+
+function renderNightlyHome() {
+  const section = $("nightlyHomeSection");
+  if (!section) return;
+
+  const today = todaysNightlyReflection();
+  const evening = isEveningTime();
+
+  // Keep it available during the day, but make it visually quieter.
+  section.classList.toggle("nightly-not-evening", !evening);
+
+  if (today) {
+    $("nightlyStatusTitle").textContent = "Tonight is tucked away.";
+    $("nightlyStatusText").textContent = today.tomorrow
+      ? `A note is waiting for tomorrow: “${today.tomorrow.slice(0, 72)}${today.tomorrow.length > 72 ? "…" : ""}”`
+      : "You gave today somewhere soft to land.";
+    $("nightlyStatusAction").textContent = "Read tonight's wind-down →";
+  } else if (evening) {
+    $("nightlyStatusTitle").textContent = "A tiny place to put today down.";
+    $("nightlyStatusText").textContent = "One grateful thing, one thing to leave here, and a note to tomorrow.";
+    $("nightlyStatusAction").textContent = "Wind down tonight →";
+  } else {
+    $("nightlyStatusTitle").textContent = "Tonight, when you're ready.";
+    $("nightlyStatusText").textContent = "This little space will be here later. No reminders, no streaks.";
+    $("nightlyStatusAction").textContent = "Open anyway →";
+  }
+}
+
+function openNightlyView() {
+  const today = todaysNightlyReflection();
+  $("nightlyGrateful").value = today?.grateful || "";
+  $("nightlyRelease").value = today?.release || "";
+  $("nightlyTomorrow").value = today?.tomorrow || "";
+  renderNightlyHistory();
+  navigate("nightly");
+}
+
+function renderNightlyHistory() {
+  const host = $("nightlyHistory");
+  if (!host) return;
+
+  const items = [...state.nightlyReflections]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 14);
+
+  if (!items.length) {
+    host.innerHTML = `<div class="empty-state">Your first quiet night will appear here. 🌙</div>`;
+    return;
+  }
+
+  host.innerHTML = items.map(item => `
+    <article class="nightly-history-card">
+      <time>${escapeHtml(formatDate(item.date))}</time>
+      ${item.grateful ? `<div><span>♡ Grateful</span><p>${escapeHtml(item.grateful)}</p></div>` : ""}
+      ${item.release ? `<div><span>⌁ Left here</span><p>${escapeHtml(item.release)}</p></div>` : ""}
+      ${item.tomorrow ? `<div><span>☾ Tomorrow</span><p>${escapeHtml(item.tomorrow)}</p></div>` : ""}
+    </article>
+  `).join("");
+}
+
+async function saveNightlyReflection(event) {
+  event.preventDefault();
+
+  const grateful = $("nightlyGrateful").value.trim();
+  const release = $("nightlyRelease").value.trim();
+  const tomorrow = $("nightlyTomorrow").value.trim();
+
+  if (!grateful && !release && !tomorrow) {
+    toast("Write just one tiny thing before putting today to rest.");
+    return;
+  }
+
+  const existing = todaysNightlyReflection();
+  const record = {
+    id: isoToday(),
+    date: isoToday(),
+    grateful,
+    release,
+    tomorrow,
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+
+  try {
+    await diaryRepository.save("nightlyReflections", record);
+    const index = state.nightlyReflections.findIndex(item => item.id === record.id);
+    if (index >= 0) state.nightlyReflections[index] = record;
+    else state.nightlyReflections.push(record);
+
+    renderAll();
+    renderNightlyHistory();
+    toast(existing ? "Tonight's wind-down updated 🌙" : "Today can rest now 🌙");
+  } catch (error) {
+    console.error("Could not save nightly reflection.", error);
+    toast("Fuwa couldn't save tonight's wind-down.");
+  }
+}
+
+function skipNightlyReflection() {
+  navigate("home");
+  toast("That's okay. Tonight can stay quiet. ☁️");
+}
+
+
 const MEMORY_DRIFT_MILESTONES = [
   { months: 0, years: 1, label: "One year ago today" },
   { months: 0, years: 2, label: "Two years ago today" },
@@ -802,6 +1417,22 @@ let cropScale = 1;
 let cropX = 0;
 let cropY = 0;
 let cropDragStart = null;
+
+// Sleep audio is generated locally with Web Audio so Fuwa does not ship large audio files.
+// Only one AudioContext and a small reusable noise buffer are kept alive.
+let sleepAudioContext = null;
+let sleepMasterGain = null;
+let sleepNodes = [];
+let sleepNoiseBuffer = null;
+let sleepTimerInterval = null;
+let sleepTimerEndAt = 0;
+let sleepTimerStartedAt = 0;
+let sleepTimerDurationMs = 0;
+let sleepIsPlaying = false;
+let sleepIsPaused = false;
+let sleepRemainingMs = 0;
+let sleepFadeTimeout = null;
+
 
 function shiftIsoDate(dateString, years = 0, months = 0) {
   const [year, month, day] = dateString.split("-").map(Number);
@@ -1890,6 +2521,7 @@ function renderStats() {
   $("joyCount").textContent = state.tinyJoys.length;
   $("letterCount").textContent = state.letters.length;
   if ($("bookmarkCount")) $("bookmarkCount").textContent = state.bookmarks.length;
+  if ($("nightlyCount")) $("nightlyCount").textContent = state.nightlyReflections.length;
 }
 
 function renderAll() {
@@ -1904,6 +2536,8 @@ function renderAll() {
   renderMoodJarView();
   renderHomeThreads();
   renderThreads();
+  renderSleepHome();
+  renderNightlyHome();
   renderMemoryDriftHome();
   renderHomeBookmarks();
   renderBookmarks();
@@ -2107,9 +2741,9 @@ async function exportBackup() {
 
     const payload = {
       app: "Fuwa",
-      version: 5,
+      version: 6,
       exportedAt: new Date().toISOString(),
-      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay }
+      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay, sleepSound: state.sleepSound, sleepMinutes: state.sleepMinutes, sleepVolume: state.sleepVolume }
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -2137,6 +2771,7 @@ function importBackup(file) {
       incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
       incoming.threads = validateThreads(incoming.threads);
       incoming.bookmarks = validateBookmarks(incoming.bookmarks);
+      incoming.nightlyReflections = validateNightlyReflections(incoming.nightlyReflections);
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -2157,10 +2792,14 @@ function importBackup(file) {
         moodCheckins: Array.isArray(incoming.moodCheckins) ? incoming.moodCheckins : [],
         threads: Array.isArray(incoming.threads) ? incoming.threads : [],
         bookmarks: Array.isArray(incoming.bookmarks) ? incoming.bookmarks : [],
+        nightlyReflections: Array.isArray(incoming.nightlyReflections) ? incoming.nightlyReflections : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
-        wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : state.wallpaperOverlay
+        wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : state.wallpaperOverlay,
+        sleepSound: typeof incoming.sleepSound === "string" ? incoming.sleepSound : state.sleepSound,
+        sleepMinutes: Number.isFinite(incoming.sleepMinutes) ? incoming.sleepMinutes : state.sleepMinutes,
+        sleepVolume: Number.isFinite(incoming.sleepVolume) ? incoming.sleepVolume : state.sleepVolume
       };
       saveState();
       toast("Backup imported 🌸");
@@ -2197,6 +2836,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadState();
     renderAll();
     await applyWallpaper();
+    renderSleepControls();
     maybeShowDailyMoodCheckin();
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
@@ -2217,6 +2857,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
+
+
+
+  $("openSleepCornerButton").addEventListener("click", openSleepCorner);
+  $("sleepHomeCard").addEventListener("click", openSleepCorner);
+  $("sleepBackButton").addEventListener("click", () => navigate("home"));
+
+  document.querySelectorAll("[data-sleep-sound]").forEach(button => {
+    button.addEventListener("click", () => selectSleepSound(button.dataset.sleepSound));
+  });
+
+  document.querySelectorAll("[data-sleep-minutes]").forEach(button => {
+    button.addEventListener("click", () => setSleepTimerPreset(Number(button.dataset.sleepMinutes)));
+  });
+
+  $("sleepCustomMinutes").addEventListener("change", setSleepCustomTimer);
+  $("sleepVolumeSlider").addEventListener("input", event => setSleepVolume(event.target.value));
+  $("sleepPlayPauseButton").addEventListener("click", toggleSleepPlayback);
+  $("sleepStopButton").addEventListener("click", () => stopSleepSound(false));
+
+  $("openNightlyButton").addEventListener("click", openNightlyView);
+  $("nightlyCard").addEventListener("click", openNightlyView);
+  $("nightlyBackButton").addEventListener("click", () => navigate("home"));
+  $("nightlyForm").addEventListener("submit", saveNightlyReflection);
+  $("nightlySkipButton").addEventListener("click", skipNightlyReflection);
 
   $("memoryDriftBackButton").addEventListener("click", () => navigate("home"));
   $("openBookmarksButton").addEventListener("click", () => navigate("bookmarks"));
