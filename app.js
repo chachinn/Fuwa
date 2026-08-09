@@ -3950,6 +3950,68 @@ async function saveLetter() {
   }
 }
 
+
+function cloudBackupRecordCount(data) {
+  return [
+    "entries",
+    "tinyJoys",
+    "letters",
+    "moodCheckins",
+    "threads",
+    "bookmarks",
+    "nightlyReflections",
+    "thenNow",
+    "comfortItems",
+    "unsentLetters",
+    "thoughtBubbles",
+    "dreams"
+  ].reduce((total, storeName) => total + (Array.isArray(data?.[storeName]) ? data[storeName].length : 0), 0);
+}
+
+async function createCloudBackupPayload() {
+  const currentData = await diaryRepository.readCurrentData();
+
+  // Validate the same core stores Fuwa already trusts for local backup/import.
+  validateContentData(currentData);
+  validateMoodCheckins(currentData.moodCheckins);
+  validateThreads(currentData.threads);
+  validateBookmarks(currentData.bookmarks);
+  validateNightlyReflections(currentData.nightlyReflections);
+  validateSimpleStore(currentData.thenNow, "thenNow");
+  validateSimpleStore(currentData.comfortItems, "comfortItems");
+  validateSimpleStore(currentData.unsentLetters, "unsentLetters");
+  validateSimpleStore(currentData.thoughtBubbles, "thoughtBubbles");
+  validateSimpleStore(currentData.dreams, "dreams");
+
+  const data = {
+    ...currentData,
+    selectedMood: state.selectedMood,
+    theme: state.theme,
+    wallpaperEnabled: state.wallpaperEnabled,
+    wallpaperOverlay: state.wallpaperOverlay,
+    sleepSound: state.sleepSound,
+    sleepMinutes: state.sleepMinutes,
+    sleepVolume: state.sleepVolume,
+    privacyLockEnabled: state.privacyLockEnabled,
+    privacyAutoLockMinutes: state.privacyAutoLockMinutes,
+    privacyLockOnReopen: state.privacyLockOnReopen,
+    biometricEnabled: false
+  };
+
+  return {
+    app: "Fuwa",
+    backupFormat: "fuwa-cloud-v1",
+    schemaVersion: DATABASE_VERSION,
+    backupId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    mediaIncluded: false,
+    recordCount: cloudBackupRecordCount(data),
+    data
+  };
+}
+
+window.fuwaCreateCloudBackupPayload = createCloudBackupPayload;
+
 async function exportBackup() {
   try {
     const currentData = await diaryRepository.readCurrentData();
@@ -4170,11 +4232,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.querySelectorAll("#fuwaDrawer [data-nav]").forEach(button => {
     button.addEventListener("click", () => navigate(button.dataset.nav));
-  });
-
-  $("drawerBackupButton")?.addEventListener("click", () => {
-    closeFuwaDrawer();
-    exportBackup();
   });
 
   document.addEventListener("keydown", event => {

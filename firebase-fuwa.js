@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Connection Check — V26
+// Fuwa Firebase Authentication + Firestore Cloud Backup — V27
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -175,6 +175,7 @@ async function verifyFirestoreConnection(user) {
 
       await firestoreApi.deleteDoc(testRef);
       setCloudConnectionStatus("Connected ✓", "success");
+      loadCloudBackupStatus(user);
 
       window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
         detail: { uid: user.uid, connected: true }
@@ -369,6 +370,136 @@ async function handleGoogleSignIn() {
   }
 }
 
+
+function formatCloudBackupTime(value) {
+  if (!value) return "No cloud backup yet";
+  const date = value?.toDate ? value.toDate() : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Cloud backup available";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function setCloudBackupUI({ busy = false, status = "Ready", lastBackup = null, recordCount = null } = {}) {
+  const button = $auth("cloudBackupNowButton");
+  const badge = $auth("cloudBackupBadge");
+  const lastTime = $auth("cloudBackupLastTime");
+  const count = $auth("cloudBackupRecordCount");
+
+  if (button) {
+    button.disabled = busy;
+    button.textContent = busy ? "Backing up safely…" : "Back up to Fuwa Cloud";
+  }
+  if (badge) badge.textContent = status;
+  if (lastTime && lastBackup !== undefined) lastTime.textContent = formatCloudBackupTime(lastBackup);
+  if (count && recordCount !== undefined && recordCount !== null) {
+    count.textContent = `${recordCount} record${recordCount === 1 ? "" : "s"}`;
+  }
+}
+
+async function loadCloudBackupStatus(user = auth?.currentUser) {
+  if (!user?.uid || !firestore || !firestoreApi) return;
+
+  try {
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const snapshot = await firestoreApi.getDoc(backupRef);
+
+    if (!snapshot.exists()) {
+      setCloudBackupUI({ status: "Ready", lastBackup: null });
+      return;
+    }
+
+    const backup = snapshot.data();
+    setCloudBackupUI({
+      status: "Backed up",
+      lastBackup: backup.backedUpAt || backup.backedUpAtClient || null,
+      recordCount: Number(backup.recordCount || 0)
+    });
+  } catch (error) {
+    console.error("Fuwa could not read cloud backup status.", error);
+    setCloudBackupUI({ status: "Check failed" });
+  }
+}
+
+async function handleCloudBackupRequest(event) {
+  event?.preventDefault?.();
+
+  const user = auth?.currentUser;
+  if (!user?.uid || !firestore || !firestoreApi) {
+    window.alert("Fuwa's cloud connection is not ready yet. Check your internet connection and try again.");
+    return;
+  }
+
+  if (typeof window.fuwaCreateCloudBackupPayload !== "function") {
+    window.alert("Fuwa is still preparing your local diary. Try again in a moment.");
+    return;
+  }
+
+  setCloudBackupUI({ busy: true, status: "Backing up…" });
+
+  try {
+    const payload = await window.fuwaCreateCloudBackupPayload();
+
+    if (!payload || payload.app !== "Fuwa" || !payload.data) {
+      throw new Error("Fuwa produced an invalid cloud backup payload.");
+    }
+
+    // Firestore documents have a strict size limit. This first cloud-backup
+    // milestone intentionally excludes photo blobs and refuses oversized data.
+    const serialized = JSON.stringify(payload);
+    const approximateBytes = new TextEncoder().encode(serialized).byteLength;
+    const safeDocumentLimit = 900000;
+    if (approximateBytes > safeDocumentLimit) {
+      throw new Error("cloud-backup-too-large");
+    }
+
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const cloudDocument = {
+      ...payload,
+      ownerUid: user.uid,
+      backedUpAt: firestoreApi.serverTimestamp(),
+      backedUpAtClient: new Date().toISOString(),
+      approximateBytes
+    };
+
+    await firestoreApi.setDoc(backupRef, cloudDocument);
+
+    const verify = await firestoreApi.getDoc(backupRef);
+    if (!verify.exists()) throw new Error("Cloud backup could not be verified.");
+
+    const verified = verify.data();
+    if (verified.ownerUid !== user.uid || verified.backupId !== payload.backupId) {
+      throw new Error("Cloud backup verification did not match this device backup.");
+    }
+
+    setCloudBackupUI({
+      busy: false,
+      status: "Backed up ✓",
+      lastBackup: verified.backedUpAt || verified.backedUpAtClient,
+      recordCount: Number(verified.recordCount || payload.recordCount || 0)
+    });
+
+    window.dispatchEvent(new CustomEvent("fuwa-cloud-backup-complete", {
+      detail: {
+        backupId: payload.backupId,
+        recordCount: payload.recordCount,
+        approximateBytes
+      }
+    }));
+  } catch (error) {
+    console.error("Fuwa cloud backup failed.", error);
+    const message = error?.message === "cloud-backup-too-large"
+      ? "This Fuwa backup has grown too large for the safe first cloud-backup format. Nothing was changed in the cloud."
+      : "Fuwa couldn't finish the cloud backup. Your diary on this device is unchanged.";
+    setCloudBackupUI({ busy: false, status: "Backup failed" });
+    window.alert(message);
+  }
+}
+
 async function handleSignOut() {
   if (!auth || !authApi) return;
 
@@ -390,6 +521,7 @@ function bindAuthUI() {
   $auth("googleSignInButton")?.addEventListener("click", handleGoogleSignIn);
   $auth("firebaseSignOutButton")?.addEventListener("click", handleSignOut);
   $auth("firebaseProfileSignOutButton")?.addEventListener("click", handleSignOut);
+  $auth("cloudBackupNowButton")?.addEventListener("click", handleCloudBackupRequest);
 
   $auth("authSwitchButton")?.addEventListener("click", () => {
     setAuthMode(authMode === "login" ? "signup" : "login");

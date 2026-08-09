@@ -6138,3 +6138,94 @@ body.drawer-open .bottom-nav{pointer-events:none}
     will-change: auto;
   }
 }
+
+
+/* =========================================================
+   FUWA V27 — CLOUD BACKUP V1
+   ========================================================= */
+
+.cloud-backup-card {
+  margin: 14px 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(239, 216, 224, .94);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(242, 205, 219, .30), transparent 28%),
+    rgba(255,255,255,.82);
+  box-shadow: var(--shadow);
+}
+
+.cloud-backup-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cloud-backup-heading > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.cloud-backup-heading h3 {
+  margin: 3px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #4d3b43;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.cloud-backup-badge {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #f9eaf0;
+  color: #9a6678;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.cloud-backup-copy {
+  margin: 0 0 13px;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.cloud-backup-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 1px;
+  border-top: 1px solid rgba(239, 221, 227, .84);
+}
+
+.cloud-backup-meta span {
+  color: var(--muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.cloud-backup-meta strong {
+  color: #5e4a53;
+  font-size: 10px;
+  text-align: right;
+}
+
+.cloud-backup-button {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.cloud-backup-button:disabled {
+  opacity: .62;
+}
+
+.cloud-backup-footnote {
+  display: block;
+  margin-top: 9px;
+  color: #a18b94;
+  font-size: 8.5px;
+  line-height: 1.45;
+}

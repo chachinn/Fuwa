@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v26-firestore-connection-check -->
+  <!-- FUWA_BUILD: v27-cloud-backup-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -188,7 +188,7 @@
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" id="themeButton" type="button"><span class="drawer-item-icon drawer-appearance-icon"></span><span><strong>Appearance</strong><small>Theme, wallpaper, and softness.</small></span><b>›</b></button>
             <button class="drawer-menu-item" id="quickHideButton" type="button"><span class="drawer-item-icon drawer-hide-icon"></span><span><strong>Quick Hide</strong><small>Cover your diary instantly.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" id="drawerBackupButton" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Export</strong><small>Save a local copy of your Fuwa.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Cloud</strong><small>Cloud backup, local export, and recovery tools.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-me-icon"></span><span><strong>Profile & Settings</strong><small>Stats and local data controls.</small></span><b>›</b></button>
           </div>
         </section>
@@ -984,6 +984,27 @@
           <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
         </div>
 
+        <div class="cloud-backup-card">
+          <div class="cloud-backup-heading">
+            <div>
+              <p class="eyebrow">Cloud Backup</p>
+              <h3>Keep a copy in your Fuwa cloud</h3>
+            </div>
+            <span class="cloud-backup-badge" id="cloudBackupBadge">Ready</span>
+          </div>
+          <p class="muted cloud-backup-copy">Backs up your journal text and Fuwa records to your signed-in Firebase account. Photos stay on this device for now.</p>
+          <div class="cloud-backup-meta">
+            <span>Last cloud backup</span>
+            <strong id="cloudBackupLastTime">No cloud backup yet</strong>
+          </div>
+          <div class="cloud-backup-meta">
+            <span>Records</span>
+            <strong id="cloudBackupRecordCount">Not backed up yet</strong>
+          </div>
+          <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
+          <small class="cloud-backup-footnote">This does not delete or replace anything on your device. Restore will be added only after this backup is verified.</small>
+        </div>
+
         <div class="stats-grid" id="statsGrid">
           <div class="stat-card"><strong id="entryCount">0</strong><span>Entries</span></div>
           <div class="stat-card"><strong id="joyCount">0</strong><span>Tiny Joys</span></div>
@@ -992,9 +1013,9 @@
           <div class="stat-card"><strong id="nightlyCount">0</strong><span>Wind-Downs</span></div>
         </div>
 <div class="settings-card">
-          <button id="exportButton">Backup & Export <span>›</span></button>
+          <button id="exportButton">Export Local Backup <span>›</span></button>
           <label class="import-row">
-            Import Backup <span>›</span>
+            Import Local Backup <span>›</span>
             <input type="file" id="importInput" accept=".json,application/json" hidden />
           </label>
           <button id="clearAllButton" class="danger-text">Clear all local data <span>›</span></button>
