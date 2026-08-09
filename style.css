@@ -2470,3 +2470,317 @@ main {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+
+/* =========================================================
+   FUWA MOOD CLOUD FAMILY — replaces system emoji
+   ========================================================= */
+
+.fuwa-mood-icon {
+  --mood-fill-1: #fff8fa;
+  --mood-fill-2: #f8dce5;
+  --mood-line: #e9a8ba;
+  --mood-cheek: #f3a8ba;
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 31px;
+  border: 1.5px solid var(--mood-line);
+  border-radius: 19px 19px 15px 15px;
+  background: linear-gradient(180deg, var(--mood-fill-1), var(--mood-fill-2));
+  box-shadow:
+    inset 0 2px 4px rgba(255,255,255,.9),
+    0 4px 9px rgba(118,76,91,.08);
+  vertical-align: middle;
+}
+
+.fuwa-mood-icon::before,
+.fuwa-mood-icon::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  border: 1.5px solid var(--mood-line);
+  border-bottom: 0;
+  border-radius: 50% 50% 42% 42%;
+  background: linear-gradient(180deg, var(--mood-fill-1), var(--mood-fill-2));
+}
+
+.fuwa-mood-icon::before {
+  width: 25px;
+  height: 24px;
+  left: 7px;
+  top: -12px;
+}
+
+.fuwa-mood-icon::after {
+  width: 18px;
+  height: 18px;
+  right: 4px;
+  top: -6px;
+}
+
+/* Face layer */
+.fuwa-mood-icon > i {
+  position: absolute;
+  z-index: 3;
+  left: 12px;
+  top: 13px;
+  width: 22px;
+  height: 11px;
+  display: block;
+  font-style: normal;
+}
+
+/* rosy cheeks */
+.fuwa-mood-icon > i::before,
+.fuwa-mood-icon > i::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  width: 5px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--mood-cheek);
+  opacity: .65;
+}
+.fuwa-mood-icon > i::before { left: -4px; }
+.fuwa-mood-icon > i::after { right: -4px; }
+
+/* Good: closed happy eyes + smile */
+.mood-good {
+  --mood-fill-1: #fffaf9;
+  --mood-fill-2: #f9dce5;
+  --mood-line: #e8a9ba;
+}
+.mood-good > i {
+  border-bottom: 2px solid #7d4a58;
+  border-radius: 0 0 50% 50%;
+}
+.mood-good > i {
+  background:
+    radial-gradient(ellipse at 4px 2px, transparent 45%, #7d4a58 48% 57%, transparent 60%) 0 0/8px 5px no-repeat,
+    radial-gradient(ellipse at 18px 2px, transparent 45%, #7d4a58 48% 57%, transparent 60%) 0 0/22px 5px no-repeat;
+}
+
+/* Amazing: happy cloud with heart */
+.mood-amazing {
+  --mood-fill-1: #fff9fb;
+  --mood-fill-2: #f8d3df;
+  --mood-line: #eb9db3;
+}
+.mood-amazing > i {
+  border-bottom: 2px solid #7b4353;
+  border-radius: 0 0 50% 50%;
+  background:
+    radial-gradient(ellipse at 4px 2px, transparent 45%, #7b4353 48% 57%, transparent 60%) 0 0/8px 5px no-repeat,
+    radial-gradient(ellipse at 18px 2px, transparent 45%, #7b4353 48% 57%, transparent 60%) 0 0/22px 5px no-repeat;
+}
+.mood-amazing span {}
+.mood-amazing::selection { background: transparent; }
+.mood-amazing {
+  overflow: visible;
+}
+.mood-amazing > i::after {
+  content: "♥";
+  position: absolute;
+  right: -10px;
+  top: -14px;
+  width: auto;
+  height: auto;
+  background: none;
+  color: #e87898;
+  opacity: 1;
+  font-size: 10px;
+  transform: rotate(10deg);
+}
+
+/* Neutral: dot eyes + tiny straight mouth */
+.mood-neutral {
+  --mood-fill-1: #fffaf5;
+  --mood-fill-2: #f7e5d1;
+  --mood-line: #e6bc8e;
+  --mood-cheek: #efb9a8;
+}
+.mood-neutral > i {
+  background:
+    radial-gradient(circle at 4px 2px, #79554d 0 1.5px, transparent 1.8px),
+    radial-gradient(circle at 18px 2px, #79554d 0 1.5px, transparent 1.8px),
+    linear-gradient(#79554d,#79554d) center 9px/7px 1.5px no-repeat;
+}
+
+/* Tired: lavender sleepy cloud + z */
+.mood-tired {
+  --mood-fill-1: #faf7ff;
+  --mood-fill-2: #e5d9f3;
+  --mood-line: #bca9d5;
+  --mood-cheek: #d4a7c4;
+}
+.mood-tired > i {
+  background:
+    linear-gradient(12deg, transparent 43%, #765e83 45% 56%, transparent 58%) 0 1px/8px 5px no-repeat,
+    linear-gradient(-12deg, transparent 43%, #765e83 45% 56%, transparent 58%) 14px 1px/8px 5px no-repeat,
+    radial-gradient(ellipse at center, transparent 42%, #765e83 45% 57%, transparent 60%) center 6px/8px 5px no-repeat;
+}
+.mood-tired > i::after {
+  content: "z";
+  position: absolute;
+  right: -10px;
+  top: -14px;
+  width: auto;
+  height: auto;
+  background: none;
+  color: #a381bf;
+  opacity: 1;
+  font: 700 10px/1 sans-serif;
+}
+
+/* Sad: powder blue cloud + tear */
+.mood-sad {
+  --mood-fill-1: #fbfdff;
+  --mood-fill-2: #dceaf7;
+  --mood-line: #9fc3e1;
+  --mood-cheek: #d4a9bc;
+}
+.mood-sad > i {
+  background:
+    radial-gradient(circle at 4px 2px, #5e7184 0 1.5px, transparent 1.8px),
+    radial-gradient(circle at 18px 2px, #5e7184 0 1.5px, transparent 1.8px),
+    radial-gradient(ellipse at center bottom, transparent 42%, #5e7184 45% 57%, transparent 60%) center 7px/8px 5px no-repeat;
+}
+.mood-sad > i::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 5px;
+  width: 4px;
+  height: 6px;
+  border-radius: 70% 40% 70% 40%;
+  background: #7eb4df;
+  opacity: .9;
+  transform: rotate(40deg);
+}
+
+/* Angry: peach-pink puff + brows */
+.mood-angry {
+  --mood-fill-1: #fff8f7;
+  --mood-fill-2: #f8d6d5;
+  --mood-line: #e99b9f;
+  --mood-cheek: #ef9d9f;
+}
+.mood-angry > i {
+  background:
+    linear-gradient(18deg, transparent 42%, #82464c 45% 58%, transparent 61%) 0 0/8px 5px no-repeat,
+    linear-gradient(-18deg, transparent 42%, #82464c 45% 58%, transparent 61%) 14px 0/8px 5px no-repeat,
+    radial-gradient(circle at 4px 5px, #82464c 0 1.5px, transparent 1.8px),
+    radial-gradient(circle at 18px 5px, #82464c 0 1.5px, transparent 1.8px),
+    radial-gradient(ellipse at center bottom, transparent 42%, #82464c 45% 57%, transparent 60%) center 8px/8px 4px no-repeat;
+}
+
+/* Compact icon for legends/cards */
+.fuwa-mood-icon.mini {
+  transform: scale(.58);
+  transform-origin: center;
+  margin: -8px -7px;
+}
+
+/* Mood picker layout for custom illustrations */
+.mood-picker button .fuwa-mood-icon {
+  margin: 8px auto 5px;
+}
+
+.mood-checkin-option .fuwa-mood-icon,
+.mood-checkin-options button .fuwa-mood-icon {
+  margin: 8px auto 7px;
+}
+
+/* Main check-in mascot */
+.fuwa-cloud-mascot {
+  position: relative;
+  width: 72px;
+  height: 38px;
+  border: 2px solid #efb6c6;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fffafb, #f8d8e2);
+  box-shadow:
+    inset 0 3px 6px rgba(255,255,255,.95),
+    0 8px 18px rgba(199,116,140,.13);
+  color: transparent;
+}
+
+.fuwa-cloud-mascot::before,
+.fuwa-cloud-mascot::after {
+  content: "";
+  position: absolute;
+  border: 2px solid #efb6c6;
+  border-bottom: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fffafb, #f8d8e2);
+}
+
+.fuwa-cloud-mascot::before {
+  width: 38px;
+  height: 36px;
+  left: 13px;
+  top: -19px;
+}
+
+.fuwa-cloud-mascot::after {
+  width: 27px;
+  height: 27px;
+  right: 7px;
+  top: -10px;
+}
+
+.cloud-face {
+  position: absolute;
+  z-index: 4;
+  left: 25px;
+  top: 14px;
+  width: 24px;
+  height: 10px;
+  border-bottom: 2px solid #824c5a;
+  border-radius: 0 0 50% 50%;
+  background:
+    radial-gradient(ellipse at 4px 1px, transparent 45%, #824c5a 48% 57%, transparent 60%) 0 0/8px 5px no-repeat,
+    radial-gradient(ellipse at 20px 1px, transparent 45%, #824c5a 48% 57%, transparent 60%) 0 0/24px 5px no-repeat;
+}
+
+.cloud-heart {
+  position: absolute;
+  z-index: 5;
+  right: -3px;
+  top: -12px;
+  color: #e985a1;
+  font: 700 17px/1 Georgia, serif;
+  transform: rotate(12deg);
+  text-shadow: 0 2px 4px rgba(215,112,143,.12);
+}
+
+/* Make check-in choices feel like character cards */
+.mood-checkin-options button {
+  min-height: 112px;
+  padding-top: 12px;
+  border-radius: 24px;
+}
+
+.mood-checkin-options button:hover,
+.mood-checkin-options button:focus-visible {
+  border-color: #efb0c2;
+  background: linear-gradient(180deg, #fffdfd, #fff3f7);
+}
+
+.mood-checkin-options button span:last-child {
+  margin-top: 6px;
+}
+
+/* On the compact Home mood row, keep the clouds readable */
+.hero-card .mood-picker button {
+  min-height: 76px;
+  padding: 6px 3px;
+}
+
+.hero-card .mood-picker .fuwa-mood-icon {
+  transform: scale(.72);
+  margin-top: 10px;
+  margin-bottom: 3px;
+}

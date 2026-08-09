@@ -278,6 +278,12 @@ async function loadState() {
   state = { ...structuredClone(defaultState), ...content, ...preferences };
 }
 
+
+function moodIconMarkup(mood, extraClass = "") {
+  const safeMood = moodLabels[mood] ? mood : "good";
+  return `<span class="fuwa-mood-icon mood-${safeMood} ${extraClass}" aria-hidden="true"><i></i></span>`;
+}
+
 const moodEmoji = {
   amazing: "🥰",
   good: "🙂",
@@ -734,7 +740,7 @@ function renderThreadDetail() {
   }
   timeline.innerHTML = entries.map(entry => `
     <article class="thread-timeline-item">
-      <div class="thread-timeline-dot">${moodEmoji[entry.mood] || "☁️"}</div>
+      <div class="thread-timeline-dot">${moodIconMarkup(entry.mood)}</div>
       <div class="thread-timeline-line"></div>
       <button class="thread-timeline-card" type="button" data-entry="${escapeHtml(entry.id)}">
         <time>${escapeHtml(formatDate(entry.date))}</time>
