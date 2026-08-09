@@ -3000,7 +3000,41 @@ function toast(message) {
   toast.timer = setTimeout(() => el.classList.remove("show"), 1800);
 }
 
+
+function openFuwaDrawer() {
+  const drawer = $("fuwaDrawer");
+  const backdrop = $("fuwaDrawerBackdrop");
+  if (!drawer || !backdrop) return;
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  backdrop.classList.remove("hidden");
+  requestAnimationFrame(() => backdrop.classList.add("visible"));
+  $("menuButton")?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("drawer-open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeFuwaDrawer() {
+  const drawer = $("fuwaDrawer");
+  const backdrop = $("fuwaDrawerBackdrop");
+  if (!drawer || !backdrop) return;
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden", "true");
+  backdrop.classList.remove("visible");
+  $("menuButton")?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("drawer-open");
+  if (!privacyIsLocked) document.body.style.overflow = "";
+  setTimeout(() => {
+    if (!backdrop.classList.contains("visible")) backdrop.classList.add("hidden");
+  }, 230);
+}
+
+function toggleFuwaDrawer() {
+  $("fuwaDrawer")?.classList.contains("open") ? closeFuwaDrawer() : openFuwaDrawer();
+}
+
 function navigate(view) {
+  closeFuwaDrawer();
   currentView = view;
 
   document.querySelectorAll(".view").forEach(section => {
@@ -3890,15 +3924,32 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
-  $("openExploreButton").addEventListener("click", () => navigate("explore"));
-  $("exploreHomeCard").addEventListener("click", () => navigate("explore"));
+  $("openExploreButton")?.addEventListener("click", () => navigate("explore"));
+  $("exploreHomeCard")?.addEventListener("click", () => navigate("explore"));
 
   document.querySelectorAll("#exploreView [data-nav]").forEach(button => {
     button.addEventListener("click", () => navigate(button.dataset.nav));
   });
 
 
-  $("quickHideButton").addEventListener("click", quickHideFuwa);
+  $("menuButton")?.addEventListener("click", toggleFuwaDrawer);
+  $("drawerCloseButton")?.addEventListener("click", closeFuwaDrawer);
+  $("fuwaDrawerBackdrop")?.addEventListener("click", closeFuwaDrawer);
+
+  document.querySelectorAll("#fuwaDrawer [data-nav]").forEach(button => {
+    button.addEventListener("click", () => navigate(button.dataset.nav));
+  });
+
+  $("drawerBackupButton")?.addEventListener("click", () => {
+    closeFuwaDrawer();
+    exportBackup();
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && $("fuwaDrawer")?.classList.contains("open")) closeFuwaDrawer();
+  });
+
+  $("quickHideButton").addEventListener("click", () => { closeFuwaDrawer(); quickHideFuwa(); });
   $("quickHideScreen").addEventListener("click", exitQuickHide);
 
   $("privacyLockToggle")?.addEventListener("change", enableOrDisablePrivacyLock);
@@ -4115,7 +4166,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("wallpaperCropStage").addEventListener("pointerup", cropPointerUp);
   $("wallpaperCropStage").addEventListener("pointercancel", cropPointerUp);
 
-  $("themeButton").addEventListener("click", openAppearance);
+  $("themeButton").addEventListener("click", () => { closeFuwaDrawer(); openAppearance(); });
   $("exportButton").addEventListener("click", exportBackup);
   $("importInput").addEventListener("change", event => importBackup(event.target.files[0]));
   $("clearAllButton").addEventListener("click", clearAll);

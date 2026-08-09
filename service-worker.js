@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v20";
+const CACHE_NAME = "fuwa-shell-v22";
 
 const CORE_ASSETS = [
   "./",
@@ -18,9 +18,7 @@ const STATIC_ASSETS = [
 
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache =>
-      cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS])
-    )
+    caches.open(CACHE_NAME).then(cache => cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]))
   );
   self.skipWaiting();
 });
@@ -29,11 +27,7 @@ self.addEventListener("activate", event => {
   event.waitUntil(
     Promise.all([
       caches.keys().then(keys =>
-        Promise.all(
-          keys
-            .filter(key => key !== CACHE_NAME)
-            .map(key => caches.delete(key))
-        )
+        Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
       ),
       self.clients.claim()
     ])
@@ -42,6 +36,7 @@ self.addEventListener("activate", event => {
 
 function isCoreRequest(request) {
   const url = new URL(request.url);
+
   if (url.origin !== self.location.origin) return false;
 
   return (
@@ -59,12 +54,11 @@ async function networkFirst(request) {
   const cache = await caches.open(CACHE_NAME);
 
   try {
-    // no-store prevents Safari/browser HTTP cache from handing us an old shell
-    const freshRequest = new Request(request, { cache: "no-store" });
-    const response = await fetch(freshRequest);
+    const fresh = new Request(request, { cache: "no-store" });
+    const response = await fetch(fresh);
 
-    if (response && response.ok) {
-      cache.put(request, response.clone());
+    if (response?.ok) {
+      await cache.put(request, response.clone());
     }
 
     return response;
@@ -86,9 +80,11 @@ async function cacheFirst(request) {
   if (cached) return cached;
 
   const response = await fetch(request);
-  if (response && response.ok) {
-    cache.put(request, response.clone());
+
+  if (response?.ok) {
+    await cache.put(request, response.clone());
   }
+
   return response;
 }
 
@@ -96,19 +92,11 @@ self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
   if (isCoreRequest(event.request)) {
-    // The shell is installed atomically by cache.addAll. Serving its core files
-    // from that single cache prevents Safari from mixing deployment versions.
-    // A cache-name bump installs the next complete shell before activation.
-    event.respondWith(cacheFirst(event.request));
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
   event.respondWith(
-    cacheFirst(event.request).catch(() => {
-      if (event.request.mode === "navigate") {
-        return caches.match("./index.html");
-      }
-      return Response.error();
-    })
+    cacheFirst(event.request).catch(() => Response.error())
   );
 });

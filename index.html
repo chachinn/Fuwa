@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v20-firebase-auth-foundation -->
+  <!-- FUWA_BUILD: v22-hamburger-drawer -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -14,6 +14,36 @@
   <link rel="apple-touch-icon" href="./icon/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="./icon/favicon-32.png" />
   <link rel="stylesheet" href="style.css" />
+
+  <style id="fuwa-auth-critical">
+    body.auth-pending,
+    body.auth-signed-out { overflow: hidden !important; }
+
+    body.auth-pending .app-shell,
+    body.auth-signed-out .app-shell {
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    #fuwaAuthGate {
+      position: fixed;
+      z-index: 2147483000;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: calc(28px + env(safe-area-inset-top, 0px)) 22px
+               calc(28px + env(safe-area-inset-bottom, 0px));
+      overflow-y: auto;
+      background:
+        radial-gradient(circle at 15% 12%, rgba(249,212,225,.72), transparent 26%),
+        radial-gradient(circle at 88% 82%, rgba(226,216,242,.58), transparent 29%),
+        linear-gradient(180deg, #fff8fa 0%, #fffaf8 100%);
+    }
+
+    body.auth-signed-in #fuwaAuthGate { display: none !important; }
+  </style>
+
 </head>
 <body class="auth-pending">
   <div class="cozy-ambient" aria-hidden="true">
@@ -78,6 +108,7 @@
       </div>
 
       <p class="auth-local-note">Your existing diary stays on this device for now. Cloud sync comes later.</p>
+      <p class="auth-loading-note" id="authLoadingNote">Connecting Fuwa securely…</p>
     </div>
   </section>
 
@@ -87,15 +118,78 @@
         <p class="eyebrow" id="todayLabel">Today</p>
         <h1>Fuwa <span class="fuwa-cloud-mark" aria-hidden="true"><span></span></span></h1>
       </div>
-      <button class="icon-btn quick-hide-btn" id="quickHideButton" aria-label="Quick hide">
-        <span class="quick-hide-icon" aria-hidden="true"></span>
-      </button>
-      <button class="icon-btn appearance-launch-btn" id="themeButton" aria-label="Customize Fuwa appearance">
-        <span class="appearance-icon" aria-hidden="true">
-          <span class="appearance-star"></span>
-        </span>
+      <button class="icon-btn fuwa-menu-button" id="menuButton" aria-label="Open Fuwa menu" aria-expanded="false" aria-controls="fuwaDrawer">
+        <span class="hamburger-lines" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
     </header>
+
+
+    <div class="fuwa-drawer-backdrop hidden" id="fuwaDrawerBackdrop" aria-hidden="true"></div>
+    <aside class="fuwa-drawer" id="fuwaDrawer" aria-hidden="true">
+      <div class="drawer-scroll">
+        <div class="drawer-header">
+          <div class="drawer-brand">
+            <span class="drawer-brand-cloud" aria-hidden="true"><span></span></span>
+            <div><p class="eyebrow">Personal diary</p><h2>Fuwa</h2></div>
+          </div>
+          <button class="drawer-close-button" id="drawerCloseButton" type="button" aria-label="Close menu">×</button>
+        </div>
+
+        <section class="drawer-account-section">
+          <p class="drawer-section-label">Account & Login</p>
+          <button class="drawer-account-card" data-nav="me" type="button">
+            <span class="drawer-account-avatar" aria-hidden="true"></span>
+            <span class="drawer-account-copy"><small>Signed in as</small><strong id="firebaseAccountEmail">Loading account…</strong></span>
+            <span class="drawer-chevron">›</span>
+          </button>
+          <button class="drawer-signout-button" id="firebaseSignOutButton" type="button">Log out of Fuwa</button>
+        </section>
+
+        <section class="drawer-group">
+          <p class="drawer-section-label">Journal</p>
+          <div class="drawer-menu-list">
+            <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="threads" type="button"><span class="drawer-item-icon drawer-thread-icon"></span><span><strong>Memory Threads</strong><small>Stories that keep returning.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="bookmarks" type="button"><span class="drawer-item-icon drawer-bookmark-icon"></span><span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="thenNow" type="button"><span class="drawer-item-icon mirror-icon"></span><span><strong>Then & Now</strong><small>Meet an older version of you.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="monthly" type="button"><span class="drawer-item-icon story-icon"></span><span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="weather" type="button"><span class="drawer-item-icon weather-icon"></span><span><strong>Emotional Weather</strong><small>See your month as a sky.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="bubbles" type="button"><span class="drawer-item-icon bubble-icon"></span><span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="dreams" type="button"><span class="drawer-item-icon dream-icon"></span><span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></span><b>›</b></button>
+          </div>
+        </section>
+
+        <section class="drawer-group">
+          <p class="drawer-section-label">Comfort</p>
+          <div class="drawer-menu-list">
+            <button class="drawer-menu-item" data-nav="nightly" type="button"><span class="drawer-item-icon drawer-night-icon"></span><span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="sleep" type="button"><span class="drawer-item-icon drawer-sleep-icon"></span><span><strong>Sleep Corner</strong><small>Soft sounds with a timer.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="comfort" type="button"><span class="drawer-item-icon comfort-icon"></span><span><strong>Comfort Corner</strong><small>Keep soft things close.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="sanctuary" type="button"><span class="drawer-item-icon sanctuary-icon"></span><span><strong>Fuwa Sanctuary</strong><small>Your little room grows with you.</small></span><b>›</b></button>
+          </div>
+        </section>
+
+        <section class="drawer-group">
+          <p class="drawer-section-label">Letters</p>
+          <div class="drawer-menu-list">
+            <button class="drawer-menu-item" data-nav="letters" type="button"><span class="drawer-item-icon drawer-future-letter-icon"></span><span><strong>Letters Through Time</strong><small>Write something for later.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="unsent" type="button"><span class="drawer-item-icon letter-icon"></span><span><strong>Unsent Letters</strong><small>Words that never need sending.</small></span><b>›</b></button>
+          </div>
+        </section>
+
+        <section class="drawer-group">
+          <p class="drawer-section-label">Fuwa</p>
+          <div class="drawer-menu-list">
+            <button class="drawer-menu-item" id="themeButton" type="button"><span class="drawer-item-icon drawer-appearance-icon"></span><span><strong>Appearance</strong><small>Theme, wallpaper, and softness.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" id="quickHideButton" type="button"><span class="drawer-item-icon drawer-hide-icon"></span><span><strong>Quick Hide</strong><small>Cover your diary instantly.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" id="drawerBackupButton" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Export</strong><small>Save a local copy of your Fuwa.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-me-icon"></span><span><strong>Profile & Settings</strong><small>Stats and local data controls.</small></span><b>›</b></button>
+          </div>
+        </section>
+
+        <p class="drawer-footer-note">Soft moments, forever yours. ☁️</p>
+      </div>
+    </aside>
 
     <main id="app">
       <section class="view active" id="homeView">
@@ -857,24 +951,7 @@
           <div class="stat-card"><strong id="bookmarkCount">0</strong><span>Bookmarks</span></div>
           <div class="stat-card"><strong id="nightlyCount">0</strong><span>Wind-Downs</span></div>
         </div>
-
-
-        <div class="settings-card firebase-account-card">
-          <div class="firebase-account-heading">
-            <div>
-              <p class="eyebrow">Fuwa account</p>
-              <h3>Signed in</h3>
-            </div>
-            <span class="firebase-account-cloud" aria-hidden="true"></span>
-          </div>
-          <div class="firebase-account-user">
-            <span>Email</span>
-            <strong id="firebaseAccountEmail">—</strong>
-          </div>
-          <button id="firebaseSignOutButton" type="button">Log out <span>›</span></button>
-        </div>
-
-        <div class="settings-card">
+<div class="settings-card">
           <button id="exportButton">Backup & Export <span>›</span></button>
           <label class="import-row">
             Import Backup <span>›</span>
