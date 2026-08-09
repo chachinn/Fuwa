@@ -10,6 +10,8 @@
   <title>Fuwa — Soft moments, forever yours.</title>
 
   <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="./icon/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./icon/favicon-32.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -124,6 +126,18 @@
           <input id="entryTitle" class="title-input" maxlength="100" placeholder="Title your day…" required />
           <textarea id="entryBody" rows="12" placeholder="Write anything. This space is yours…" required></textarea>
 
+          <div class="editor-section photo-section">
+            <div class="photo-section-heading">
+              <div>
+                <label>Photos</label>
+                <small>Up to 8 photos. Fuwa compresses large images before saving.</small>
+              </div>
+              <button type="button" class="photo-add-btn" id="addPhotosButton">＋ Add photos</button>
+            </div>
+            <input id="entryPhotosInput" type="file" accept="image/*" multiple hidden />
+            <div class="photo-grid" id="entryPhotoGrid"></div>
+          </div>
+
           <div class="editor-section">
             <label for="entryTags">Tags</label>
             <input id="entryTags" placeholder="travel, work, japan, little joys" />
@@ -200,6 +214,11 @@
       <button class="nav-item" data-nav="letters"><span>✉</span><small>Letters</small></button>
       <button class="nav-item" data-nav="me"><span>♡</span><small>Me</small></button>
     </nav>
+  </div>
+
+  <div class="photo-viewer hidden" id="photoViewer" role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <button type="button" class="photo-viewer-close" id="closePhotoViewer" aria-label="Close photo viewer">×</button>
+    <img id="photoViewerImage" alt="Diary photo" />
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

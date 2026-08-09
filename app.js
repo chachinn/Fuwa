@@ -1,4 +1,13 @@
 const STORAGE_KEY = "fuwaDataV1";
+const PREFERENCES_KEY = "fuwaPreferencesV1";
+const DATABASE_NAME = "FuwaDB";
+const DATABASE_VERSION = 2;
+const MAX_PHOTOS_PER_ENTRY = 8;
+const MAX_PHOTO_DIMENSION = 1800;
+const PHOTO_JPEG_QUALITY = 0.82;
+const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "settings"];
+const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
   entries: [],
@@ -8,8 +17,206 @@ const defaultState = {
   theme: "pink"
 };
 
-let state = loadState();
+let state = structuredClone(defaultState);
 let currentView = "home";
+let editorMedia = [];
+let removedMediaIds = new Set();
+
+// Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
+// in localStorage so the content database and display preferences stay separate.
+function loadPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || "{}");
+    return {
+      selectedMood: typeof saved.selectedMood === "string" ? saved.selectedMood : defaultState.selectedMood,
+      theme: typeof saved.theme === "string" ? saved.theme : defaultState.theme
+    };
+  } catch (error) {
+    console.error("Could not read Fuwa preferences.", error);
+    return { selectedMood: defaultState.selectedMood, theme: defaultState.theme };
+  }
+}
+
+function savePreferences() {
+  try {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify({
+      selectedMood: state.selectedMood,
+      theme: state.theme
+    }));
+  } catch (error) {
+    console.error("Could not save Fuwa preferences.", error);
+  }
+}
+
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("IndexedDB request failed"));
+  });
+}
+
+function transactionDone(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction was aborted"));
+  });
+}
+
+const diaryRepository = {
+  db: null,
+
+  async initialize() {
+    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    request.onblocked = () => console.error("FuwaDB upgrade is blocked by another open Fuwa tab.");
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      ALL_STORES.forEach(storeName => {
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName, storeName === "settings" ? { keyPath: "key" } : { keyPath: "id" });
+        }
+      });
+
+      const mediaStore = request.transaction.objectStore("media");
+      if (!mediaStore.indexNames.contains("entryId")) {
+        mediaStore.createIndex("entryId", "entryId", { unique: false });
+      }
+    };
+    this.db = await requestResult(request);
+  },
+
+  async getAll(storeName) {
+    return requestResult(this.db.transaction(storeName, "readonly").objectStore(storeName).getAll());
+  },
+
+  async get(storeName, id) {
+    return requestResult(this.db.transaction(storeName, "readonly").objectStore(storeName).get(id));
+  },
+
+  async save(storeName, record) {
+    const transaction = this.db.transaction(storeName, "readwrite");
+    transaction.objectStore(storeName).put(record);
+    await transactionDone(transaction);
+  },
+
+  async remove(storeName, id) {
+    const transaction = this.db.transaction(storeName, "readwrite");
+    transaction.objectStore(storeName).delete(id);
+    await transactionDone(transaction);
+  },
+
+  async getMediaForEntry(entryId) {
+    const transaction = this.db.transaction("media", "readonly");
+    const store = transaction.objectStore("media");
+    if (store.indexNames.contains("entryId")) {
+      return requestResult(store.index("entryId").getAll(entryId));
+    }
+    const all = await requestResult(store.getAll());
+    return all.filter(record => record.entryId === entryId);
+  },
+
+  async readAllMedia() {
+    return this.getAll("media");
+  },
+
+  async saveEntryWithMedia(entry, newMediaRecords, removedIds) {
+    const transaction = this.db.transaction(["entries", "media"], "readwrite");
+    transaction.objectStore("entries").put(entry);
+    const mediaStore = transaction.objectStore("media");
+    newMediaRecords.forEach(record => mediaStore.put(record));
+    removedIds.forEach(id => mediaStore.delete(id));
+    await transactionDone(transaction);
+  },
+
+  async deleteEntryWithMedia(entryId) {
+    const mediaRecords = await this.getMediaForEntry(entryId);
+    const transaction = this.db.transaction(["entries", "media"], "readwrite");
+    transaction.objectStore("entries").delete(entryId);
+    const mediaStore = transaction.objectStore("media");
+    mediaRecords.forEach(record => mediaStore.delete(record.id));
+    await transactionDone(transaction);
+  },
+
+  async readCurrentData() {
+    const [entries, tinyJoys, letters] = await Promise.all(CONTENT_STORES.map(store => this.getAll(store)));
+    return { entries, tinyJoys, letters };
+  },
+
+  async replaceContent(data, mediaRecords = []) {
+    const stores = [...CONTENT_STORES, "media"];
+    const transaction = this.db.transaction(stores, "readwrite");
+    CONTENT_STORES.forEach(storeName => {
+      const store = transaction.objectStore(storeName);
+      store.clear();
+      data[storeName].forEach(record => store.put(record));
+    });
+    const mediaStore = transaction.objectStore("media");
+    mediaStore.clear();
+    mediaRecords.forEach(record => mediaStore.put(record));
+    await transactionDone(transaction);
+  },
+
+  async clearDiaryData() {
+    const stores = [...CONTENT_STORES, "media"];
+    const transaction = this.db.transaction(stores, "readwrite");
+    stores.forEach(storeName => transaction.objectStore(storeName).clear());
+    await transactionDone(transaction);
+  },
+
+  async migrateLegacyData() {
+    const settings = this.db.transaction("settings", "readonly").objectStore("settings");
+    if (await requestResult(settings.get(LEGACY_MIGRATION_KEY))) return;
+
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+
+    let legacy;
+    try {
+      legacy = JSON.parse(raw);
+      validateContentData(legacy);
+    } catch (error) {
+      console.error("Fuwa legacy data is malformed; migration was not attempted.", error);
+      return;
+    }
+
+    // Content writes and the completion marker share one atomic transaction.
+    // A failed write leaves the legacy backup untouched and permits a later retry.
+    const stores = [...CONTENT_STORES, "settings"];
+    const transaction = this.db.transaction(stores, "readwrite");
+    CONTENT_STORES.forEach(storeName => {
+      const store = transaction.objectStore(storeName);
+      legacy[storeName].forEach(record => store.put(record));
+    });
+    transaction.objectStore("settings").put({ key: LEGACY_MIGRATION_KEY, completedAt: Date.now() });
+    await transactionDone(transaction);
+
+    state.selectedMood = typeof legacy.selectedMood === "string" ? legacy.selectedMood : state.selectedMood;
+    state.theme = typeof legacy.theme === "string" ? legacy.theme : state.theme;
+    savePreferences();
+  }
+};
+
+function validateContentData(data) {
+  if (!data || typeof data !== "object") throw new Error("Data must be an object");
+  CONTENT_STORES.forEach(storeName => {
+    if (!Array.isArray(data[storeName])) throw new Error(`${storeName} must be an array`);
+    const ids = new Set();
+    data[storeName].forEach(record => {
+      if (!record || typeof record !== "object" || typeof record.id !== "string" || !record.id) {
+        throw new Error(`${storeName} contains a record without a stable string ID`);
+      }
+      if (ids.has(record.id)) throw new Error(`${storeName} contains duplicate IDs`);
+      ids.add(record.id);
+    });
+  });
+  return data;
+}
+
+async function loadState() {
+  const preferences = loadPreferences();
+  const content = await diaryRepository.readCurrentData();
+  state = { ...structuredClone(defaultState), ...content, ...preferences };
+}
 
 const moodEmoji = {
   amazing: "🥰",
@@ -24,17 +231,8 @@ function $(id) {
   return document.getElementById(id);
 }
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...defaultState, ...JSON.parse(raw) } : structuredClone(defaultState);
-  } catch {
-    return structuredClone(defaultState);
-  }
-}
-
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  savePreferences();
   renderAll();
 }
 
@@ -62,6 +260,181 @@ function escapeHtml(value = "") {
     '"': "&quot;",
     "'": "&#039;"
   }[char]));
+}
+
+function cleanupEditorMediaPreviews() {
+  editorMedia.forEach(item => {
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  });
+  editorMedia = [];
+  removedMediaIds = new Set();
+}
+
+function imageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Fuwa could not read that image."));
+    };
+    image.src = url;
+  });
+}
+
+async function compressPhoto(file) {
+  if (!file || !file.type.startsWith("image/")) throw new Error("That file is not an image.");
+
+  const image = await imageFromBlob(file);
+  const scale = Math.min(1, MAX_PHOTO_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { alpha: false });
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob(result => result ? resolve(result) : reject(new Error("Image compression failed.")), "image/jpeg", PHOTO_JPEG_QUALITY);
+  });
+
+  return { blob, width, height, type: "image/jpeg" };
+}
+
+function renderEditorMedia() {
+  const grid = $("entryPhotoGrid");
+  if (!grid) return;
+
+  grid.innerHTML = editorMedia.map(item => `
+    <div class="photo-thumb">
+      <button type="button" class="photo-thumb-open" data-photo-open="${item.id}" aria-label="Open photo">
+        <img src="${item.previewUrl}" alt="Diary photo" />
+      </button>
+      <button type="button" class="photo-remove-btn" data-photo-remove="${item.id}" aria-label="Remove photo">×</button>
+      ${item.isNew ? '<span class="photo-new-badge">New</span>' : ''}
+    </div>
+  `).join("");
+
+  grid.querySelectorAll("[data-photo-open]").forEach(button => {
+    button.addEventListener("click", () => openPhotoViewer(button.dataset.photoOpen));
+  });
+  grid.querySelectorAll("[data-photo-remove]").forEach(button => {
+    button.addEventListener("click", () => removeEditorPhoto(button.dataset.photoRemove));
+  });
+
+  const addButton = $("addPhotosButton");
+  if (addButton) {
+    addButton.disabled = editorMedia.length >= MAX_PHOTOS_PER_ENTRY;
+    addButton.textContent = editorMedia.length >= MAX_PHOTOS_PER_ENTRY ? "Photo limit reached" : "＋ Add photos";
+  }
+}
+
+function removeEditorPhoto(id) {
+  const item = editorMedia.find(photo => photo.id === id);
+  if (!item) return;
+  if (!item.isNew) removedMediaIds.add(id);
+  if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+  editorMedia = editorMedia.filter(photo => photo.id !== id);
+  renderEditorMedia();
+}
+
+async function addEntryPhotos(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+  if (!files.length) return;
+
+  const remaining = MAX_PHOTOS_PER_ENTRY - editorMedia.length;
+  if (remaining <= 0) {
+    toast(`Fuwa allows up to ${MAX_PHOTOS_PER_ENTRY} photos per entry.`);
+    return;
+  }
+
+  const selected = files.slice(0, remaining);
+  if (files.length > remaining) toast(`Only ${remaining} more photo${remaining === 1 ? "" : "s"} can be added.`);
+
+  $("addPhotosButton").disabled = true;
+  $("addPhotosButton").textContent = "Preparing…";
+
+  try {
+    for (const file of selected) {
+      const compressed = await compressPhoto(file);
+      const id = uid("media");
+      editorMedia.push({
+        id,
+        entryId: null,
+        blob: compressed.blob,
+        type: compressed.type,
+        width: compressed.width,
+        height: compressed.height,
+        originalName: file.name || "photo",
+        createdAt: Date.now(),
+        isNew: true,
+        previewUrl: URL.createObjectURL(compressed.blob)
+      });
+    }
+    renderEditorMedia();
+  } catch (error) {
+    console.error("Could not prepare selected photo.", error);
+    toast("Fuwa couldn't prepare one of those photos.");
+    renderEditorMedia();
+  }
+}
+
+function openPhotoViewer(id) {
+  const item = editorMedia.find(photo => photo.id === id);
+  if (!item) return;
+  $("photoViewerImage").src = item.previewUrl;
+  $("photoViewer").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closePhotoViewer() {
+  $("photoViewer").classList.add("hidden");
+  $("photoViewerImage").removeAttribute("src");
+  document.body.style.overflow = "";
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Could not encode photo."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(dataUrl) {
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) throw new Error("Invalid photo backup data");
+  const parts = dataUrl.split(",");
+  const header = parts[0];
+  const encoded = parts[1] || "";
+  const mimeMatch = header.match(/^data:([^;]+);base64$/);
+  if (!mimeMatch) throw new Error("Unsupported photo backup encoding");
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeMatch[1] });
+}
+
+function validateMediaBackup(media) {
+  if (media === undefined) return [];
+  if (!Array.isArray(media)) throw new Error("media must be an array");
+  const ids = new Set();
+  media.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id || typeof record.entryId !== "string" || !record.entryId) {
+      throw new Error("media contains an invalid record");
+    }
+    if (ids.has(record.id)) throw new Error("media contains duplicate IDs");
+    ids.add(record.id);
+    if (typeof record.dataUrl !== "string") throw new Error("media record is missing photo data");
+  });
+  return media;
 }
 
 function toast(message) {
@@ -268,8 +641,22 @@ function renderAll() {
   applyTheme();
 }
 
-function openEditor(entryId = null, dateOverride = null) {
+async function openEditor(entryId = null, dateOverride = null) {
   const entry = entryId ? state.entries.find(item => item.id === entryId) : null;
+
+  cleanupEditorMediaPreviews();
+
+  if (entry) {
+    try {
+      const storedMedia = await diaryRepository.getMediaForEntry(entry.id);
+      editorMedia = storedMedia
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map(record => ({ ...record, isNew: false, previewUrl: URL.createObjectURL(record.blob) }));
+    } catch (error) {
+      console.error("Could not load entry photos.", error);
+      toast("Fuwa couldn't load this entry's photos.");
+    }
+  }
 
   $("entryId").value = entry?.id || "";
   $("entryDate").value = entry?.date || dateOverride || isoToday();
@@ -281,12 +668,13 @@ function openEditor(entryId = null, dateOverride = null) {
 
   $("editorHeading").textContent = entry ? "Edit Entry" : "New Entry";
   $("deleteEntryButton").classList.toggle("hidden", !entry);
+  renderEditorMedia();
 
   navigate("editor");
   setTimeout(() => $("entryTitle").focus(), 80);
 }
 
-function saveEntry() {
+async function saveEntry() {
   const id = $("entryId").value;
   const title = $("entryTitle").value.trim();
   const body = $("entryBody").value.trim();
@@ -308,45 +696,72 @@ function saveEntry() {
     updatedAt: Date.now()
   };
 
-  if (id) {
-    state.entries = state.entries.map(entry => entry.id === id ? data : entry);
-  } else {
-    state.entries.push(data);
+  try {
+    const newMediaRecords = editorMedia.filter(item => item.isNew).map(item => ({
+      id: item.id,
+      entryId: data.id,
+      blob: item.blob,
+      type: item.type,
+      width: item.width,
+      height: item.height,
+      originalName: item.originalName,
+      createdAt: item.createdAt
+    }));
+    await diaryRepository.saveEntryWithMedia(data, newMediaRecords, [...removedMediaIds]);
+    if (id) state.entries = state.entries.map(entry => entry.id === id ? data : entry);
+    else state.entries.push(data);
+    state.selectedMood = data.mood;
+    saveState();
+    cleanupEditorMediaPreviews();
+    navigate("entries");
+    toast("Memory saved 🌸");
+  } catch (error) {
+    console.error("Could not save diary entry.", error);
+    toast("Fuwa couldn't save that memory. Please try again.");
   }
-
-  state.selectedMood = data.mood;
-  saveState();
-  navigate("entries");
-  toast("Memory saved 🌸");
 }
 
-function deleteEntry() {
+async function deleteEntry() {
   const id = $("entryId").value;
   if (!id) return;
 
   if (!confirm("Delete this diary entry?")) return;
 
-  state.entries = state.entries.filter(entry => entry.id !== id);
-  saveState();
-  navigate("entries");
-  toast("Entry deleted");
+  try {
+    await diaryRepository.deleteEntryWithMedia(id);
+    state.entries = state.entries.filter(entry => entry.id !== id);
+    cleanupEditorMediaPreviews();
+    saveState();
+    navigate("entries");
+    toast("Entry deleted");
+  } catch (error) {
+    console.error("Could not delete diary entry.", error);
+    toast("Fuwa couldn't delete that entry. Please try again.");
+  }
 }
 
-function addTinyJoy(event) {
+async function addTinyJoy(event) {
   event.preventDefault();
   const input = $("tinyJoyInput");
   const text = input.value.trim();
   if (!text) return;
 
-  state.tinyJoys.push({
+  const joy = {
     id: uid("joy"),
     text,
     createdAt: Date.now()
-  });
+  };
 
-  input.value = "";
-  saveState();
-  toast("Tiny joy saved ✨");
+  try {
+    await diaryRepository.save("tinyJoys", joy);
+    state.tinyJoys.push(joy);
+    input.value = "";
+    saveState();
+    toast("Tiny joy saved ✨");
+  } catch (error) {
+    console.error("Could not save Tiny Joy.", error);
+    toast("Fuwa couldn't save that joy. Please try again.");
+  }
 }
 
 function toggleLetterComposer(show) {
@@ -362,7 +777,7 @@ function toggleLetterComposer(show) {
   }
 }
 
-function saveLetter() {
+async function saveLetter() {
   const title = $("letterTitle").value.trim();
   const body = $("letterBody").value.trim();
   const openDate = $("letterOpenDate").value;
@@ -372,70 +787,134 @@ function saveLetter() {
     return;
   }
 
-  state.letters.push({
+  const letter = {
     id: uid("letter"),
     title,
     body,
     openDate,
     createdAt: Date.now()
-  });
-
-  saveState();
-  toggleLetterComposer(false);
-  toast("Letter sealed ✉️");
-}
-
-function exportBackup() {
-  const payload = {
-    app: "Fuwa",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    data: state
   };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `fuwa-backup-${isoToday()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    await diaryRepository.save("letters", letter);
+    state.letters.push(letter);
+    saveState();
+    toggleLetterComposer(false);
+    toast("Letter sealed ✉️");
+  } catch (error) {
+    console.error("Could not save letter.", error);
+    toast("Fuwa couldn't seal that letter. Please try again.");
+  }
+}
+
+async function exportBackup() {
+  try {
+    const currentData = await diaryRepository.readCurrentData();
+    const mediaRecords = await diaryRepository.readAllMedia();
+    const media = [];
+
+    for (const record of mediaRecords) {
+      media.push({
+        id: record.id,
+        entryId: record.entryId,
+        type: record.type || record.blob?.type || "image/jpeg",
+        width: record.width || null,
+        height: record.height || null,
+        originalName: record.originalName || "photo",
+        createdAt: record.createdAt || Date.now(),
+        dataUrl: await blobToDataUrl(record.blob)
+      });
+    }
+
+    const payload = {
+      app: "Fuwa",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme }
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fuwa-backup-${isoToday()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Could not create Fuwa backup.", error);
+    toast("Fuwa couldn't create a backup. Please try again.");
+  }
 }
 
 function importBackup(file) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const parsed = JSON.parse(reader.result);
       const incoming = parsed.data || parsed;
-
-      if (!incoming.entries || !incoming.tinyJoys || !incoming.letters) {
-        throw new Error("Invalid Fuwa backup");
-      }
-
-      state = { ...defaultState, ...incoming };
+      validateContentData(incoming);
+      const backupMedia = validateMediaBackup(incoming.media);
+      const mediaRecords = backupMedia.map(record => ({
+        id: record.id,
+        entryId: record.entryId,
+        blob: dataUrlToBlob(record.dataUrl),
+        type: record.type || "image/jpeg",
+        width: record.width || null,
+        height: record.height || null,
+        originalName: record.originalName || "photo",
+        createdAt: record.createdAt || Date.now()
+      }));
+      await diaryRepository.replaceContent(incoming, mediaRecords);
+      state = {
+        ...structuredClone(defaultState),
+        entries: incoming.entries,
+        tinyJoys: incoming.tinyJoys,
+        letters: incoming.letters,
+        selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
+        theme: typeof incoming.theme === "string" ? incoming.theme : state.theme
+      };
       saveState();
       toast("Backup imported 🌸");
-    } catch {
+    } catch (error) {
+      console.error("Could not import Fuwa backup.", error);
       alert("That file does not look like a valid Fuwa backup.");
     }
   };
+  reader.onerror = () => alert("Fuwa could not read that backup file.");
   reader.readAsText(file);
 }
 
-function clearAll() {
+async function clearAll() {
   if (!confirm("Clear all Fuwa entries, joys, and letters stored on this device?")) return;
   if (!confirm("This cannot be undone unless you exported a backup. Continue?")) return;
 
-  state = structuredClone(defaultState);
-  saveState();
-  navigate("home");
-  toast("Local data cleared");
+  try {
+    await diaryRepository.clearDiaryData();
+    state = structuredClone(defaultState);
+    saveState();
+    navigate("home");
+    toast("Local data cleared");
+  } catch (error) {
+    console.error("Could not clear Fuwa data.", error);
+    toast("Fuwa couldn't clear local data. Please try again.");
+  }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    state = { ...state, ...loadPreferences() };
+    await diaryRepository.initialize();
+    await diaryRepository.migrateLegacyData();
+    await loadState();
+    renderAll();
+  } catch (error) {
+    console.error("Fuwa could not initialize its local database.", error);
+    alert("Fuwa could not open its local diary. Please reload and try again.");
+    return;
+  }
+
   document.querySelectorAll("[data-nav]").forEach(button => {
     button.addEventListener("click", () => navigate(button.dataset.nav));
   });
@@ -451,8 +930,17 @@ document.addEventListener("DOMContentLoaded", () => {
   $("newEntryButton").addEventListener("click", () => openEditor());
   $("navCreate").addEventListener("click", () => openEditor());
   $("saveEntryButton").addEventListener("click", saveEntry);
-  $("cancelEditor").addEventListener("click", () => navigate("entries"));
+  $("cancelEditor").addEventListener("click", () => {
+    cleanupEditorMediaPreviews();
+    navigate("entries");
+  });
   $("deleteEntryButton").addEventListener("click", deleteEntry);
+  $("addPhotosButton").addEventListener("click", () => $("entryPhotosInput").click());
+  $("entryPhotosInput").addEventListener("change", addEntryPhotos);
+  $("closePhotoViewer").addEventListener("click", closePhotoViewer);
+  $("photoViewer").addEventListener("click", event => {
+    if (event.target === $("photoViewer")) closePhotoViewer();
+  });
 
   $("tinyJoyForm").addEventListener("submit", addTinyJoy);
   $("entrySearch").addEventListener("input", event => renderEntries(event.target.value));
@@ -465,8 +953,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("exportButton").addEventListener("click", exportBackup);
   $("importInput").addEventListener("change", event => importBackup(event.target.files[0]));
   $("clearAllButton").addEventListener("click", clearAll);
-
-  renderAll();
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {

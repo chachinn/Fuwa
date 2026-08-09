@@ -1,10 +1,14 @@
-const CACHE_NAME = "fuwa-shell-v1";
+const CACHE_NAME = "fuwa-shell-v3";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./icon/icon-192.png",
+  "./icon/icon-512.png",
+  "./icon/apple-touch-icon.png",
+  "./icon/favicon-32.png"
 ];
 
 self.addEventListener("install", event => {
