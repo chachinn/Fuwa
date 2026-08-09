@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Backup/Restore — V28
+// Fuwa Firebase Authentication + Firestore Backup/Restore — V29
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -584,17 +584,27 @@ async function handleCloudRestoreConfirm() {
       throw new Error("restore-engine-not-ready");
     }
 
-    await window.fuwaCreateRestoreSafetyBackup();
+    const safetyBackup = await window.fuwaCreateRestoreSafetyBackup();
 
-    if (button) button.textContent = "Restoring safely…";
+    if (button) button.textContent = "Restoring & verifying…";
 
-    await window.fuwaApplyCloudRestorePayload(backup);
+    const result = await window.fuwaApplyCloudRestorePayload(backup);
+    if (!result?.ok) throw new Error("restore-verification-failed");
 
     closeCloudRestoreModal();
-    window.alert("Fuwa was restored from your cloud backup. Your pre-restore local safety backup was downloaded too. ☁️");
-    window.location.reload();
+
+    // Download only after the app restore has completed and been verified. This
+    // avoids iOS leaving Fuwa midway through the restore.
+    try {
+      window.fuwaDownloadRestoreSafetyBackup?.(safetyBackup);
+    } catch (downloadError) {
+      console.warn("Restore succeeded, but iOS did not save the optional safety file.", downloadError);
+    }
+
+    window.alert(`Fuwa restored ${result.recordCount} cloud records successfully. ☁️`);
+    window.setTimeout(() => window.location.reload(), 250);
   } catch (error) {
-    console.error("Fuwa cloud restore failed.", error);
+    console.error("Fuwa cloud restore failed.", error?.name || "Error", error?.message || error);
     window.alert("Fuwa couldn't complete the restore. Your existing device data was kept as safely as possible. Please don't clear Fuwa data.");
     if (button) {
       button.disabled = false;

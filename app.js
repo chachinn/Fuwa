@@ -4064,9 +4064,76 @@ function downloadBackupPayload(payload, filename) {
 }
 
 async function createRestoreSafetyBackup() {
-  const payload = await createFullLocalBackupPayload();
+  // Keep the safety snapshot in memory while restore runs. On iOS, triggering
+  // the file download before the IndexedDB write can navigate away from Fuwa.
+  return createFullLocalBackupPayload();
+}
+
+function downloadRestoreSafetyBackup(payload) {
+  if (!payload) return;
   downloadBackupPayload(payload, `fuwa-before-cloud-restore-${isoToday()}.json`);
-  return payload;
+}
+
+function normalizeCloudValue(value) {
+  if (value == null) return value;
+
+  // Firestore Timestamp instances are SDK objects. Convert them to ISO strings
+  // before IndexedDB writes so restore stays portable on iOS/WebKit.
+  if (typeof value?.toDate === "function") {
+    const date = value.toDate();
+    return Number.isNaN(date?.getTime?.()) ? null : date.toISOString();
+  }
+
+  if (value instanceof Date) return value.toISOString();
+
+  if (Array.isArray(value)) return value.map(normalizeCloudValue);
+
+  if (typeof value === "object") {
+    const plain = {};
+    for (const [key, child] of Object.entries(value)) {
+      plain[key] = normalizeCloudValue(child);
+    }
+    return plain;
+  }
+
+  return value;
+}
+
+function restoredRecordCount(data) {
+  return [
+    "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
+    "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
+    "thoughtBubbles", "dreams"
+  ].reduce((total, key) => total + (Array.isArray(data?.[key]) ? data[key].length : 0), 0);
+}
+
+async function verifyRestoredContent(expected) {
+  const actual = await diaryRepository.readCurrentData();
+  const storeNames = [
+    "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
+    "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
+    "thoughtBubbles", "dreams"
+  ];
+
+  for (const storeName of storeNames) {
+    const expectedRecords = Array.isArray(expected?.[storeName]) ? expected[storeName] : [];
+    const actualRecords = Array.isArray(actual?.[storeName]) ? actual[storeName] : [];
+
+    if (actualRecords.length !== expectedRecords.length) {
+      throw new Error(`restore-verification-failed:${storeName}:count`);
+    }
+
+    const expectedIds = expectedRecords.map(record => record.id).sort();
+    const actualIds = actualRecords.map(record => record.id).sort();
+    if (JSON.stringify(expectedIds) !== JSON.stringify(actualIds)) {
+      throw new Error(`restore-verification-failed:${storeName}:ids`);
+    }
+  }
+
+  return {
+    recordCount: restoredRecordCount(actual),
+    data: actual
+  };
 }
 
 async function applyCloudRestorePayload(payload) {
@@ -4074,7 +4141,10 @@ async function applyCloudRestorePayload(payload) {
     throw new Error("invalid-cloud-backup");
   }
 
-  const incoming = structuredClone(payload.data);
+  // Do NOT structuredClone Firestore SDK objects directly into IndexedDB.
+  // Normalize the snapshot first to plain values.
+  const incoming = normalizeCloudValue(payload.data);
+
   validateContentData(incoming);
   incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
   incoming.threads = validateThreads(incoming.threads);
@@ -4086,11 +4156,16 @@ async function applyCloudRestorePayload(payload) {
   incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
   incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
 
-  // Cloud Backup v1 deliberately contains no media. Preserve every photo/blob
-  // already on this device while replacing the structured journal stores.
   const existingMedia = await diaryRepository.readAllMedia();
 
   await diaryRepository.replaceContent(incoming, existingMedia);
+
+  // A restore is only successful after IndexedDB can read the exact stores/IDs back.
+  const verification = await verifyRestoredContent(incoming);
+  const expectedCount = Number(payload.recordCount || restoredRecordCount(incoming));
+  if (verification.recordCount !== expectedCount) {
+    throw new Error(`restore-verification-failed:record-count:${verification.recordCount}/${expectedCount}`);
+  }
 
   state = {
     ...structuredClone(defaultState),
@@ -4109,7 +4184,7 @@ async function applyCloudRestorePayload(payload) {
     selectedMood: incoming.selectedMood || defaultState.selectedMood,
     theme: incoming.theme || defaultState.theme,
     wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
-    wallpaperOverlay: Number.isFinite(Number(incoming.wallpaperOverlay)) ? Number(incoming.wallpaperOverlay) : defaultState.wallpaperOverlay,
+    wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : defaultState.wallpaperOverlay,
     sleepSound: incoming.sleepSound || defaultState.sleepSound,
     sleepMinutes: Number(incoming.sleepMinutes) || defaultState.sleepMinutes,
     sleepVolume: Number.isFinite(Number(incoming.sleepVolume)) ? Number(incoming.sleepVolume) : defaultState.sleepVolume,
@@ -4119,13 +4194,18 @@ async function applyCloudRestorePayload(payload) {
     biometricEnabled: false
   };
 
-  saveState();
-  await loadStateFromRepository();
+  savePreferences();
+  await loadState();
   renderAll();
-  return true;
+
+  return {
+    ok: true,
+    recordCount: verification.recordCount
+  };
 }
 
 window.fuwaCreateRestoreSafetyBackup = createRestoreSafetyBackup;
+window.fuwaDownloadRestoreSafetyBackup = downloadRestoreSafetyBackup;
 window.fuwaApplyCloudRestorePayload = applyCloudRestorePayload;
 
 async function exportBackup() {
