@@ -4296,9 +4296,24 @@ async function createCloudBackupPayload() {
 
 window.fuwaGetLocalCloudSummary = async function () {
   const currentData = await diaryRepository.readCurrentData();
+  const recordCount = cloudBackupRecordCount(currentData);
+
+  const latestModifiedAt = Object.values(currentData)
+    .filter(Array.isArray)
+    .flat()
+    .reduce((latest, record) => {
+      if (!record || typeof record !== "object") return latest;
+      const candidates = [
+        Number(record.updatedAt),
+        Number(record.createdAt)
+      ].filter(Number.isFinite);
+      return Math.max(latest, ...candidates, 0);
+    }, 0);
+
   return {
-    recordCount: cloudBackupRecordCount(currentData),
-    hasJournalData: cloudBackupRecordCount(currentData) > 0
+    recordCount,
+    hasJournalData: recordCount > 0,
+    latestModifiedAt
   };
 };
 

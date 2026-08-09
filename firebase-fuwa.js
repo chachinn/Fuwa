@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Backup/Restore + Auto Sync — V35
+// Fuwa Firebase Authentication + Firestore Backup/Restore + Auto Sync — V38 Fast Startup
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -27,6 +27,59 @@ let autoSyncQueued = false;
 let suppressAutoSyncUntil = 0;
 let startupReconciliationDoneForUid = null;
 let startupReconciliationInFlight = false;
+let cloudConflictDetected = false;
+
+const FUWA_CLOUD_DEVICE_ID_KEY = "fuwaCloudDeviceIdV1";
+const FUWA_CLOUD_BASELINE_KEY = "fuwaCloudBaselineV1";
+const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";
+
+function setPendingCloudSync(pending) {
+  try {
+    if (pending) localStorage.setItem(FUWA_CLOUD_PENDING_KEY, "1");
+    else localStorage.removeItem(FUWA_CLOUD_PENDING_KEY);
+  } catch (_) {}
+}
+
+function hasPendingCloudSync() {
+  try {
+    return localStorage.getItem(FUWA_CLOUD_PENDING_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function getCloudDeviceId() {
+  let id = localStorage.getItem(FUWA_CLOUD_DEVICE_ID_KEY);
+  if (!id) {
+    id = (crypto?.randomUUID?.() || `device_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+    localStorage.setItem(FUWA_CLOUD_DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
+function readCloudBaseline(uid) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FUWA_CLOUD_BASELINE_KEY) || "{}");
+    return all?.[uid] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeCloudBaseline(uid, backup = {}) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FUWA_CLOUD_BASELINE_KEY) || "{}");
+    all[uid] = {
+      backupId: backup.backupId || null,
+      backedUpAtClient: backup.backedUpAtClient || null,
+      sourceDeviceId: backup.sourceDeviceId || null,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(FUWA_CLOUD_BASELINE_KEY, JSON.stringify(all));
+  } catch (error) {
+    console.warn("Fuwa could not save its cloud baseline.", error);
+  }
+}
 
 function setAuthBusy(busy) {
   ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton"].forEach(id => {
@@ -181,9 +234,10 @@ async function verifyFirestoreConnection(user) {
 
       await firestoreApi.deleteDoc(testRef);
       setCloudConnectionStatus("Connected ✓", "success");
-      setAutoSyncStatus("On · waiting for changes");
+      setAutoSyncStatus(hasPendingCloudSync() ? "On · finishing sync…" : "On · waiting for changes");
       loadCloudBackupStatus(user);
       reconcileStartupCloudState(user);
+      retryPendingCloudSync("resume");
 
       window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
         detail: { uid: user.uid, connected: true }
@@ -207,32 +261,68 @@ async function verifyFirestoreConnection(user) {
   return firestoreCheckPromise;
 }
 
+let firebaseAppInstance = null;
+let firestoreInitPromise = null;
+
+async function ensureFirestoreReady() {
+  if (firestore && firestoreApi) return true;
+  if (!firebaseAppInstance) return false;
+  if (firestoreInitPromise) return firestoreInitPromise;
+
+  firestoreInitPromise = (async () => {
+    try {
+      const firestoreModule = await import(
+        `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`
+      );
+      firestore = firestoreModule.getFirestore(firebaseAppInstance);
+      firestoreApi = firestoreModule;
+      return true;
+    } catch (error) {
+      console.error("Fuwa Firestore could not initialize.", error);
+      setCloudConnectionStatus("Connection failed", "error");
+      return false;
+    } finally {
+      firestoreInitPromise = null;
+    }
+  })();
+
+  return firestoreInitPromise;
+}
+
 async function initializeFirebaseAuth() {
   try {
-    const [appModule, authModule, firestoreModule] = await Promise.all([
+    // Load only the modules required to determine the saved login first.
+    // Firestore is intentionally deferred until after Home is visible.
+    const [appModule, authModule] = await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`),
-      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`),
-      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`)
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`)
     ]);
 
-    const firebaseApp = appModule.initializeApp(firebaseConfig);
-    auth = authModule.getAuth(firebaseApp);
-    firestore = firestoreModule.getFirestore(firebaseApp);
+    firebaseAppInstance = appModule.initializeApp(firebaseConfig);
+    auth = authModule.getAuth(firebaseAppInstance);
     authApi = authModule;
-    firestoreApi = firestoreModule;
 
-    // Be explicit: keep the user signed in across Safari/PWA reopenings.
-    await authModule.setPersistence(auth, authModule.browserLocalPersistence);
-
+    // Firebase Auth web persistence is LOCAL by default. Previous Fuwa versions
+    // already explicitly set local persistence, so there is no reason to block
+    // startup by copying the persistence state again on every app launch.
     authModule.onAuthStateChanged(auth, user => {
       authReady = true;
       clearAuthMessage();
       setAuthBusy(false);
 
       if (user) {
+        // Reveal Fuwa immediately once Auth knows the saved user.
         revealSignedIn(user);
-        verifyFirestoreConnection(user);
+
+        // Cloud setup continues in the background and must never block Home.
+        setCloudConnectionStatus("Connecting…", "checking");
+        window.setTimeout(async () => {
+          const ready = await ensureFirestoreReady();
+          if (ready) verifyFirestoreConnection(user);
+        }, 0);
       } else {
+        cloudConflictDetected = false;
+        startupReconciliationDoneForUid = null;
         setCloudConnectionStatus("Sign in to connect", "neutral");
         setAuthMode("login");
         revealSignedOut();
@@ -395,6 +485,12 @@ function formatAutoSyncClock(date = new Date()) {
 async function performAutomaticCloudSync() {
   const user = auth?.currentUser;
 
+  if (!navigator.onLine) {
+    setPendingCloudSync(true);
+    setAutoSyncStatus("Offline · changes safe on device");
+    return false;
+  }
+
   if (!user?.uid || !firestore || !firestoreApi) {
     setAutoSyncStatus("On · waiting for cloud");
     return false;
@@ -422,16 +518,37 @@ async function performAutomaticCloudSync() {
       throw new Error("invalid-auto-sync-payload");
     }
 
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const remoteSnapshot = await firestoreApi.getDoc(backupRef);
+    const remote = remoteSnapshot.exists() ? remoteSnapshot.data() : null;
+    const baseline = readCloudBaseline(user.uid);
+    const thisDeviceId = getCloudDeviceId();
+
+    // If another device changed the cloud since this device last saw it,
+    // pause automatic sync rather than silently overwriting newer cloud data.
+    if (
+      remote
+      && baseline?.backupId
+      && remote.backupId
+      && remote.backupId !== baseline.backupId
+      && remote.sourceDeviceId
+      && remote.sourceDeviceId !== thisDeviceId
+    ) {
+      cloudConflictDetected = true;
+      setAutoSyncStatus("Paused · newer cloud copy found");
+      throw new Error("cloud-conflict");
+    }
+
     const serialized = JSON.stringify(payload);
     const approximateBytes = new TextEncoder().encode(serialized).byteLength;
     if (approximateBytes > 900000) {
       throw new Error("cloud-backup-too-large");
     }
 
-    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
     const cloudDocument = {
       ...payload,
       ownerUid: user.uid,
+      sourceDeviceId: thisDeviceId,
       backedUpAt: firestoreApi.serverTimestamp(),
       backedUpAtClient: new Date().toISOString(),
       approximateBytes,
@@ -439,6 +556,9 @@ async function performAutomaticCloudSync() {
     };
 
     await firestoreApi.setDoc(backupRef, cloudDocument);
+    writeCloudBaseline(user.uid, cloudDocument);
+    cloudConflictDetected = false;
+    setPendingCloudSync(false);
 
     setCloudBackupUI({
       busy: false,
@@ -452,9 +572,11 @@ async function performAutomaticCloudSync() {
   } catch (error) {
     console.error("Fuwa automatic cloud sync failed.", error);
     setAutoSyncStatus(
-      error?.message === "cloud-backup-too-large"
-        ? "On · manual backup needed"
-        : "On · will retry"
+      error?.message === "cloud-conflict"
+        ? "Paused · newer cloud copy found"
+        : error?.message === "cloud-backup-too-large"
+          ? "On · manual backup needed"
+          : "On · will retry"
     );
     return false;
   } finally {
@@ -470,7 +592,14 @@ async function performAutomaticCloudSync() {
 function scheduleAutomaticCloudSync() {
   if (Date.now() < suppressAutoSyncUntil) return;
 
+  setPendingCloudSync(true);
   window.clearTimeout(autoSyncTimer);
+
+  if (!navigator.onLine) {
+    setAutoSyncStatus("Offline · changes safe on device");
+    return;
+  }
+
   setAutoSyncStatus("On · changes waiting");
   autoSyncTimer = window.setTimeout(() => {
     performAutomaticCloudSync();
@@ -534,11 +663,22 @@ async function reconcileStartupCloudState(user = auth?.currentUser) {
     const cloudCount = Number(cloud.recordCount || 0);
     const local = typeof window.fuwaGetLocalCloudSummary === "function"
       ? await window.fuwaGetLocalCloudSummary()
-      : { recordCount: 0, hasJournalData: false };
+      : { recordCount: 0, hasJournalData: false, latestModifiedAt: 0 };
 
-    // Step 2 is intentionally conservative:
-    // never overwrite a non-empty device automatically.
+    const baseline = readCloudBaseline(user.uid);
+    const thisDeviceId = getCloudDeviceId();
+    const changedSinceLastSeen = Boolean(
+      baseline?.backupId
+      && cloud.backupId
+      && baseline.backupId !== cloud.backupId
+    );
+    const fromAnotherDevice = Boolean(
+      cloud.sourceDeviceId
+      && cloud.sourceDeviceId !== thisDeviceId
+    );
+
     if (!local.hasJournalData && cloudCount > 0) {
+      cloudConflictDetected = false;
       setAutoSyncStatus("Cloud backup found · restore available");
       setCloudBackupUI({
         busy: false,
@@ -546,8 +686,19 @@ async function reconcileStartupCloudState(user = auth?.currentUser) {
         lastBackup: cloud.backedUpAt || cloud.backedUpAtClient || cloud.createdAt,
         recordCount: cloudCount
       });
+    } else if (changedSinceLastSeen && fromAnotherDevice && local.hasJournalData) {
+      cloudConflictDetected = true;
+      setAutoSyncStatus("Paused · newer cloud copy found");
+      setCloudBackupUI({
+        busy: false,
+        status: "Review cloud copy",
+        lastBackup: cloud.backedUpAt || cloud.backedUpAtClient || cloud.createdAt,
+        recordCount: cloudCount
+      });
     } else {
+      cloudConflictDetected = false;
       setAutoSyncStatus("On · local data protected");
+      writeCloudBaseline(user.uid, cloud);
     }
 
     startupReconciliationDoneForUid = user.uid;
@@ -587,9 +738,18 @@ async function handleCloudBackupRequest(event) {
   event?.preventDefault?.();
 
   const user = auth?.currentUser;
-  if (!user?.uid || !firestore || !firestoreApi) {
-    window.alert("Fuwa's cloud connection is not ready yet. Check your internet connection and try again.");
+  if (!user?.uid) {
+    window.alert("Sign in to Fuwa first.");
     return;
+  }
+
+  if (!firestore || !firestoreApi) {
+    setCloudConnectionStatus("Connecting…", "checking");
+    const ready = await ensureFirestoreReady();
+    if (!ready) {
+      window.alert("Fuwa's cloud connection is not ready yet. Check your internet connection and try again.");
+      return;
+    }
   }
 
   if (typeof window.fuwaCreateCloudBackupPayload !== "function") {
@@ -606,6 +766,32 @@ async function handleCloudBackupRequest(event) {
       throw new Error("Fuwa produced an invalid cloud backup payload.");
     }
 
+    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+    const currentCloudSnapshot = await firestoreApi.getDoc(backupRef);
+    const currentCloud = currentCloudSnapshot.exists() ? currentCloudSnapshot.data() : null;
+    const baseline = readCloudBaseline(user.uid);
+    const thisDeviceId = getCloudDeviceId();
+
+    const cloudChangedElsewhere = Boolean(
+      currentCloud
+      && baseline?.backupId
+      && currentCloud.backupId
+      && currentCloud.backupId !== baseline.backupId
+      && currentCloud.sourceDeviceId
+      && currentCloud.sourceDeviceId !== thisDeviceId
+    );
+
+    if (cloudChangedElsewhere) {
+      const overwrite = window.confirm(
+        "A newer Fuwa cloud copy was saved from another device. Backing up now will replace that cloud copy with this device's diary. Continue?"
+      );
+      if (!overwrite) {
+        setCloudBackupUI({ busy: false, status: "Cloud copy kept" });
+        setAutoSyncStatus("Paused · newer cloud copy found");
+        return;
+      }
+    }
+
     // Firestore documents have a strict size limit. This first cloud-backup
     // milestone intentionally excludes photo blobs and refuses oversized data.
     const serialized = JSON.stringify(payload);
@@ -615,10 +801,10 @@ async function handleCloudBackupRequest(event) {
       throw new Error("cloud-backup-too-large");
     }
 
-    const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
     const cloudDocument = {
       ...payload,
       ownerUid: user.uid,
+      sourceDeviceId: thisDeviceId,
       backedUpAt: firestoreApi.serverTimestamp(),
       backedUpAtClient: new Date().toISOString(),
       approximateBytes
@@ -633,6 +819,10 @@ async function handleCloudBackupRequest(event) {
     if (verified.ownerUid !== user.uid || verified.backupId !== payload.backupId) {
       throw new Error("Cloud backup verification did not match this device backup.");
     }
+
+    writeCloudBaseline(user.uid, verified);
+    cloudConflictDetected = false;
+    setPendingCloudSync(false);
 
     setCloudBackupUI({
       busy: false,
@@ -665,8 +855,11 @@ function closeCloudRestoreModal() {
 }
 
 async function getVerifiedCloudBackup(user = auth?.currentUser) {
-  if (!user?.uid || !firestore || !firestoreApi) {
-    throw new Error("cloud-not-ready");
+  if (!user?.uid) throw new Error("cloud-not-ready");
+
+  if (!firestore || !firestoreApi) {
+    const ready = await ensureFirestoreReady();
+    if (!ready) throw new Error("cloud-not-ready");
   }
 
   const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
@@ -751,6 +944,11 @@ async function handleCloudRestoreConfirm() {
     const result = await window.fuwaApplyCloudRestorePayload(backup);
     if (!result?.ok) throw new Error("restore-verification-failed");
 
+    writeCloudBaseline(auth.currentUser.uid, backup);
+    cloudConflictDetected = false;
+    setPendingCloudSync(false);
+    startupReconciliationDoneForUid = auth.currentUser.uid;
+
     closeCloudRestoreModal();
 
     // The in-memory safety snapshot already protected this restore attempt.
@@ -783,6 +981,36 @@ async function handleSignOut() {
     window.alert("Fuwa couldn't log out just now. Please try again.");
   }
 }
+
+
+function retryPendingCloudSync(reason = "resume") {
+  if (!hasPendingCloudSync()) return;
+  if (!navigator.onLine) {
+    setAutoSyncStatus("Offline · changes safe on device");
+    return;
+  }
+  if (cloudConflictDetected) {
+    setAutoSyncStatus("Paused · newer cloud copy found");
+    return;
+  }
+
+  window.clearTimeout(autoSyncTimer);
+  setAutoSyncStatus(reason === "online" ? "Back online · syncing…" : "On · finishing sync…");
+  autoSyncTimer = window.setTimeout(() => performAutomaticCloudSync(), 450);
+}
+
+window.addEventListener("online", () => retryPendingCloudSync("online"));
+window.addEventListener("offline", () => {
+  if (hasPendingCloudSync()) setAutoSyncStatus("Offline · changes safe on device");
+  else setAutoSyncStatus("Offline · local mode");
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") retryPendingCloudSync("resume");
+});
+
+// iOS PWAs can be restored from a suspended state without a normal reload.
+window.addEventListener("pageshow", () => retryPendingCloudSync("resume"));
 
 function bindAuthUI() {
   $auth("loginForm")?.addEventListener("submit", handleLogin);
