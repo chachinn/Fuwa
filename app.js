@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -17,6 +17,11 @@ const defaultState = {
   threads: [],
   bookmarks: [],
   nightlyReflections: [],
+  thenNow: [],
+  comfortItems: [],
+  unsentLetters: [],
+  thoughtBubbles: [],
+  dreams: [],
   selectedMood: "good",
   theme: "pink",
   wallpaperEnabled: false,
@@ -185,18 +190,23 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
       this.getAll("threads"),
       this.getAll("bookmarks"),
-      this.getAll("nightlyReflections")
+      this.getAll("nightlyReflections"),
+      this.getAll("thenNow"),
+      this.getAll("comfortItems"),
+      this.getAll("unsentLetters"),
+      this.getAll("thoughtBubbles"),
+      this.getAll("dreams")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -218,6 +228,13 @@ const diaryRepository = {
     const nightlyStore = transaction.objectStore("nightlyReflections");
     nightlyStore.clear();
     (data.nightlyReflections || []).forEach(record => nightlyStore.put(record));
+
+    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"].forEach(storeName => {
+      const store = transaction.objectStore(storeName);
+      store.clear();
+      (data[storeName] || []).forEach(record => store.put(record));
+    });
+
     await transactionDone(transaction);
   },
 
@@ -237,7 +254,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -528,6 +545,19 @@ function dataUrlToBlob(dataUrl) {
 
 
 
+
+function validateSimpleStore(items, name) {
+  if (items === undefined) return [];
+  if (!Array.isArray(items)) throw new Error(`${name} must be an array`);
+  const ids = new Set();
+  items.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id) throw new Error(`${name} contains an invalid record`);
+    if (ids.has(record.id)) throw new Error(`${name} contains duplicate IDs`);
+    ids.add(record.id);
+  });
+  return items;
+}
+
 function validateNightlyReflections(items) {
   if (items === undefined) return [];
   if (!Array.isArray(items)) throw new Error("nightlyReflections must be an array");
@@ -815,6 +845,405 @@ function threadChipsForEntry(entry) {
 
 
 
+
+let featureModalMode = null;
+let featureEditingId = null;
+let monthlyCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let weatherCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
+}
+
+function itemsForMonth(items, date, dateField="date") {
+  const prefix = `${monthKey(date)}-`;
+  return items.filter(item => typeof item[dateField] === "string" && item[dateField].startsWith(prefix));
+}
+
+function openFeatureModal(mode, id=null) {
+  featureModalMode = mode;
+  featureEditingId = id;
+  const title = $("featureModalTitle");
+  const fields = $("featureModalFields");
+  let item = null;
+
+  if (mode === "comfort") item = state.comfortItems.find(x => x.id === id);
+  if (mode === "unsent") item = state.unsentLetters.find(x => x.id === id);
+  if (mode === "dream") item = state.dreams.find(x => x.id === id);
+  if (mode === "thenNow") item = state.thenNow.find(x => x.id === id);
+
+  if (mode === "comfort") {
+    title.textContent = item ? "Edit Comfort Item" : "Add Comfort Item";
+    fields.innerHTML = `
+      <label>Type
+        <select id="featureType"><option value="reminder">Reminder</option><option value="quote">Quote</option><option value="place">Place</option><option value="person">Person</option><option value="memory">Memory</option></select>
+      </label>
+      <label>Title<input id="featureTitle" maxlength="80" value="${escapeHtml(item?.title || "")}" required></label>
+      <label>What makes this comforting?<textarea id="featureBody" rows="5" maxlength="700">${escapeHtml(item?.body || "")}</textarea></label>`;
+    setTimeout(() => { if (item) $("featureType").value = item.type || "reminder"; }, 0);
+  }
+
+  if (mode === "unsent") {
+    title.textContent = item ? "Edit Unsent Letter" : "New Unsent Letter";
+    fields.innerHTML = `
+      <label>To<input id="featureTitle" maxlength="100" value="${escapeHtml(item?.to || "")}" placeholder="A person, place, younger me…" required></label>
+      <label>Letter<textarea id="featureBody" rows="10" maxlength="5000" required>${escapeHtml(item?.body || "")}</textarea></label>`;
+  }
+
+  if (mode === "dream") {
+    title.textContent = item ? "Edit Dream" : "Catch a Dream";
+    fields.innerHTML = `
+      <label>Dream title<input id="featureTitle" maxlength="100" value="${escapeHtml(item?.title || "")}" placeholder="The train that went nowhere"></label>
+      <label>Fragments<textarea id="featureBody" rows="7" maxlength="3000" placeholder="Anything you remember…">${escapeHtml(item?.body || "")}</textarea></label>
+      <label>Feeling
+        <select id="dreamFeeling">
+          <option value="peaceful">Peaceful</option><option value="strange">Strange</option><option value="happy">Happy</option><option value="scary">Scary</option><option value="sad">Sad</option><option value="confusing">Confusing</option>
+        </select>
+      </label>
+      <label class="feature-check"><input id="dreamRecurring" type="checkbox"> Recurring dream</label>`;
+    setTimeout(() => {
+      if (item) {
+        $("dreamFeeling").value = item.feeling || "strange";
+        $("dreamRecurring").checked = !!item.recurring;
+      }
+    }, 0);
+  }
+
+  if (mode === "thenNow") {
+    const source = state.entries.find(e => e.id === (item?.entryId || id));
+    title.textContent = "Then & Now";
+    fields.innerHTML = `
+      <div class="then-now-source">
+        <span>${escapeHtml(source ? formatDate(source.date) : "")}</span>
+        <blockquote>“${escapeHtml(source ? memoryDriftPreviewText(source, 250) : "")}”</blockquote>
+      </div>
+      <label>How does this feel now?
+        <select id="thenNowFeeling">
+          <option value="still">Still true</option>
+          <option value="different">A little different</option>
+          <option value="changed">Completely different</option>
+          <option value="unsure">I don't know</option>
+        </select>
+      </label>
+      <label>Write back to Past You<textarea id="featureBody" rows="6" maxlength="1500">${escapeHtml(item?.response || "")}</textarea></label>
+      <input id="thenNowEntryId" type="hidden" value="${escapeHtml(source?.id || item?.entryId || "")}">`;
+    setTimeout(() => { if (item) $("thenNowFeeling").value = item.feeling || "different"; }, 0);
+  }
+
+  $("featureModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeFeatureModal() {
+  $("featureModal").classList.add("hidden");
+  document.body.style.overflow = "";
+  featureModalMode = null;
+  featureEditingId = null;
+}
+
+async function saveFeatureModal(event) {
+  event.preventDefault();
+  const now = Date.now();
+
+  try {
+    if (featureModalMode === "comfort") {
+      const existing = state.comfortItems.find(x => x.id === featureEditingId);
+      const record = {
+        id: existing?.id || uid("comfort"),
+        type: $("featureType").value,
+        title: $("featureTitle").value.trim(),
+        body: $("featureBody").value.trim(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
+      };
+      await diaryRepository.save("comfortItems", record);
+      state.comfortItems = existing ? state.comfortItems.map(x => x.id === record.id ? record : x) : [...state.comfortItems, record];
+    }
+
+    if (featureModalMode === "unsent") {
+      const existing = state.unsentLetters.find(x => x.id === featureEditingId);
+      const record = {
+        id: existing?.id || uid("unsent"),
+        to: $("featureTitle").value.trim(),
+        body: $("featureBody").value.trim(),
+        date: isoToday(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
+      };
+      await diaryRepository.save("unsentLetters", record);
+      state.unsentLetters = existing ? state.unsentLetters.map(x => x.id === record.id ? record : x) : [...state.unsentLetters, record];
+    }
+
+    if (featureModalMode === "dream") {
+      const existing = state.dreams.find(x => x.id === featureEditingId);
+      const record = {
+        id: existing?.id || uid("dream"),
+        title: $("featureTitle").value.trim() || "Untitled dream",
+        body: $("featureBody").value.trim(),
+        feeling: $("dreamFeeling").value,
+        recurring: $("dreamRecurring").checked,
+        date: existing?.date || isoToday(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
+      };
+      await diaryRepository.save("dreams", record);
+      state.dreams = existing ? state.dreams.map(x => x.id === record.id ? record : x) : [...state.dreams, record];
+    }
+
+    if (featureModalMode === "thenNow") {
+      const entryId = $("thenNowEntryId").value;
+      const existing = state.thenNow.find(x => x.id === featureEditingId);
+      const record = {
+        id: existing?.id || uid("thennow"),
+        entryId,
+        feeling: $("thenNowFeeling").value,
+        response: $("featureBody").value.trim(),
+        date: isoToday(),
+        createdAt: existing?.createdAt || now,
+        updatedAt: now
+      };
+      await diaryRepository.save("thenNow", record);
+      state.thenNow = existing ? state.thenNow.map(x => x.id === record.id ? record : x) : [...state.thenNow, record];
+    }
+
+    closeFeatureModal();
+    renderAll();
+    toast("Saved softly ☁️");
+  } catch (error) {
+    console.error("Could not save Fuwa feature item.", error);
+    toast("Fuwa couldn't save that.");
+  }
+}
+
+function chooseThenNowSource() {
+  const eligible = state.entries
+    .filter(entry => dayDistance(entry.date, isoToday()) >= 30)
+    .sort((a,b) => a.date.localeCompare(b.date));
+
+  if (!eligible.length) return null;
+
+  const already = new Set(state.thenNow.map(x => x.entryId));
+  const fresh = eligible.filter(e => !already.has(e.id));
+  const pool = fresh.length ? fresh : eligible;
+  const seed = Number(isoToday().replaceAll("-","")) % pool.length;
+  return pool[seed];
+}
+
+function renderThenNow() {
+  const host = $("thenNowPrompt");
+  const history = $("thenNowHistory");
+  if (!host || !history) return;
+
+  const source = chooseThenNowSource();
+  if (!source) {
+    host.innerHTML = `<div class="empty-state">Then & Now will wake up once Fuwa has a memory at least a month old.</div>`;
+  } else {
+    host.innerHTML = `
+      <div class="then-now-card">
+        <p class="eyebrow">You wrote this on ${escapeHtml(formatDate(source.date))}</p>
+        <blockquote>“${escapeHtml(memoryDriftPreviewText(source, 280))}”</blockquote>
+        <button class="primary-btn compact" id="respondThenNow" type="button">How does this feel now?</button>
+      </div>`;
+    $("respondThenNow").addEventListener("click", () => openFeatureModal("thenNow", source.id));
+  }
+
+  const items = [...state.thenNow].sort((a,b) => b.date.localeCompare(a.date));
+  history.innerHTML = items.length ? items.map(item => {
+    const entry = state.entries.find(e => e.id === item.entryId);
+    const label = { still:"Still true", different:"A little different", changed:"Completely different", unsure:"I don't know" }[item.feeling] || "Reflection";
+    return `<article class="feature-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(label)}</span><strong>${escapeHtml(entry?.title || "Past memory")}</strong><p>${escapeHtml(item.response || "")}</p><button data-edit-thennow="${item.id}" type="button">Edit</button></article>`;
+  }).join("") : "";
+  history.querySelectorAll("[data-edit-thennow]").forEach(b => b.addEventListener("click", () => openFeatureModal("thenNow", b.dataset.editThennow)));
+}
+
+function renderComfort() {
+  const list = $("comfortList");
+  if (!list) return;
+  const items = [...state.comfortItems].sort((a,b) => b.updatedAt - a.updatedAt);
+  list.innerHTML = items.length ? items.map(item => `
+    <article class="feature-card comfort-item-card">
+      <span>${escapeHtml(item.type || "comfort")}</span>
+      <strong>${escapeHtml(item.title)}</strong>
+      <p>${escapeHtml(item.body || "")}</p>
+      <button data-edit-comfort="${item.id}" type="button">Edit</button>
+    </article>`).join("") : `<div class="empty-state">Add little things that make life feel softer.</div>`;
+  list.querySelectorAll("[data-edit-comfort]").forEach(b => b.addEventListener("click", () => openFeatureModal("comfort", b.dataset.editComfort)));
+}
+
+function randomComfort() {
+  const host = $("comfortSpotlight");
+  if (!state.comfortItems.length) {
+    host.innerHTML = `<div class="empty-state compact">Add something comforting first.</div>`;
+    return;
+  }
+  const item = state.comfortItems[Math.floor(Math.random()*state.comfortItems.length)];
+  host.innerHTML = `<div class="comfort-spotlight"><span>${escapeHtml(item.type)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body || "")}</p></div>`;
+}
+
+function renderUnsent() {
+  const host = $("unsentList");
+  if (!host) return;
+  const items = [...state.unsentLetters].sort((a,b)=>b.updatedAt-a.updatedAt);
+  host.innerHTML = items.length ? items.map(item => `
+    <article class="feature-card unsent-card"><span>${escapeHtml(formatDate(item.date))}</span><strong>To ${escapeHtml(item.to)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p><button data-edit-unsent="${item.id}" type="button">Open</button></article>
+  `).join("") : `<div class="empty-state">Some words are meant to be written, not sent.</div>`;
+  host.querySelectorAll("[data-edit-unsent]").forEach(b => b.addEventListener("click",()=>openFeatureModal("unsent",b.dataset.editUnsent)));
+}
+
+async function saveThoughtBubble(event) {
+  event.preventDefault();
+  const input = $("bubbleInput");
+  const text = input.value.trim();
+  if (!text) return;
+  const record = { id:uid("bubble"), text, date:isoToday(), createdAt:Date.now() };
+  await diaryRepository.save("thoughtBubbles", record);
+  state.thoughtBubbles.push(record);
+  input.value = "";
+  renderAll();
+}
+
+function renderBubbles() {
+  const host = $("bubbleList");
+  if (!host) return;
+  const items = [...state.thoughtBubbles].sort((a,b)=>b.createdAt-a.createdAt).slice(0,50);
+  host.innerHTML = items.length ? items.map(item => `<div class="thought-bubble"><span>${escapeHtml(formatDate(item.date))}</span><p>${escapeHtml(item.text)}</p></div>`).join("") : `<div class="empty-state">Tiny thoughts can live here without becoming diary entries.</div>`;
+}
+
+function randomBubble() {
+  const host = $("bubbleSpotlight");
+  if (!state.thoughtBubbles.length) {
+    host.innerHTML = `<div class="empty-state compact">No bubbles to float back yet.</div>`;
+    return;
+  }
+  const item = state.thoughtBubbles[Math.floor(Math.random()*state.thoughtBubbles.length)];
+  host.innerHTML = `<div class="bubble-spotlight"><span>A thought floated back · ${escapeHtml(formatDate(item.date))}</span><p>“${escapeHtml(item.text)}”</p></div>`;
+}
+
+function renderDreams() {
+  const host = $("dreamList");
+  if (!host) return;
+  const items = [...state.dreams].sort((a,b)=>b.date.localeCompare(a.date));
+  host.innerHTML = items.length ? items.map(item => `<article class="feature-card dream-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(item.feeling)}${item.recurring?" · recurring":""}</span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p><button data-edit-dream="${item.id}" type="button">Open</button></article>`).join("") : `<div class="empty-state">Catch your next dream here before morning steals it.</div>`;
+  host.querySelectorAll("[data-edit-dream]").forEach(b => b.addEventListener("click",()=>openFeatureModal("dream",b.dataset.editDream)));
+}
+
+function monthSummary(date) {
+  const entries = itemsForMonth(state.entries, date);
+  const moods = itemsForMonth(state.moodCheckins, date);
+  const joys = state.tinyJoys.filter(j => new Date(j.createdAt).getFullYear() === date.getFullYear() && new Date(j.createdAt).getMonth() === date.getMonth());
+  const nights = itemsForMonth(state.nightlyReflections, date);
+  const dreams = itemsForMonth(state.dreams, date);
+  const bubbles = itemsForMonth(state.thoughtBubbles, date);
+
+  const tagCounts = {};
+  entries.forEach(e => (e.tags||[]).forEach(t => tagCounts[t]=(tagCounts[t]||0)+1));
+  const topTags = Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([t])=>t);
+
+  return { entries, moods, joys, nights, dreams, bubbles, topTags };
+}
+
+function renderMonthlyStory() {
+  const host = $("monthlyStory");
+  if (!host) return;
+  const summary = monthSummary(monthlyCursor);
+  $("monthlyTitle").textContent = new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric"}).format(monthlyCursor);
+
+  const first = summary.entries[0];
+  const last = summary.entries[summary.entries.length-1];
+
+  host.innerHTML = `
+    <div class="monthly-story-card">
+      <p class="eyebrow">Your ${escapeHtml(new Intl.DateTimeFormat("en-US",{month:"long"}).format(monthlyCursor))}</p>
+      <h3>${summary.entries.length ? `${summary.entries.length} memories, gathered gently.` : "A quiet month in Fuwa."}</h3>
+      <div class="monthly-story-stats">
+        <span><strong>${summary.entries.length}</strong> entries</span>
+        <span><strong>${summary.moods.length}</strong> mood check-ins</span>
+        <span><strong>${summary.joys.length}</strong> tiny joys</span>
+        <span><strong>${summary.nights.length}</strong> wind-downs</span>
+        <span><strong>${summary.dreams.length}</strong> dreams</span>
+        <span><strong>${summary.bubbles.length}</strong> thought bubbles</span>
+      </div>
+      ${summary.topTags.length ? `<div class="monthly-tags">${summary.topTags.map(t=>`<span>#${escapeHtml(t)}</span>`).join("")}</div>`:""}
+      ${first ? `<div class="monthly-bookends"><div><small>Month began with</small><strong>${escapeHtml(first.title)}</strong></div>${last && last.id!==first.id?`<div><small>Month closed with</small><strong>${escapeHtml(last.title)}</strong></div>`:""}</div>`:""}
+    </div>`;
+}
+
+function renderEmotionalWeather() {
+  const host = $("emotionalWeather");
+  if (!host) return;
+  const moods = itemsForMonth(state.moodCheckins, weatherCursor);
+  $("weatherTitle").textContent = new Intl.DateTimeFormat("en-US",{month:"long",year:"numeric"}).format(weatherCursor);
+
+  const scoreMap = { amazing:5, good:4, neutral:3, tired:2.5, sad:2, angry:1.5 };
+  const avg = moods.length ? moods.reduce((s,m)=>s+(scoreMap[m.mood]||3),0)/moods.length : 0;
+  let weather = "quiet";
+  if (avg >= 4.3) weather="sunny";
+  else if (avg >= 3.6) weather="soft";
+  else if (avg >= 2.8) weather="cloudy";
+  else if (avg > 0) weather="rainy";
+
+  const copy = {
+    sunny:"Warm skies. There were a lot of lighter days here.",
+    soft:"Soft skies. A gentle mix of good and ordinary days.",
+    cloudy:"Cloudy skies. This month carried a little more weight.",
+    rainy:"Rainy skies. Some days asked more of you.",
+    quiet:"No weather yet. This sky is still waiting."
+  }[weather];
+
+  host.innerHTML = `
+    <div class="weather-sky weather-${weather}">
+      <div class="weather-sun"></div>
+      <div class="weather-cloud cloud-a"></div>
+      <div class="weather-cloud cloud-b"></div>
+      <div class="weather-rain"></div>
+      <div class="weather-caption"><strong>${moods.length} check-ins</strong><p>${copy}</p></div>
+    </div>
+    <div class="weather-legend">${Object.keys(moodLabels).map(m=>`<span>${moodIconMarkup(m,"mini")} ${moods.filter(x=>x.mood===m).length}</span>`).join("")}</div>`;
+}
+
+function sanctuaryLevel() {
+  const total = state.entries.length + state.moodCheckins.length + state.nightlyReflections.length + state.dreams.length + state.thoughtBubbles.length;
+  if (total >= 120) return 5;
+  if (total >= 60) return 4;
+  if (total >= 25) return 3;
+  if (total >= 8) return 2;
+  return 1;
+}
+
+function renderSanctuary() {
+  const host = $("sanctuaryRoom");
+  const unlocks = $("sanctuaryUnlocks");
+  if (!host || !unlocks) return;
+  const level = sanctuaryLevel();
+
+  host.innerHTML = `
+    <div class="room-scene level-${level}">
+      <div class="room-window"><div class="room-sky"></div></div>
+      <div class="room-rug"></div>
+      <div class="room-bed"><span></span></div>
+      <div class="room-cloud-pet"><span></span></div>
+      ${level>=2?'<div class="room-lamp"></div>':""}
+      ${level>=3?'<div class="room-plant"></div>':""}
+      ${level>=4?'<div class="room-books"></div>':""}
+      ${level>=5?'<div class="room-stars"></div>':""}
+    </div>`;
+
+  const labels = ["Soft bed","Warm lamp","Little plant","Bookshelf","Star lights"];
+  unlocks.innerHTML = labels.map((label,i)=>`<div class="sanctuary-unlock ${level>=i+1?"unlocked":""}"><span>${level>=i+1?"♡":"○"}</span><strong>${label}</strong></div>`).join("");
+}
+
+function renderExpansionFeatures() {
+  renderThenNow();
+  renderComfort();
+  renderUnsent();
+  renderBubbles();
+  renderDreams();
+  renderMonthlyStory();
+  renderEmotionalWeather();
+  renderSanctuary();
+}
+
+
 const sleepSoundNames = {
   rain: "Soft Rain",
   waves: "Night Waves",
@@ -1049,6 +1478,7 @@ function renderSleepControls() {
   }
 
   renderSleepProgress();
+  renderExpansionFeatures();
   renderSleepHome();
 }
 
@@ -1956,7 +2386,7 @@ function renderHomeMoodJar() {
     ? `${checkins.length} check-in${checkins.length === 1 ? "" : "s"} tucked into your jar.`
     : "No check-ins yet. Your first little bead is waiting.";
   $("moodJarTodayStatus").textContent = today
-    ? `${moodEmoji[today.mood]} Today: ${moodLabels[today.mood]} · tap to open`
+    ? `${moodIconMarkup(today.mood, "mini")} <span class="mood-status-copy">Today: ${moodLabels[today.mood]} · tap to open</span>`
     : "♡ Check in today";
 }
 
@@ -1973,12 +2403,12 @@ function renderMoodJarView() {
   }, {});
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
   $("moodJarMostCommon").textContent = top && top[1] > 0
-    ? `Most common: ${moodEmoji[top[0]]} ${moodLabels[top[0]]}`
+    ? `Most common: ${moodIconMarkup(top[0], "mini")} <span>${moodLabels[top[0]]}</span>`
     : "Your jar is waiting for its first mood.";
 
   $("moodCountGrid").innerHTML = Object.keys(moodEmoji).map(mood => `
     <div class="mood-count-card">
-      <span>${moodEmoji[mood]}</span>
+      ${moodIconMarkup(mood)}
       <strong>${counts[mood]}</strong>
       <small>${moodLabels[mood]}</small>
     </div>
@@ -2011,7 +2441,7 @@ function renderMoodCalendar() {
     const cell = document.createElement("div");
     cell.className = "mood-calendar-day";
     if (date === isoToday()) cell.classList.add("today");
-    cell.innerHTML = `<span>${day}</span><strong>${checkin ? moodEmoji[checkin.mood] : ""}</strong>`;
+    cell.innerHTML = `<span>${day}</span><strong>${checkin ? moodIconMarkup(checkin.mood, "calendar-mini") : ""}</strong>`;
     if (checkin) cell.title = `${formatDate(date)} · ${moodLabels[checkin.mood]}`;
     grid.appendChild(cell);
   }
@@ -2428,7 +2858,7 @@ function entryCard(entry) {
   return `
     <article class="entry-card">
       <button data-entry-id="${entry.id}">
-        <div class="soft-label">${formatDate(entry.date)} · ${moodEmoji[entry.mood] || "🙂"}</div>
+        <div class="soft-label">${formatDate(entry.date)} · ${moodIconMarkup(entry.mood, "mini")}</div>
         <h4>${escapeHtml(entry.title)}</h4>
         <p>${escapeHtml(entry.body.slice(0, 120))}${entry.body.length > 120 ? "…" : ""}</p>
         <div class="meta">${tags}</div>
@@ -2741,7 +3171,7 @@ async function exportBackup() {
 
     const payload = {
       app: "Fuwa",
-      version: 6,
+      version: 7,
       exportedAt: new Date().toISOString(),
       data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay, sleepSound: state.sleepSound, sleepMinutes: state.sleepMinutes, sleepVolume: state.sleepVolume }
     };
@@ -2772,6 +3202,11 @@ function importBackup(file) {
       incoming.threads = validateThreads(incoming.threads);
       incoming.bookmarks = validateBookmarks(incoming.bookmarks);
       incoming.nightlyReflections = validateNightlyReflections(incoming.nightlyReflections);
+      incoming.thenNow = validateSimpleStore(incoming.thenNow, "thenNow");
+      incoming.comfortItems = validateSimpleStore(incoming.comfortItems, "comfortItems");
+      incoming.unsentLetters = validateSimpleStore(incoming.unsentLetters, "unsentLetters");
+      incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
+      incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -2793,6 +3228,11 @@ function importBackup(file) {
         threads: Array.isArray(incoming.threads) ? incoming.threads : [],
         bookmarks: Array.isArray(incoming.bookmarks) ? incoming.bookmarks : [],
         nightlyReflections: Array.isArray(incoming.nightlyReflections) ? incoming.nightlyReflections : [],
+        thenNow: Array.isArray(incoming.thenNow) ? incoming.thenNow : [],
+        comfortItems: Array.isArray(incoming.comfortItems) ? incoming.comfortItems : [],
+        unsentLetters: Array.isArray(incoming.unsentLetters) ? incoming.unsentLetters : [],
+        thoughtBubbles: Array.isArray(incoming.thoughtBubbles) ? incoming.thoughtBubbles : [],
+        dreams: Array.isArray(incoming.dreams) ? incoming.dreams : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
@@ -2859,6 +3299,40 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
+
+
+  $("featureCancelButton").addEventListener("click", closeFeatureModal);
+  $("featureForm").addEventListener("submit", saveFeatureModal);
+  $("featureModal").addEventListener("click", event => {
+    if (event.target === $("featureModal")) closeFeatureModal();
+  });
+
+  $("comfortAddButton").addEventListener("click", () => openFeatureModal("comfort"));
+  $("comfortRandomButton").addEventListener("click", randomComfort);
+  $("unsentAddButton").addEventListener("click", () => openFeatureModal("unsent"));
+  $("bubbleForm").addEventListener("submit", saveThoughtBubble);
+  $("bubbleRandomButton").addEventListener("click", randomBubble);
+  $("dreamAddButton").addEventListener("click", () => openFeatureModal("dream"));
+
+  $("monthlyPrev").addEventListener("click", () => {
+    monthlyCursor = new Date(monthlyCursor.getFullYear(), monthlyCursor.getMonth()-1, 1);
+    renderMonthlyStory();
+  });
+  $("monthlyNext").addEventListener("click", () => {
+    const next = new Date(monthlyCursor.getFullYear(), monthlyCursor.getMonth()+1, 1);
+    const current = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    if (next <= current) { monthlyCursor = next; renderMonthlyStory(); }
+  });
+
+  $("weatherPrev").addEventListener("click", () => {
+    weatherCursor = new Date(weatherCursor.getFullYear(), weatherCursor.getMonth()-1, 1);
+    renderEmotionalWeather();
+  });
+  $("weatherNext").addEventListener("click", () => {
+    const next = new Date(weatherCursor.getFullYear(), weatherCursor.getMonth()+1, 1);
+    const current = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    if (next <= current) { weatherCursor = next; renderEmotionalWeather(); }
+  });
 
   $("openSleepCornerButton").addEventListener("click", openSleepCorner);
   $("sleepHomeCard").addEventListener("click", openSleepCorner);

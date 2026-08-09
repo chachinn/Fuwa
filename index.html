@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -41,12 +41,12 @@
           <h2>How was your day?</h2>
 
           <div class="mood-picker" id="moodPicker" aria-label="Choose today's mood">
-            <button data-mood="amazing" title="Amazing">🥰</button>
-            <button data-mood="good" title="Good">🙂</button>
-            <button data-mood="neutral" title="Neutral">😐</button>
-            <button data-mood="tired" title="Tired">😮‍💨</button>
-            <button data-mood="sad" title="Sad">😔</button>
-            <button data-mood="angry" title="Angry">😤</button>
+            <button data-mood="amazing" title="Amazing" aria-label="Amazing"><span class="fuwa-mood-icon mood-amazing" aria-hidden="true"><i></i></span></button>
+            <button data-mood="good" title="Good" aria-label="Good"><span class="fuwa-mood-icon mood-good" aria-hidden="true"><i></i></span></button>
+            <button data-mood="neutral" title="Neutral" aria-label="Neutral"><span class="fuwa-mood-icon mood-neutral" aria-hidden="true"><i></i></span></button>
+            <button data-mood="tired" title="Tired" aria-label="Tired"><span class="fuwa-mood-icon mood-tired" aria-hidden="true"><i></i></span></button>
+            <button data-mood="sad" title="Sad" aria-label="Sad"><span class="fuwa-mood-icon mood-sad" aria-hidden="true"><i></i></span></button>
+            <button data-mood="angry" title="Angry" aria-label="Angry"><span class="fuwa-mood-icon mood-angry" aria-hidden="true"><i></i></span></button>
           </div>
 
           <button class="primary-btn" id="writeTodayButton">✎ Write today</button>
@@ -87,6 +87,26 @@
         </section>
 
 
+
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Little places inside Fuwa</p>
+              <h3>Fuwa Spaces</h3>
+            </div>
+          </div>
+          <div class="fuwa-spaces-grid">
+            <button class="fuwa-space-card" data-nav="thenNow" type="button"><span class="space-icon mirror-icon"></span><strong>Then & Now</strong><small>Meet an older version of you.</small></button>
+            <button class="fuwa-space-card" data-nav="comfort" type="button"><span class="space-icon comfort-icon"></span><strong>Comfort Corner</strong><small>Keep soft things close.</small></button>
+            <button class="fuwa-space-card" data-nav="monthly" type="button"><span class="space-icon story-icon"></span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></button>
+            <button class="fuwa-space-card" data-nav="weather" type="button"><span class="space-icon weather-icon"></span><strong>Emotional Weather</strong><small>See your month as a sky.</small></button>
+            <button class="fuwa-space-card" data-nav="unsent" type="button"><span class="space-icon letter-icon"></span><strong>Unsent Letters</strong><small>Words that never need sending.</small></button>
+            <button class="fuwa-space-card" data-nav="bubbles" type="button"><span class="space-icon bubble-icon"></span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></button>
+            <button class="fuwa-space-card" data-nav="dreams" type="button"><span class="space-icon dream-icon"></span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></button>
+            <button class="fuwa-space-card" data-nav="sanctuary" type="button"><span class="space-icon sanctuary-icon"></span><strong>Fuwa Sanctuary</strong><small>Your cozy room grows with you.</small></button>
+          </div>
+        </section>
 
         <section class="section-block memory-drift-section" id="memoryDriftHomeSection">
           <div class="section-heading">
@@ -493,6 +513,93 @@
         </section>
       </section>
 
+
+      <section class="view" id="thenNowView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Past you, present you</p><h2>Then & Now</h2></div>
+          <span class="page-cute-icon mirror-icon"></span>
+        </div>
+        <p class="muted feature-intro">Choose an older memory and write what feels different now—without changing what Past You originally wrote.</p>
+        <div id="thenNowPrompt"></div>
+        <div class="feature-history" id="thenNowHistory"></div>
+      </section>
+
+      <section class="view" id="comfortView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">A soft place</p><h2>Comfort Corner</h2></div>
+          <button class="round-add" id="comfortAddButton">＋</button>
+        </div>
+        <button class="comfort-random-btn" id="comfortRandomButton" type="button">I need something soft</button>
+        <div id="comfortSpotlight"></div>
+        <div class="feature-list" id="comfortList"></div>
+      </section>
+
+      <section class="view" id="monthlyView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Your month, gathered</p><h2>Monthly Story</h2></div>
+          <span class="page-cute-icon story-icon"></span>
+        </div>
+        <div class="month-nav">
+          <button class="icon-btn" id="monthlyPrev">‹</button>
+          <h3 id="monthlyTitle">This Month</h3>
+          <button class="icon-btn" id="monthlyNext">›</button>
+        </div>
+        <div id="monthlyStory"></div>
+      </section>
+
+      <section class="view" id="weatherView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">No scores. Just patterns.</p><h2>Emotional Weather</h2></div>
+          <span class="page-cute-icon weather-icon"></span>
+        </div>
+        <div class="month-nav">
+          <button class="icon-btn" id="weatherPrev">‹</button>
+          <h3 id="weatherTitle">This Month</h3>
+          <button class="icon-btn" id="weatherNext">›</button>
+        </div>
+        <div id="emotionalWeather"></div>
+      </section>
+
+      <section class="view" id="unsentView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Never needs sending</p><h2>Unsent Letters</h2></div>
+          <button class="round-add" id="unsentAddButton">＋</button>
+        </div>
+        <div class="feature-list" id="unsentList"></div>
+      </section>
+
+      <section class="view" id="bubblesView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Tiny thoughts</p><h2>Thought Bubbles</h2></div>
+          <span class="page-cute-icon bubble-icon"></span>
+        </div>
+        <form class="bubble-capture" id="bubbleForm">
+          <input id="bubbleInput" maxlength="220" placeholder="What's floating through your head?" />
+          <button type="submit">＋</button>
+        </form>
+        <button class="bubble-random-btn" id="bubbleRandomButton" type="button">Float one back to me</button>
+        <div id="bubbleSpotlight"></div>
+        <div class="feature-list" id="bubbleList"></div>
+      </section>
+
+      <section class="view" id="dreamsView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Before it disappears</p><h2>Dream Pocket</h2></div>
+          <button class="round-add" id="dreamAddButton">＋</button>
+        </div>
+        <div class="feature-list" id="dreamList"></div>
+      </section>
+
+      <section class="view" id="sanctuaryView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Your little room</p><h2>Fuwa Sanctuary</h2></div>
+          <span class="page-cute-icon sanctuary-icon"></span>
+        </div>
+        <p class="muted feature-intro">No coins, no streaks, no grinding. Your room simply becomes cozier as you use Fuwa.</p>
+        <div class="sanctuary-room" id="sanctuaryRoom"></div>
+        <div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div>
+      </section>
+
       <section class="view" id="entriesView">
         <div class="page-title-row">
           <div>
@@ -522,12 +629,12 @@
           <div class="entry-meta-row">
             <input id="entryDate" type="date" />
             <select id="entryMood">
-              <option value="amazing">🥰 Amazing</option>
-              <option value="good">🙂 Good</option>
-              <option value="neutral">😐 Neutral</option>
-              <option value="tired">😮‍💨 Tired</option>
-              <option value="sad">😔 Sad</option>
-              <option value="angry">😤 Angry</option>
+              <option value="amazing">Amazing</option>
+              <option value="good">Good</option>
+              <option value="neutral">Neutral</option>
+              <option value="tired">Tired</option>
+              <option value="sad">Sad</option>
+              <option value="angry">Angry</option>
             </select>
           </div>
 
@@ -650,6 +757,18 @@
 
 
 
+
+
+  <div class="feature-modal hidden" id="featureModal" role="dialog" aria-modal="true">
+    <form class="feature-sheet" id="featureForm">
+      <div class="feature-sheet-top">
+        <button class="text-btn" id="featureCancelButton" type="button">Cancel</button>
+        <strong id="featureModalTitle">New</strong>
+        <button class="text-btn strong" type="submit">Save</button>
+      </div>
+      <div id="featureModalFields"></div>
+    </form>
+  </div>
 
   <div class="appearance-modal hidden" id="appearanceModal" role="dialog" aria-modal="true" aria-labelledby="appearanceTitle">
     <div class="appearance-sheet">
