@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v17";
+const CACHE_NAME = "fuwa-shell-v18";
 
 const CORE_ASSETS = [
   "./",
@@ -94,7 +94,10 @@ self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
   if (isCoreRequest(event.request)) {
-    event.respondWith(networkFirst(event.request));
+    // The shell is installed atomically by cache.addAll. Serving its core files
+    // from that single cache prevents Safari from mixing deployment versions.
+    // A cache-name bump installs the next complete shell before activation.
+    event.respondWith(cacheFirst(event.request));
     return;
   }
 

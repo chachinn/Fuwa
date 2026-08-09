@@ -44,6 +44,7 @@ let editingThreadId = null;
 let activeThreadId = null;
 let activeBookmarkId = null;
 let bookmarkEditorEntryId = null;
+let moodCheckinSaving = false;
 
 // Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
 // in localStorage so the content database and display preferences stay separate.
@@ -2938,12 +2939,17 @@ function openMoodCheckin(force = false) {
 }
 
 function closeMoodCheckin() {
+  if (moodCheckinSaving) return;
   $("moodCheckinModal").classList.add("hidden");
   document.body.style.overflow = "";
 }
 
 async function saveMoodCheckin(mood) {
-  if (!moodEmoji[mood]) return;
+  if (!moodEmoji[mood] || moodCheckinSaving) return;
+  moodCheckinSaving = true;
+  document.querySelectorAll("[data-checkin-mood]").forEach(button => {
+    button.disabled = true;
+  });
   const date = isoToday();
   const existing = getTodayMoodCheckin();
   const record = {
@@ -2959,12 +2965,18 @@ async function saveMoodCheckin(mood) {
     const index = state.moodCheckins.findIndex(item => item.id === date);
     if (index >= 0) state.moodCheckins[index] = record;
     else state.moodCheckins.push(record);
-    closeMoodCheckin();
+    $("moodCheckinModal").classList.add("hidden");
+    document.body.style.overflow = "";
     renderAll();
     toast(existing ? "Today's mood updated ☁️" : "A little mood tucked into your jar 🫙");
   } catch (error) {
     console.error("Could not save mood check-in.", error);
     toast("Fuwa couldn't save that check-in. Please try again.");
+  } finally {
+    moodCheckinSaving = false;
+    document.querySelectorAll("[data-checkin-mood]").forEach(button => {
+      button.disabled = false;
+    });
   }
 }
 
@@ -3843,8 +3855,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (state.privacyLockEnabled) {
       lockFuwa("startup");
-    } else {
-      maybeShowDailyMoodCheckin();
     }
     document.body.classList.remove("fuwa-loading");
   } catch (error) {
@@ -3884,9 +3894,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("quickHideButton").addEventListener("click", quickHideFuwa);
   $("quickHideScreen").addEventListener("click", exitQuickHide);
 
-  $("privacyLockToggle").addEventListener("change", enableOrDisablePrivacyLock);
-  $("setPrivacyPinButton").addEventListener("click", openPrivacyPinSetup);
-  $("testPrivacyLockButton").addEventListener("click", () => {
+  $("privacyLockToggle")?.addEventListener("change", enableOrDisablePrivacyLock);
+  $("setPrivacyPinButton")?.addEventListener("click", openPrivacyPinSetup);
+  $("testPrivacyLockButton")?.addEventListener("click", () => {
     if (!state.privacyLockEnabled) {
       toast("Turn App Lock on first.");
       return;
@@ -3894,17 +3904,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     lockFuwa("manual");
   });
 
-  $("privacyAutoLockSelect").addEventListener("change", event => {
+  $("privacyAutoLockSelect")?.addEventListener("change", event => {
     state.privacyAutoLockMinutes = Number(event.target.value);
     savePreferences();
   });
 
-  $("privacyReopenToggle").addEventListener("change", event => {
+  $("privacyReopenToggle")?.addEventListener("change", event => {
     state.privacyLockOnReopen = event.target.checked;
     savePreferences();
   });
 
-  $("biometricToggle").addEventListener("change", toggleBiometric);
+  $("biometricToggle")?.addEventListener("change", toggleBiometric);
 
   $("privacyPinCancel").addEventListener("click", closePrivacyPinSetup);
   $("privacyPinForm").addEventListener("submit", handlePrivacyPinSetup);
@@ -4102,6 +4112,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("exportButton").addEventListener("click", exportBackup);
   $("importInput").addEventListener("change", event => importBackup(event.target.files[0]));
   $("clearAllButton").addEventListener("click", clearAll);
+
+  // Open the daily check-in only after every control has its listener. This
+  // avoids a slow-device race where the modal could appear during binding.
+  if (!state.privacyLockEnabled) maybeShowDailyMoodCheckin();
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
