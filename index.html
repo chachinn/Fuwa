@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v39-photo-safety -->
+  <!-- FUWA_BUILD: v40-sanctuary-2 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -908,9 +908,37 @@
           <div><p class="eyebrow">Your little room</p><h2>Fuwa Sanctuary</h2></div>
           <span class="page-cute-icon sanctuary-icon"></span>
         </div>
-        <p class="muted feature-intro">No coins, no streaks, no grinding. Your room simply becomes cozier as you use Fuwa.</p>
+        <p class="muted feature-intro">No coins, no streaks, no grinding. Your room quietly becomes more lived-in as Fuwa fills with your days.</p>
+
+        <div class="sanctuary-progress-card">
+          <div><span class="sanctuary-stage-kicker">Your room is becoming</span><strong id="sanctuaryStageName">A Quiet Corner</strong></div>
+          <span class="sanctuary-stage-count" id="sanctuaryStageCount">0 moments</span>
+          <div class="sanctuary-progress-track"><span id="sanctuaryProgressBar"></span></div>
+          <small id="sanctuaryProgressCopy">Every memory leaves something soft behind.</small>
+        </div>
+
         <div class="sanctuary-room" id="sanctuaryRoom"></div>
-        <div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div>
+
+        <div class="sanctuary-memory-card hidden" id="sanctuaryMemoryCard">
+          <div class="sanctuary-memory-top">
+            <span class="sanctuary-memory-icon" id="sanctuaryMemoryIcon" aria-hidden="true"></span>
+            <div><small id="sanctuaryMemoryLabel">Something your room remembered</small><strong id="sanctuaryMemoryTitle">A memory</strong></div>
+            <button type="button" id="sanctuaryMemoryClose" aria-label="Close memory">×</button>
+          </div>
+          <p id="sanctuaryMemoryText"></p>
+          <button class="text-btn strong hidden" id="sanctuaryMemoryOpenEntry" type="button">Open memory →</button>
+        </div>
+
+        <div class="sanctuary-customize">
+          <div class="sanctuary-customize-heading"><div><p class="eyebrow">Make it yours</p><h3>Room feeling</h3></div><small>Only unlocked things can be placed.</small></div>
+          <div class="sanctuary-theme-options" id="sanctuaryThemeOptions"></div>
+          <div class="sanctuary-object-options" id="sanctuaryObjectOptions"></div>
+        </div>
+
+        <div class="sanctuary-unlocks-wrap">
+          <div class="sanctuary-customize-heading"><div><p class="eyebrow">Room story</p><h3>Things that found their way home</h3></div></div>
+          <div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div>
+        </div>
       </section>
 
       <section class="view" id="entriesView">

@@ -52,6 +52,29 @@ let moodJarPhysicsFrame = null;
 let moodJarOrientationBound = false;
 let moodJarOrientationPermissionRequested = false;
 let moodJarGravity = { x: 0, y: 0.78 };
+
+const SANCTUARY_PREFS_KEY = "fuwaSanctuaryPreferencesV2";
+const defaultSanctuaryPreferences = { theme: "rose", visibleObjects: ["lamp","plant","books","stars","cushion","tea","garland","frame"] };
+let sanctuaryPreferences = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SANCTUARY_PREFS_KEY) || "{}");
+    return {
+      theme: ["rose","lavender","sky"].includes(saved.theme) ? saved.theme : "rose",
+      visibleObjects: Array.isArray(saved.visibleObjects)
+        ? saved.visibleObjects.filter(id => defaultSanctuaryPreferences.visibleObjects.includes(id))
+        : [...defaultSanctuaryPreferences.visibleObjects]
+    };
+  } catch (_) {
+    return structuredClone(defaultSanctuaryPreferences);
+  }
+})();
+let activeSanctuaryMemoryEntryId = null;
+
+function saveSanctuaryPreferences() {
+  try { localStorage.setItem(SANCTUARY_PREFS_KEY, JSON.stringify(sanctuaryPreferences)); }
+  catch (error) { console.warn("Fuwa could not save Sanctuary preferences.", error); }
+}
+
 const moodJarPhysicsWorlds = new Map();
 
 
@@ -979,7 +1002,13 @@ function monthlySignature(date) {
 }
 
 function sanctuarySignature() {
-  return [state.entries.length, state.moodCheckins.length, state.nightlyReflections.length, state.dreams.length, state.thoughtBubbles.length].join(":");
+  return [
+    collectionSignature(state.entries), collectionSignature(state.moodCheckins),
+    collectionSignature(state.nightlyReflections), collectionSignature(state.dreams),
+    collectionSignature(state.thoughtBubbles), collectionSignature(state.tinyJoys),
+    collectionSignature(state.comfortItems), sanctuaryPreferences.theme,
+    [...sanctuaryPreferences.visibleObjects].sort().join(",")
+  ].join("|");
 }
 
 
@@ -1994,38 +2023,130 @@ function renderEmotionalWeather(force = false) {
     <div class="weather-legend">${Object.keys(moodLabels).map(m=>`<span>${moodIconMarkup(m,"mini")} ${moods.filter(x=>x.mood===m).length}</span>`).join("")}</div>`;
 }
 
-function sanctuaryLevel() {
-  const total = state.entries.length + state.moodCheckins.length + state.nightlyReflections.length + state.dreams.length + state.thoughtBubbles.length;
-  if (total >= 120) return 5;
-  if (total >= 60) return 4;
-  if (total >= 25) return 3;
-  if (total >= 8) return 2;
-  return 1;
+const SANCTUARY_STAGES = [
+  { min:0, name:"A Quiet Corner", copy:"The room is here. It does not need anything from you." },
+  { min:8, name:"A Soft Glow", copy:"A little warmth has begun to collect here." },
+  { min:20, name:"A Lived-In Nook", copy:"Small traces of your days are starting to stay." },
+  { min:40, name:"A Story Room", copy:"The room has learned how to hold your stories." },
+  { min:70, name:"A Dreamy Hideaway", copy:"There is enough of you here for the room to feel familiar." },
+  { min:110, name:"A Gentle Home", copy:"Fuwa has become somewhere your days know how to return to." },
+  { min:170, name:"Your Sanctuary", copy:"This room has grown around the life you have been leaving here." }
+];
+
+const SANCTUARY_OBJECTS = [
+  { id:"lamp", min:8, label:"Warm lamp", memory:"nightly" },
+  { id:"plant", min:20, label:"Little plant", memory:"joy" },
+  { id:"books", min:40, label:"Story shelf", memory:"entry" },
+  { id:"stars", min:70, label:"Star lights", memory:"dream" },
+  { id:"cushion", min:90, label:"Soft cushion", memory:"comfort" },
+  { id:"tea", min:110, label:"Tea corner", memory:"mood" },
+  { id:"garland", min:140, label:"Paper garland", memory:"bubble" },
+  { id:"frame", min:170, label:"Memory frame", memory:"entry" }
+];
+
+function sanctuaryMomentCount() {
+  return state.entries.length + state.moodCheckins.length + state.nightlyReflections.length +
+    state.dreams.length + state.thoughtBubbles.length + state.tinyJoys.length + state.comfortItems.length;
+}
+function sanctuaryStageIndex(total=sanctuaryMomentCount()) {
+  let index=0; SANCTUARY_STAGES.forEach((stage,i)=>{ if(total>=stage.min) index=i; }); return index;
+}
+function sanctuaryLevel() { return sanctuaryStageIndex()+1; }
+function sanctuaryObjectUnlocked(object,total=sanctuaryMomentCount()) { return total>=object.min; }
+function sanctuaryObjectVisible(object,total=sanctuaryMomentCount()) {
+  return sanctuaryObjectUnlocked(object,total) && sanctuaryPreferences.visibleObjects.includes(object.id);
 }
 
-function renderSanctuary(force = false) {
-  const host = $("sanctuaryRoom");
-  const unlocks = $("sanctuaryUnlocks");
-  if (!host || !unlocks) return;
-  const signature = sanctuarySignature();
-  if (!force && renderCache.sanctuary === signature) return;
-  renderCache.sanctuary = signature;
-  const level = sanctuaryLevel();
+function sanctuaryMemoryFor(type) {
+  const choose = items => items.length ? items[Math.floor(Math.random()*items.length)] : null;
+  if(type==="entry"){ const x=choose(state.entries); return x?{label:"A page from your room",title:x.title||"A memory",text:memoryDriftPreviewText(x,260),entryId:x.id,icon:"book"}:null; }
+  if(type==="nightly"){ const x=choose(state.nightlyReflections); return x?{label:"A quiet night",title:formatDate(x.date),text:x.grateful||x.release||x.tomorrow||"",icon:"lamp"}:null; }
+  if(type==="dream"){ const x=choose(state.dreams); return x?{label:"A dream that stayed",title:x.title||"Dream Pocket",text:x.body||"",icon:"star"}:null; }
+  if(type==="joy"){ const x=choose(state.tinyJoys); return x?{label:"A tiny joy",title:"Something small that mattered",text:x.text||"",icon:"leaf"}:null; }
+  if(type==="comfort"){ const x=choose(state.comfortItems); return x?{label:"Something comforting",title:x.title||"Comfort Corner",text:x.body||"",icon:"heart"}:null; }
+  if(type==="bubble"){ const x=choose(state.thoughtBubbles); return x?{label:"A thought that floated back",title:formatDate(x.date),text:x.text||"",icon:"bubble"}:null; }
+  if(type==="mood"){
+    const x=choose(state.moodCheckins);
+    return x?{label:"A feeling your room remembers",title:`${moodLabels[x.mood]||"A day"} · ${formatDate(x.date)}`,text:x.note||"You checked in with yourself on this day.",icon:"tea"}:null;
+  }
+  return null;
+}
 
-  host.innerHTML = `
-    <div class="room-scene level-${level}">
+function showSanctuaryMemory(type) {
+  const card=$("sanctuaryMemoryCard"); if(!card) return;
+  const memory=sanctuaryMemoryFor(type);
+  activeSanctuaryMemoryEntryId=memory?.entryId||null;
+  if(!memory){
+    $("sanctuaryMemoryLabel").textContent="This little corner is still waiting";
+    $("sanctuaryMemoryTitle").textContent="Nothing tucked here yet";
+    $("sanctuaryMemoryText").textContent="As you use more of Fuwa, this object will begin bringing small pieces of your past back to you.";
+    $("sanctuaryMemoryOpenEntry").classList.add("hidden");
+  } else {
+    $("sanctuaryMemoryLabel").textContent=memory.label;
+    $("sanctuaryMemoryTitle").textContent=memory.title;
+    $("sanctuaryMemoryText").textContent=memory.text||"A small piece of your Fuwa.";
+    $("sanctuaryMemoryOpenEntry").classList.toggle("hidden",!memory.entryId);
+  }
+  card.classList.remove("hidden");
+}
+
+function renderSanctuary(force=false) {
+  const host=$("sanctuaryRoom"), unlocks=$("sanctuaryUnlocks"), objectOptions=$("sanctuaryObjectOptions"), themeOptions=$("sanctuaryThemeOptions");
+  if(!host||!unlocks||!objectOptions||!themeOptions) return;
+  const signature=sanctuarySignature();
+  if(!force && renderCache.sanctuary===signature) return;
+  renderCache.sanctuary=signature;
+
+  const total=sanctuaryMomentCount(), stageIndex=sanctuaryStageIndex(total), stage=SANCTUARY_STAGES[stageIndex];
+  const next=SANCTUARY_STAGES.find(s=>s.min>total)||null, level=stageIndex+1;
+  $("sanctuaryStageName").textContent=stage.name;
+  $("sanctuaryStageCount").textContent=`${total} ${total===1?"moment":"moments"}`;
+  $("sanctuaryProgressCopy").textContent=next?`${next.min-total} more gentle moment${next.min-total===1?"":"s"} and the room may change again.`:stage.copy;
+  const progress=next?Math.max(0,Math.min(100,((total-stage.min)/(next.min-stage.min))*100)):100;
+  $("sanctuaryProgressBar").style.width=`${progress}%`;
+
+  const visible=Object.fromEntries(SANCTUARY_OBJECTS.map(o=>[o.id,sanctuaryObjectVisible(o,total)]));
+  host.innerHTML=`
+    <div class="room-scene sanctuary-theme-${escapeHtml(sanctuaryPreferences.theme)} level-${level}">
       <div class="room-window"><div class="room-sky"></div></div>
-      <div class="room-rug"></div>
-      <div class="room-bed"><span></span></div>
-      <div class="room-cloud-pet"><span></span></div>
-      ${level>=2?'<div class="room-lamp"></div>':""}
-      ${level>=3?'<div class="room-plant"></div>':""}
-      ${level>=4?'<div class="room-books"></div>':""}
-      ${level>=5?'<div class="room-stars"></div>':""}
+      <div class="room-rug"></div><div class="room-bed"><span></span></div>
+      <button class="room-cloud-pet sanctuary-memory-object" type="button" data-sanctuary-memory="mood" aria-label="Cloud pet memory"><span></span></button>
+      ${visible.lamp?'<button class="room-lamp sanctuary-memory-object" type="button" data-sanctuary-memory="nightly" aria-label="Lamp memory"></button>':""}
+      ${visible.plant?'<button class="room-plant sanctuary-memory-object" type="button" data-sanctuary-memory="joy" aria-label="Plant memory"></button>':""}
+      ${visible.books?'<button class="room-books sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Bookshelf memory"></button>':""}
+      ${visible.stars?'<button class="room-stars sanctuary-memory-object" type="button" data-sanctuary-memory="dream" aria-label="Star memory"></button>':""}
+      ${visible.cushion?'<button class="room-cushion sanctuary-memory-object" type="button" data-sanctuary-memory="comfort" aria-label="Cushion memory"></button>':""}
+      ${visible.tea?'<button class="room-tea sanctuary-memory-object" type="button" data-sanctuary-memory="mood" aria-label="Tea memory"></button>':""}
+      ${visible.garland?'<button class="room-garland sanctuary-memory-object" type="button" data-sanctuary-memory="bubble" aria-label="Garland memory"></button>':""}
+      ${visible.frame?'<button class="room-frame sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Frame memory"></button>':""}
+      <div class="sanctuary-room-hint">Tap room objects to let them remember.</div>
     </div>`;
+  host.querySelectorAll("[data-sanctuary-memory]").forEach(b=>b.addEventListener("click",()=>showSanctuaryMemory(b.dataset.sanctuaryMemory)));
 
-  const labels = ["Soft bed","Warm lamp","Little plant","Bookshelf","Star lights"];
-  unlocks.innerHTML = labels.map((label,i)=>`<div class="sanctuary-unlock ${level>=i+1?"unlocked":""}"><span>${level>=i+1?"♡":"○"}</span><strong>${label}</strong></div>`).join("");
+  const themes=[{id:"rose",label:"Rose"},{id:"lavender",label:"Lavender"},{id:"sky",label:"Morning Sky"}];
+  themeOptions.innerHTML=themes.map(t=>`<button class="sanctuary-theme-choice ${sanctuaryPreferences.theme===t.id?"selected":""}" type="button" data-sanctuary-theme="${t.id}"><span class="sanctuary-theme-swatch ${t.id}"></span><strong>${t.label}</strong></button>`).join("");
+  themeOptions.querySelectorAll("[data-sanctuary-theme]").forEach(b=>b.addEventListener("click",()=>{
+    sanctuaryPreferences.theme=b.dataset.sanctuaryTheme; saveSanctuaryPreferences(); renderCache.sanctuary=""; renderSanctuary(true);
+  }));
+
+  objectOptions.innerHTML=SANCTUARY_OBJECTS.map(o=>{
+    const unlocked=sanctuaryObjectUnlocked(o,total), shown=sanctuaryPreferences.visibleObjects.includes(o.id);
+    return `<button class="sanctuary-object-choice ${unlocked?"unlocked":"locked"} ${unlocked&&shown?"selected":""}" type="button" data-sanctuary-object="${o.id}" ${unlocked?"":"disabled"}><span class="sanctuary-object-dot ${o.id}"></span><strong>${o.label}</strong><small>${unlocked?(shown?"In room":"Tucked away"):`At ${o.min} moments`}</small></button>`;
+  }).join("");
+  objectOptions.querySelectorAll("[data-sanctuary-object]:not(:disabled)").forEach(b=>b.addEventListener("click",()=>{
+    const id=b.dataset.sanctuaryObject, set=new Set(sanctuaryPreferences.visibleObjects); set.has(id)?set.delete(id):set.add(id);
+    sanctuaryPreferences.visibleObjects=[...set]; saveSanctuaryPreferences(); renderCache.sanctuary=""; renderSanctuary(true);
+  }));
+
+  unlocks.innerHTML=SANCTUARY_OBJECTS.map(o=>{
+    const unlocked=sanctuaryObjectUnlocked(o,total);
+    return `<div class="sanctuary-unlock ${unlocked?"unlocked":""}"><span>${unlocked?"♡":"○"}</span><div><strong>${o.label}</strong><small>${unlocked?"Found its way into your room.":`${o.min-total} moments away`}</small></div></div>`;
+  }).join("");
+}
+
+function bindSanctuaryStaticControls() {
+  $("sanctuaryMemoryClose")?.addEventListener("click",()=>{ activeSanctuaryMemoryEntryId=null; $("sanctuaryMemoryCard")?.classList.add("hidden"); });
+  $("sanctuaryMemoryOpenEntry")?.addEventListener("click",()=>{ if(activeSanctuaryMemoryEntryId) openEditor(activeSanctuaryMemoryEntryId); });
 }
 
 function renderExpansionFeatures() {
@@ -4801,6 +4922,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   $("unlockPinButton").addEventListener("click", unlockWithPin);
   $("unlockBiometricButton").addEventListener("click", tryBiometricUnlock);
+
+  bindSanctuaryStaticControls();
 
   $("featureCancelButton").addEventListener("click", closeFeatureModal);
   $("featureForm").addEventListener("submit", saveFeatureModal);
