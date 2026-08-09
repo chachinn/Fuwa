@@ -6380,3 +6380,122 @@ body.drawer-open .bottom-nav{pointer-events:none}
 
 
 /* FUWA V29 — cloud restore normalization + post-write verification */
+
+
+/* =========================================================
+   FUWA V32 — NATIVE-STYLE SWIPE ACTIONS
+   Swipe right → Edit, swipe left → Delete
+   ========================================================= */
+
+.fuwa-swipe-row {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border-radius: var(--radius-lg, 24px);
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.fuwa-swipe-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  transition: transform .20s cubic-bezier(.22,.78,.28,1);
+  will-change: transform;
+  background: transparent;
+}
+
+.fuwa-swipe-actions {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  width: 92px;
+}
+
+.fuwa-swipe-actions-left {
+  left: 0;
+  justify-content: flex-start;
+}
+
+.fuwa-swipe-actions-right {
+  right: 0;
+  justify-content: flex-end;
+}
+
+.fuwa-swipe-action {
+  width: 92px;
+  min-width: 92px;
+  border: 0;
+  padding: 0 12px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+  touch-action: manipulation;
+}
+
+.fuwa-swipe-action.edit {
+  background: linear-gradient(180deg, #d9c3e8, #bda0d0);
+}
+
+.fuwa-swipe-action.delete {
+  background: linear-gradient(180deg, #efa0b0, #df7891);
+}
+
+.fuwa-swipe-row.is-open-right .fuwa-swipe-content {
+  transform: translate3d(92px,0,0);
+}
+
+.fuwa-swipe-row.is-open-left .fuwa-swipe-content {
+  transform: translate3d(-92px,0,0);
+}
+
+/* Keep the underlying actions visually contained by each card's soft shape. */
+.fuwa-swipe-row > .fuwa-swipe-actions-left .fuwa-swipe-action {
+  border-radius: var(--radius-lg, 24px) 0 0 var(--radius-lg, 24px);
+}
+
+.fuwa-swipe-row > .fuwa-swipe-actions-right .fuwa-swipe-action {
+  border-radius: 0 var(--radius-lg, 24px) var(--radius-lg, 24px) 0;
+}
+
+/* Swipable lists need a little vertical breathing room without changing card design. */
+#entriesList .fuwa-swipe-row,
+#recentEntries .fuwa-swipe-row,
+#lettersList .fuwa-swipe-row,
+#tinyJoyList .fuwa-swipe-row,
+#threadGrid .fuwa-swipe-row,
+#nightlyHistory .fuwa-swipe-row,
+#bookmarksList .fuwa-swipe-row,
+#thenNowHistory .fuwa-swipe-row,
+#comfortList .fuwa-swipe-row,
+#unsentList .fuwa-swipe-row,
+#bubbleList .fuwa-swipe-row,
+#dreamList .fuwa-swipe-row {
+  margin-bottom: 10px;
+}
+
+#entriesList .fuwa-swipe-row:last-child,
+#recentEntries .fuwa-swipe-row:last-child,
+#lettersList .fuwa-swipe-row:last-child,
+#tinyJoyList .fuwa-swipe-row:last-child,
+#threadGrid .fuwa-swipe-row:last-child,
+#nightlyHistory .fuwa-swipe-row:last-child,
+#bookmarksList .fuwa-swipe-row:last-child,
+#thenNowHistory .fuwa-swipe-row:last-child,
+#comfortList .fuwa-swipe-row:last-child,
+#unsentList .fuwa-swipe-row:last-child,
+#bubbleList .fuwa-swipe-row:last-child,
+#dreamList .fuwa-swipe-row:last-child {
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuwa-swipe-content {
+    transition-duration: .01ms;
+  }
+}

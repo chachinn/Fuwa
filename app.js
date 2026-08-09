@@ -44,6 +44,8 @@ let editingThreadId = null;
 let activeThreadId = null;
 let activeBookmarkId = null;
 let bookmarkEditorEntryId = null;
+let editingLetterId = null;
+let editingNightlyId = null;
 let moodCheckinSaving = false;
 let moodJarPhysicsFrame = null;
 let moodJarOrientationBound = false;
@@ -721,7 +723,7 @@ function renderThreads() {
     const entries = threadEntries(thread.id);
     const range = entries.length ? `${formatDate(entries[0].date)}${entries.length > 1 ? ` → ${formatDate(entries[entries.length - 1].date)}` : ""}` : "Waiting for its first memory";
     return `
-      <article class="thread-card">
+      ${swipeActionShell(`<article class="thread-card">
         <button class="thread-card-main" type="button" data-thread-open="${escapeHtml(thread.id)}">
           <span class="thread-card-emoji">${escapeHtml(thread.emoji || "🧵")}</span>
           <div>
@@ -730,11 +732,10 @@ function renderThreads() {
             <small>${entries.length} ${entries.length === 1 ? "memory" : "memories"} · ${escapeHtml(range)}</small>
           </div>
         </button>
-        <button class="thread-card-edit" type="button" data-thread-edit="${escapeHtml(thread.id)}" aria-label="Edit ${escapeHtml(thread.title)}">•••</button>
-      </article>`;
+      </article>`, "thread", thread.id)}`;
   }).join("");
   grid.querySelectorAll("[data-thread-open]").forEach(button => button.addEventListener("click", () => openThreadDetail(button.dataset.threadOpen)));
-  grid.querySelectorAll("[data-thread-edit]").forEach(button => button.addEventListener("click", () => openThreadModal(button.dataset.threadEdit)));
+  bindSwipeActions(grid);
 }
 
 function renderEntryThreadPicker(selectedIds = null) {
@@ -1496,6 +1497,252 @@ function chooseThenNowSource() {
   return pool[seed];
 }
 
+
+function swipeActionShell(content, type, id, options = {}) {
+  const safeType = escapeHtml(type);
+  const safeId = escapeHtml(id);
+  const editLabel = escapeHtml(options.editLabel || "Edit");
+  const deleteLabel = escapeHtml(options.deleteLabel || "Delete");
+  return `
+    <div class="fuwa-swipe-row" data-swipe-type="${safeType}" data-swipe-id="${safeId}">
+      <div class="fuwa-swipe-actions fuwa-swipe-actions-left" aria-hidden="true">
+        <button class="fuwa-swipe-action edit" type="button" data-swipe-edit="${safeType}:${safeId}">${editLabel}</button>
+      </div>
+      <div class="fuwa-swipe-actions fuwa-swipe-actions-right" aria-hidden="true">
+        <button class="fuwa-swipe-action delete" type="button" data-swipe-delete="${safeType}:${safeId}">${deleteLabel}</button>
+      </div>
+      <div class="fuwa-swipe-content">${content}</div>
+    </div>`;
+}
+
+function closeOtherSwipeRows(activeRow = null) {
+  document.querySelectorAll(".fuwa-swipe-row.is-open-left, .fuwa-swipe-row.is-open-right").forEach(row => {
+    if (row === activeRow) return;
+    row.classList.remove("is-open-left", "is-open-right");
+    const content = row.querySelector(".fuwa-swipe-content");
+    if (content) content.style.transform = "";
+  });
+}
+
+function parseSwipeAction(value = "") {
+  const separator = value.indexOf(":");
+  if (separator < 0) return { type: "", id: "" };
+  return { type: value.slice(0, separator), id: value.slice(separator + 1) };
+}
+
+async function editSimpleTextRecord(type, id) {
+  const config = {
+    tinyJoy: { store: "tinyJoys", stateKey: "tinyJoys", field: "text", label: "Edit Tiny Joy" },
+    bubble: { store: "thoughtBubbles", stateKey: "thoughtBubbles", field: "text", label: "Edit Thought Bubble" }
+  }[type];
+  if (!config) return;
+
+  const item = state[config.stateKey].find(record => record.id === id);
+  if (!item) return;
+
+  const next = window.prompt(config.label, item[config.field] || "");
+  if (next === null) return;
+  const value = next.trim();
+  if (!value) return toast("Keep a little text here, or swipe left to delete it.");
+
+  const updated = { ...item, [config.field]: value, updatedAt: Date.now() };
+  await diaryRepository.save(config.store, updated);
+  state[config.stateKey] = state[config.stateKey].map(record => record.id === id ? updated : record);
+  renderAll();
+  toast("Updated softly ☁️");
+}
+
+function openLetterEditor(letterId) {
+  const letter = state.letters.find(item => item.id === letterId);
+  if (!letter) return;
+  editingLetterId = letter.id;
+  $("letterTitle").value = letter.title || "";
+  $("letterBody").value = letter.body || "";
+  $("letterOpenDate").value = letter.openDate || isoToday();
+  $("letterComposer").classList.remove("hidden");
+  $("letterTitle")?.focus();
+}
+
+function openNightlyReflectionEditor(id) {
+  const item = state.nightlyReflections.find(record => record.id === id);
+  if (!item) return;
+  editingNightlyId = item.id;
+  $("nightlyGrateful").value = item.grateful || "";
+  $("nightlyRelease").value = item.release || "";
+  $("nightlyTomorrow").value = item.tomorrow || "";
+  renderNightlyHistory();
+  navigate("nightly");
+}
+
+async function handleSwipeEdit(type, id) {
+  closeOtherSwipeRows();
+  try {
+    if (type === "entry") return openEditor(id);
+    if (type === "thread") return openThreadModal(id);
+    if (type === "bookmark") return openBookmarkDetail(id);
+    if (type === "thenNow") return openFeatureModal("thenNow", id);
+    if (type === "comfort") return openFeatureModal("comfort", id);
+    if (type === "unsent") return openFeatureModal("unsent", id);
+    if (type === "dream") return openFeatureModal("dream", id);
+    if (type === "letter") return openLetterEditor(id);
+    if (type === "nightly") return openNightlyReflectionEditor(id);
+    if (type === "tinyJoy" || type === "bubble") return editSimpleTextRecord(type, id);
+  } catch (error) {
+    console.error("Fuwa swipe edit failed.", error);
+    toast("Fuwa couldn't open that item for editing.");
+  }
+}
+
+async function deleteSwipeRecord(type, id) {
+  const config = {
+    tinyJoy: { store: "tinyJoys", stateKey: "tinyJoys", name: "Tiny Joy" },
+    letter: { store: "letters", stateKey: "letters", name: "letter" },
+    nightly: { store: "nightlyReflections", stateKey: "nightlyReflections", name: "wind-down" },
+    thenNow: { store: "thenNow", stateKey: "thenNow", name: "Then & Now reflection" },
+    comfort: { store: "comfortItems", stateKey: "comfortItems", name: "comfort item" },
+    unsent: { store: "unsentLetters", stateKey: "unsentLetters", name: "unsent letter" },
+    bubble: { store: "thoughtBubbles", stateKey: "thoughtBubbles", name: "thought bubble" },
+    dream: { store: "dreams", stateKey: "dreams", name: "dream" },
+    bookmark: { store: "bookmarks", stateKey: "bookmarks", name: "bookmark" }
+  }[type];
+
+  if (type === "entry") {
+    if (!confirm("Delete this diary entry?")) return;
+    await diaryRepository.deleteEntryWithMedia(id);
+    state.entries = state.entries.filter(item => item.id !== id);
+    renderAll();
+    toast("Entry deleted");
+    return;
+  }
+
+  if (type === "thread") {
+    const thread = state.threads.find(item => item.id === id);
+    if (!thread || !confirm(`Delete "${thread.title}"? Your diary entries will stay safe.`)) return;
+    await diaryRepository.deleteThreadAndUnlink(id);
+    state.threads = state.threads.filter(item => item.id !== id);
+    state.entries = state.entries.map(entry => ({
+      ...entry,
+      threadIds: Array.isArray(entry.threadIds) ? entry.threadIds.filter(threadId => threadId !== id) : []
+    }));
+    renderAll();
+    toast("Thread removed. Your memories are still here.");
+    return;
+  }
+
+  if (!config) return;
+  if (!confirm(`Delete this ${config.name}?`)) return;
+
+  await diaryRepository.remove(config.store, id);
+  state[config.stateKey] = state[config.stateKey].filter(item => item.id !== id);
+
+  if (type === "bookmark" && activeBookmarkId === id) activeBookmarkId = null;
+  if (type === "nightly" && editingNightlyId === id) editingNightlyId = null;
+  if (type === "letter" && editingLetterId === id) editingLetterId = null;
+
+  renderAll();
+  toast("Deleted");
+}
+
+function bindSwipeActions(container) {
+  if (!container) return;
+
+  container.querySelectorAll(".fuwa-swipe-row").forEach(row => {
+    const content = row.querySelector(".fuwa-swipe-content");
+    if (!content) return;
+
+    let startX = 0;
+    let startY = 0;
+    let deltaX = 0;
+    let dragging = false;
+    let horizontal = false;
+    const maxReveal = 92;
+
+    const resetInline = () => {
+      content.style.transition = "";
+      content.style.transform = "";
+    };
+
+    row.addEventListener("pointerdown", event => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (event.target.closest(".fuwa-swipe-action")) return;
+      closeOtherSwipeRows(row);
+      startX = event.clientX;
+      startY = event.clientY;
+      deltaX = 0;
+      dragging = true;
+      horizontal = false;
+      content.style.transition = "none";
+      try { row.setPointerCapture(event.pointerId); } catch (_) {}
+    });
+
+    row.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+
+      if (!horizontal) {
+        if (Math.abs(dx) < 7 && Math.abs(dy) < 7) return;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          dragging = false;
+          resetInline();
+          return;
+        }
+        horizontal = true;
+      }
+
+      deltaX = Math.max(-maxReveal, Math.min(maxReveal, dx));
+      content.style.transform = `translate3d(${deltaX}px,0,0)`;
+    });
+
+    const finish = () => {
+      if (!dragging && !horizontal) return;
+      dragging = false;
+      content.style.transition = "";
+
+      const threshold = 42;
+      row.classList.remove("is-open-left", "is-open-right");
+
+      if (deltaX <= -threshold) {
+        row.classList.add("is-open-left");
+        content.style.transform = `translate3d(-${maxReveal}px,0,0)`;
+      } else if (deltaX >= threshold) {
+        row.classList.add("is-open-right");
+        content.style.transform = `translate3d(${maxReveal}px,0,0)`;
+      } else {
+        content.style.transform = "";
+      }
+
+      window.setTimeout(() => {
+        content.style.transition = "";
+      }, 220);
+    };
+
+    row.addEventListener("pointerup", finish);
+    row.addEventListener("pointercancel", finish);
+  });
+
+  container.querySelectorAll("[data-swipe-edit]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      const { type, id } = parseSwipeAction(button.dataset.swipeEdit);
+      handleSwipeEdit(type, id);
+    });
+  });
+
+  container.querySelectorAll("[data-swipe-delete]").forEach(button => {
+    button.addEventListener("click", async event => {
+      event.stopPropagation();
+      const { type, id } = parseSwipeAction(button.dataset.swipeDelete);
+      try {
+        await deleteSwipeRecord(type, id);
+      } catch (error) {
+        console.error("Fuwa swipe delete failed.", error);
+        toast("Fuwa couldn't delete that item.");
+      }
+    });
+  });
+}
+
 function renderThenNow() {
   const host = $("thenNowPrompt");
   const history = $("thenNowHistory");
@@ -1518,9 +1765,9 @@ function renderThenNow() {
   history.innerHTML = items.length ? items.map(item => {
     const entry = state.entries.find(e => e.id === item.entryId);
     const label = { still:"Still true", different:"A little different", changed:"Completely different", unsure:"I don't know" }[item.feeling] || "Reflection";
-    return `<article class="feature-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(label)}</span><strong>${escapeHtml(entry?.title || "Past memory")}</strong><p>${escapeHtml(item.response || "")}</p><button data-edit-thennow="${item.id}" type="button">Edit</button></article>`;
+    return swipeActionShell(`<article class="feature-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(label)}</span><strong>${escapeHtml(entry?.title || "Past memory")}</strong><p>${escapeHtml(item.response || "")}</p></article>`, "thenNow", item.id);
   }).join("") : "";
-  history.querySelectorAll("[data-edit-thennow]").forEach(b => b.addEventListener("click", () => openFeatureModal("thenNow", b.dataset.editThennow)));
+  bindSwipeActions(history);
 }
 
 function renderComfort() {
@@ -1528,13 +1775,12 @@ function renderComfort() {
   if (!list) return;
   const items = [...state.comfortItems].sort((a,b) => b.updatedAt - a.updatedAt);
   list.innerHTML = items.length ? items.map(item => `
-    <article class="feature-card comfort-item-card">
+    ${swipeActionShell(`<article class="feature-card comfort-item-card">
       <span>${escapeHtml(item.type || "comfort")}</span>
       <strong>${escapeHtml(item.title)}</strong>
       <p>${escapeHtml(item.body || "")}</p>
-      <button data-edit-comfort="${item.id}" type="button">Edit</button>
-    </article>`).join("") : `<div class="empty-state">Add little things that make life feel softer.</div>`;
-  list.querySelectorAll("[data-edit-comfort]").forEach(b => b.addEventListener("click", () => openFeatureModal("comfort", b.dataset.editComfort)));
+    </article>`, "comfort", item.id)}`).join("") : `<div class="empty-state">Add little things that make life feel softer.</div>`;
+  bindSwipeActions(list);
 }
 
 function randomComfort() {
@@ -1552,9 +1798,9 @@ function renderUnsent() {
   if (!host) return;
   const items = [...state.unsentLetters].sort((a,b)=>b.updatedAt-a.updatedAt);
   host.innerHTML = items.length ? items.map(item => `
-    <article class="feature-card unsent-card"><span>${escapeHtml(formatDate(item.date))}</span><strong>To ${escapeHtml(item.to)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p><button data-edit-unsent="${item.id}" type="button">Open</button></article>
+    ${swipeActionShell(`<article class="feature-card unsent-card"><span>${escapeHtml(formatDate(item.date))}</span><strong>To ${escapeHtml(item.to)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p></article>`, "unsent", item.id)}
   `).join("") : `<div class="empty-state">Some words are meant to be written, not sent.</div>`;
-  host.querySelectorAll("[data-edit-unsent]").forEach(b => b.addEventListener("click",()=>openFeatureModal("unsent",b.dataset.editUnsent)));
+  bindSwipeActions(host);
 }
 
 async function saveThoughtBubble(event) {
@@ -1573,7 +1819,8 @@ function renderBubbles() {
   const host = $("bubbleList");
   if (!host) return;
   const items = [...state.thoughtBubbles].sort((a,b)=>b.createdAt-a.createdAt).slice(0,50);
-  host.innerHTML = items.length ? items.map(item => `<div class="thought-bubble"><span>${escapeHtml(formatDate(item.date))}</span><p>${escapeHtml(item.text)}</p></div>`).join("") : `<div class="empty-state">Tiny thoughts can live here without becoming diary entries.</div>`;
+  host.innerHTML = items.length ? items.map(item => swipeActionShell(`<div class="thought-bubble"><span>${escapeHtml(formatDate(item.date))}</span><p>${escapeHtml(item.text)}</p></div>`, "bubble", item.id)).join("") : `<div class="empty-state">Tiny thoughts can live here without becoming diary entries.</div>`;
+  bindSwipeActions(host);
 }
 
 function randomBubble() {
@@ -1590,8 +1837,8 @@ function renderDreams() {
   const host = $("dreamList");
   if (!host) return;
   const items = [...state.dreams].sort((a,b)=>b.date.localeCompare(a.date));
-  host.innerHTML = items.length ? items.map(item => `<article class="feature-card dream-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(item.feeling)}${item.recurring?" · recurring":""}</span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p><button data-edit-dream="${item.id}" type="button">Open</button></article>`).join("") : `<div class="empty-state">Catch your next dream here before morning steals it.</div>`;
-  host.querySelectorAll("[data-edit-dream]").forEach(b => b.addEventListener("click",()=>openFeatureModal("dream",b.dataset.editDream)));
+  host.innerHTML = items.length ? items.map(item => swipeActionShell(`<article class="feature-card dream-card"><span>${escapeHtml(formatDate(item.date))} · ${escapeHtml(item.feeling)}${item.recurring?" · recurring":""}</span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.body.slice(0,220))}${item.body.length>220?"…":""}</p></article>`, "dream", item.id)).join("") : `<div class="empty-state">Catch your next dream here before morning steals it.</div>`;
+  bindSwipeActions(host);
 }
 
 function monthSummary(date) {
@@ -2231,6 +2478,7 @@ function renderNightlyHome() {
 }
 
 function openNightlyView() {
+  editingNightlyId = null;
   const today = todaysNightlyReflection();
   $("nightlyGrateful").value = today?.grateful || "";
   $("nightlyRelease").value = today?.release || "";
@@ -2252,14 +2500,15 @@ function renderNightlyHistory() {
     return;
   }
 
-  host.innerHTML = items.map(item => `
+  host.innerHTML = items.map(item => swipeActionShell(`
     <article class="nightly-history-card">
       <time>${escapeHtml(formatDate(item.date))}</time>
       ${item.grateful ? `<div><span>♡ Grateful</span><p>${escapeHtml(item.grateful)}</p></div>` : ""}
       ${item.release ? `<div><span>⌁ Left here</span><p>${escapeHtml(item.release)}</p></div>` : ""}
       ${item.tomorrow ? `<div><span>☾ Tomorrow</span><p>${escapeHtml(item.tomorrow)}</p></div>` : ""}
     </article>
-  `).join("");
+  `, "nightly", item.id)).join("");
+  bindSwipeActions(host);
 }
 
 async function saveNightlyReflection(event) {
@@ -2274,10 +2523,13 @@ async function saveNightlyReflection(event) {
     return;
   }
 
-  const existing = todaysNightlyReflection();
+  const existing = editingNightlyId
+    ? state.nightlyReflections.find(item => item.id === editingNightlyId)
+    : todaysNightlyReflection();
+  const recordDate = existing?.date || isoToday();
   const record = {
-    id: isoToday(),
-    date: isoToday(),
+    id: existing?.id || recordDate,
+    date: recordDate,
     grateful,
     release,
     tomorrow,
@@ -2291,9 +2543,10 @@ async function saveNightlyReflection(event) {
     if (index >= 0) state.nightlyReflections[index] = record;
     else state.nightlyReflections.push(record);
 
+    editingNightlyId = null;
     renderAll();
     renderNightlyHistory();
-    toast(existing ? "Tonight's wind-down updated 🌙" : "Today can rest now 🌙");
+    toast(existing ? "Wind-down updated 🌙" : "Today can rest now 🌙");
   } catch (error) {
     console.error("Could not save nightly reflection.", error);
     toast("Fuwa couldn't save tonight's wind-down.");
@@ -2547,6 +2800,7 @@ function renderHomeBookmarks() {
   host.querySelectorAll("[data-bookmark-open]").forEach(button => {
     button.addEventListener("click", () => openBookmarkDetail(button.dataset.bookmarkOpen));
   });
+  bindSwipeActions(host);
 }
 
 function renderBookmarks() {
@@ -2564,7 +2818,7 @@ function renderBookmarks() {
     const status = bookmarkStatus(bookmark);
     const responseCount = Array.isArray(bookmark.responses) ? bookmark.responses.length : 0;
     return `
-      <article class="bookmark-card ${status}">
+      ${swipeActionShell(`<article class="bookmark-card ${status}">
         <button type="button" data-bookmark-open="${escapeHtml(bookmark.id)}">
           <div class="bookmark-card-top">
             <span class="bookmark-status-pill">${status === "ready" ? "☁️ Ready now" : status === "archived" ? "♡ Kept" : "🔖 Waiting"}</span>
@@ -2574,7 +2828,7 @@ function renderBookmarks() {
           ${bookmark.note ? `<p>${escapeHtml(bookmark.note)}</p>` : ""}
           <small>${responseCount ? `${responseCount} ${responseCount === 1 ? "reply" : "replies"} across time` : entry ? escapeHtml(entry.title) : "Saved thought"}</small>
         </button>
-      </article>`;
+      </article>`, "bookmark", bookmark.id)}`;
   }).join("");
 
   host.querySelectorAll("[data-bookmark-open]").forEach(button => {
@@ -3655,7 +3909,7 @@ function entryCard(entry) {
   const tags = (entry.tags || []).slice(0, 3)
     .map(tag => `<span class="tag">#${escapeHtml(tag)}</span>`).join("");
 
-  return `
+  return swipeActionShell(`
     <article class="entry-card">
       <button data-entry-id="${entry.id}">
         <div class="soft-label">${formatDate(entry.date)} · ${moodIconMarkup(entry.mood, "mini")}</div>
@@ -3664,13 +3918,14 @@ function entryCard(entry) {
         <div class="meta">${tags}</div>
       </button>
     </article>
-  `;
+  `, "entry", entry.id);
 }
 
 function bindEntryCards(container) {
   container.querySelectorAll("[data-entry-id]").forEach(button => {
     button.addEventListener("click", () => openEditor(button.dataset.entryId));
   });
+  bindSwipeActions(container);
 }
 
 function renderRecentEntries() {
@@ -3715,15 +3970,16 @@ function renderTinyJoys() {
 
   container.innerHTML = joys.length
     ? joys.map(joy => `
-      <div class="joy-item">
+      ${swipeActionShell(`<div class="joy-item">
         <span>🌷</span>
         <div>
           <div>${escapeHtml(joy.text)}</div>
           <time>${new Date(joy.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
         </div>
-      </div>
+      </div>`, "tinyJoy", joy.id)}
     `).join("")
     : `<div class="empty-state">Add one tiny happy thing from today.</div>`;
+  bindSwipeActions(container);
 }
 
 function renderLetters() {
@@ -3736,14 +3992,15 @@ function renderLetters() {
     ? letters.map(letter => {
       const unlocked = letter.openDate <= today;
       return `
-        <article class="letter-card ${unlocked ? "open-letter" : "locked-letter"}">
+        ${swipeActionShell(`<article class="letter-card ${unlocked ? "open-letter" : "locked-letter"}">
           <div class="soft-label">${unlocked ? "Ready to open" : "Sealed until"} ${formatDate(letter.openDate)}</div>
           <h4>${escapeHtml(letter.title)}</h4>
           <p>${unlocked ? escapeHtml(letter.body) : "This letter is waiting quietly for Future You. ✉️"}</p>
-        </article>
+        </article>`, "letter", letter.id)}
       `;
     }).join("")
     : `<div class="empty-state">Write something for Future You ✉️</div>`;
+  bindSwipeActions(container);
 }
 
 function renderStats() {
@@ -3909,7 +4166,12 @@ async function addTinyJoy(event) {
 
 function toggleLetterComposer(show) {
   $("letterComposer").classList.toggle("hidden", !show);
-  if (show) {
+  if (!show) {
+    editingLetterId = null;
+    return;
+  }
+
+  if (!editingLetterId) {
     $("letterTitle").value = "";
     $("letterBody").value = "";
 
@@ -3930,20 +4192,24 @@ async function saveLetter() {
     return;
   }
 
+  const existing = editingLetterId ? state.letters.find(item => item.id === editingLetterId) : null;
   const letter = {
-    id: uid("letter"),
+    id: existing?.id || uid("letter"),
     title,
     body,
     openDate,
-    createdAt: Date.now()
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
   };
 
   try {
     await diaryRepository.save("letters", letter);
-    state.letters.push(letter);
+    if (existing) state.letters = state.letters.map(item => item.id === letter.id ? letter : item);
+    else state.letters.push(letter);
     saveState();
+    editingLetterId = null;
     toggleLetterComposer(false);
-    toast("Letter sealed ✉️");
+    toast(existing ? "Letter updated ✉️" : "Letter sealed ✉️");
   } catch (error) {
     console.error("Could not save letter.", error);
     toast("Fuwa couldn't seal that letter. Please try again.");
