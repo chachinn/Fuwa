@@ -39,6 +39,7 @@ let state = structuredClone(defaultState);
 let currentView = "home";
 let editorMedia = [];
 let removedMediaIds = new Set();
+let activePhotoViewerId = null;
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let editingThreadId = null;
 let activeThreadId = null;
@@ -524,6 +525,13 @@ async function addEntryPhotos(event) {
   event.target.value = "";
   if (!files.length) return;
 
+  try {
+    if (localStorage.getItem("fuwaPhotoLocalOnlyNoticeV1") !== "seen") {
+      window.alert("Photo reminder: attached photos stay on this device and are not included in Fuwa Cloud backup. For important photos, open the photo in Fuwa and use Save Photo to keep a separate copy in your Photos library.");
+      localStorage.setItem("fuwaPhotoLocalOnlyNoticeV1", "seen");
+    }
+  } catch (_) {}
+
   const remaining = MAX_PHOTOS_PER_ENTRY - editorMedia.length;
   if (remaining <= 0) {
     toast(`Fuwa allows up to ${MAX_PHOTOS_PER_ENTRY} photos per entry.`);
@@ -564,16 +572,63 @@ async function addEntryPhotos(event) {
 function openPhotoViewer(id) {
   const item = editorMedia.find(photo => photo.id === id);
   if (!item) return;
+  activePhotoViewerId = id;
   $("photoViewerImage").src = item.previewUrl;
   $("photoViewer").classList.remove("hidden");
   document.body.style.overflow = "hidden";
 }
 
 function closePhotoViewer() {
+  activePhotoViewerId = null;
   $("photoViewer").classList.add("hidden");
   $("photoViewerImage").removeAttribute("src");
   document.body.style.overflow = "";
   maybeShowDailyMoodCheckin();
+}
+
+function safePhotoFilename(item) {
+  const original = String(item?.originalName || "").trim();
+  const stem = original ? original.replace(/\.[^.]+$/, "") : `fuwa-photo-${isoToday()}`;
+  const cleaned = stem.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || `fuwa-photo-${isoToday()}`;
+  return `${cleaned}.jpg`;
+}
+
+async function saveActivePhotoToDevice() {
+  const item = editorMedia.find(photo => photo.id === activePhotoViewerId);
+  if (!item?.blob) {
+    toast("Fuwa couldn't find that photo.");
+    return;
+  }
+
+  const filename = safePhotoFilename(item);
+  const file = new File([item.blob], filename, { type: item.type || item.blob.type || "image/jpeg" });
+
+  try {
+    // iOS PWAs generally expose Photos through the native share sheet rather
+    // than granting a website direct write access to the Photos library.
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({
+        files: [file],
+        title: "Fuwa photo"
+      });
+      toast("Choose Save Image to keep it in Photos.");
+      return;
+    }
+
+    const url = URL.createObjectURL(item.blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast("Photo prepared for saving.");
+  } catch (error) {
+    if (error?.name === "AbortError") return;
+    console.error("Could not save Fuwa photo.", error);
+    toast("Fuwa couldn't open the save options for that photo.");
+  }
 }
 
 function blobToDataUrl(blob) {
@@ -4879,6 +4934,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("deleteEntryButton").addEventListener("click", deleteEntry);
   $("addPhotosButton").addEventListener("click", () => $("entryPhotosInput").click());
   $("entryPhotosInput").addEventListener("change", addEntryPhotos);
+  $("savePhotoButton")?.addEventListener("click", saveActivePhotoToDevice);
   $("closePhotoViewer").addEventListener("click", closePhotoViewer);
   $("photoViewer").addEventListener("click", event => {
     if (event.target === $("photoViewer")) closePhotoViewer();

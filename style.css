@@ -6577,3 +6577,75 @@ body.drawer-open .bottom-nav{pointer-events:none}
 
 /* FUWA V35 — startup reconciliation status */
 #cloudAutoSyncStatus { transition: opacity .18s ease; }
+
+/* FUWA V39 — local-only photo safety */
+.photo-local-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 248, 250, .88);
+}
+
+.photo-local-warning-icon {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 18px;
+}
+
+.photo-local-warning div {
+  display: grid;
+  gap: 3px;
+}
+
+.photo-local-warning strong {
+  font-size: 13px;
+}
+
+.photo-local-warning small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.cloud-photo-status strong {
+  color: var(--accent-dark);
+}
+
+.photo-viewer-actions {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.photo-save-btn {
+  min-width: 150px;
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 20px;
+  background: rgba(255,255,255,.96);
+  color: #5f4650;
+  font-weight: 700;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+}
+
+.photo-viewer-actions small {
+  max-width: 300px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgba(25,20,23,.66);
+  color: #fff;
+  text-align: center;
+  line-height: 1.35;
+}

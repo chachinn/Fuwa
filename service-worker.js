@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v38";
+const CACHE_NAME = "fuwa-shell-v39";
 
 const CORE_ASSETS = [
   "./",

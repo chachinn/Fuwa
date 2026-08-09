@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v38-fast-startup -->
+  <!-- FUWA_BUILD: v39-photo-safety -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -983,6 +983,13 @@
               </div>
               <button type="button" class="photo-add-btn" id="addPhotosButton">＋ Add photos</button>
             </div>
+            <div class="photo-local-warning">
+              <span class="photo-local-warning-icon" aria-hidden="true">☁︎</span>
+              <div>
+                <strong>Photos stay on this device</strong>
+                <small>Fuwa Cloud backs up your journal and records, but not attached photos. Save important photos to your Photos library too.</small>
+              </div>
+            </div>
             <input id="entryPhotosInput" type="file" accept="image/*" multiple hidden />
             <div class="photo-grid" id="entryPhotoGrid"></div>
           </div>
@@ -1094,9 +1101,13 @@
             <span>Automatic sync</span>
             <strong id="cloudAutoSyncStatus">On · waiting for changes</strong>
           </div>
+          <div class="cloud-backup-meta cloud-photo-status">
+            <span>Attached photos</span>
+            <strong>Device only</strong>
+          </div>
           <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
           <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>
-          <small class="cloud-backup-footnote">Cloud restore validates the backup before changing local records. Photos remain local-only for now.</small>
+          <small class="cloud-backup-footnote"><strong>Photo reminder:</strong> Fuwa Cloud cannot restore attached photos. Save important photos to your device’s Photos library before deleting Fuwa, clearing browser data, or moving to another device.</small>
         </div>
 
         <div class="stats-grid" id="statsGrid">
@@ -1405,6 +1416,10 @@
   <div class="photo-viewer hidden" id="photoViewer" role="dialog" aria-modal="true" aria-label="Photo viewer">
     <button type="button" class="photo-viewer-close" id="closePhotoViewer" aria-label="Close photo viewer">×</button>
     <img id="photoViewerImage" alt="Diary photo" />
+    <div class="photo-viewer-actions">
+      <button type="button" class="photo-save-btn" id="savePhotoButton">Save Photo</button>
+      <small>On iPhone, choose <strong>Save Image</strong> in the share sheet if it appears.</small>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
