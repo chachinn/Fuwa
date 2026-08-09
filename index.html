@@ -15,11 +15,17 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div class="cozy-ambient" aria-hidden="true">
+    <span class="ambient-cloud ambient-cloud-one"></span>
+    <span class="ambient-cloud ambient-cloud-two"></span>
+    <span class="ambient-glow ambient-glow-one"></span>
+    <span class="ambient-glow ambient-glow-two"></span>
+  </div>
   <div class="app-shell">
     <header class="topbar">
       <div>
         <p class="eyebrow" id="todayLabel">Today</p>
-        <h1>Fuwa <span aria-hidden="true">🌸</span></h1>
+        <h1>Fuwa <span class="fuwa-cloud-mark" aria-hidden="true"><span></span></span></h1>
       </div>
       <button class="icon-btn" id="themeButton" aria-label="Change theme">🎨</button>
     </header>
@@ -27,7 +33,7 @@
     <main id="app">
       <section class="view active" id="homeView">
         <div class="hero-card">
-          <p class="soft-label">Good day, Cha ☁️</p>
+          <p class="soft-label cozy-greeting">Good day, Cha <span class="mini-cloud" aria-hidden="true"></span></p>
           <h2>How was your day?</h2>
 
           <div class="mood-picker" id="moodPicker" aria-label="Choose today's mood">
@@ -62,6 +68,18 @@
               <small id="moodJarTodayStatus">Check in today</small>
             </div>
           </button>
+        </section>
+
+
+        <section class="section-block">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Stories that keep returning</p>
+              <h3>Memory Threads</h3>
+            </div>
+            <button class="text-btn" id="openThreadsButton">View all</button>
+          </div>
+          <div class="thread-preview-row" id="homeThreadPreview"></div>
         </section>
 
         <section class="section-block">
@@ -157,6 +175,31 @@
         <p class="mood-jar-note">No streaks, no guilt. Missing days simply stay empty. ☁️</p>
       </section>
 
+
+      <section class="view" id="threadsView">
+        <div class="page-title-row">
+          <div>
+            <p class="eyebrow">Stories across time</p>
+            <h2>Memory Threads</h2>
+          </div>
+          <button class="round-add" id="newThreadButton" aria-label="Create memory thread">＋</button>
+        </div>
+        <p class="muted thread-intro">Connect memories that keep resurfacing, even across different seasons of your life.</p>
+        <div class="thread-grid" id="threadGrid"></div>
+      </section>
+
+      <section class="view" id="threadDetailView">
+        <button class="text-btn thread-back" id="threadDetailBack">← All threads</button>
+        <div class="thread-detail-hero" id="threadDetailHero"></div>
+        <div class="section-heading thread-detail-heading">
+          <div>
+            <p class="eyebrow">Across time</p>
+            <h3>Thread timeline</h3>
+          </div>
+        </div>
+        <div class="thread-timeline" id="threadTimeline"></div>
+      </section>
+
       <section class="view" id="entriesView">
         <div class="page-title-row">
           <div>
@@ -197,6 +240,14 @@
 
           <input id="entryTitle" class="title-input" maxlength="100" placeholder="Title your day…" required />
           <textarea id="entryBody" rows="12" placeholder="Write anything. This space is yours…" required></textarea>
+
+
+          <div class="editor-section">
+            <label>Memory Threads</label>
+            <div class="entry-thread-picker" id="entryThreadPicker"></div>
+            <button class="thread-inline-add" id="editorNewThreadButton" type="button">＋ Create a new thread</button>
+            <small>One memory can belong to several ongoing stories.</small>
+          </div>
 
           <div class="editor-section photo-section">
             <div class="photo-section-heading">
@@ -288,6 +339,28 @@
     </nav>
   </div>
 
+
+
+  <div class="thread-modal hidden" id="threadModal" role="dialog" aria-modal="true" aria-labelledby="threadModalTitle">
+    <form class="thread-sheet" id="threadForm">
+      <div class="thread-sheet-top">
+        <button class="text-btn" id="cancelThreadButton" type="button">Cancel</button>
+        <strong id="threadModalTitle">New Memory Thread</strong>
+        <button class="text-btn strong" type="submit">Save</button>
+      </div>
+      <div class="thread-emoji-preview" id="threadEmojiPreview">🧵</div>
+      <label>Emoji or icon
+        <input id="threadEmojiInput" maxlength="8" placeholder="🧵" />
+      </label>
+      <label>Thread name
+        <input id="threadTitleInput" maxlength="60" required placeholder="Learning Japanese" />
+      </label>
+      <label>What connects these memories?
+        <textarea id="threadDescriptionInput" rows="4" maxlength="240" placeholder="A story that keeps showing up in my life..."></textarea>
+      </label>
+      <button class="danger-btn hidden" id="deleteThreadButton" type="button">Delete thread</button>
+    </form>
+  </div>
 
   <div class="mood-checkin-modal hidden" id="moodCheckinModal" role="dialog" aria-modal="true" aria-labelledby="moodCheckinTitle">
     <div class="mood-checkin-sheet">

@@ -1,7 +1,7 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
@@ -14,6 +14,7 @@ const defaultState = {
   tinyJoys: [],
   letters: [],
   moodCheckins: [],
+  threads: [],
   selectedMood: "good",
   theme: "pink"
 };
@@ -23,6 +24,8 @@ let currentView = "home";
 let editorMedia = [];
 let removedMediaIds = new Set();
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let editingThreadId = null;
+let activeThreadId = null;
 
 // Diary content belongs in IndexedDB. Only these two tiny UI preferences remain
 // in localStorage so the content database and display preferences stay separate.
@@ -140,15 +143,16 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
-      this.getAll("moodCheckins")
+      this.getAll("moodCheckins"),
+      this.getAll("threads")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins };
+    return { entries, tinyJoys, letters, moodCheckins, threads };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -161,11 +165,29 @@ const diaryRepository = {
     const moodStore = transaction.objectStore("moodCheckins");
     moodStore.clear();
     (data.moodCheckins || []).forEach(record => moodStore.put(record));
+    const threadStore = transaction.objectStore("threads");
+    threadStore.clear();
+    (data.threads || []).forEach(record => threadStore.put(record));
+    await transactionDone(transaction);
+  },
+
+  async deleteThreadAndUnlink(threadId) {
+    const transaction = this.db.transaction(["threads", "entries"], "readwrite");
+    transaction.objectStore("threads").delete(threadId);
+    const entryStore = transaction.objectStore("entries");
+    const entries = await requestToPromise(entryStore.getAll());
+    entries.forEach(entry => {
+      if (Array.isArray(entry.threadIds) && entry.threadIds.includes(threadId)) {
+        entry.threadIds = entry.threadIds.filter(id => id !== threadId);
+        entry.updatedAt = Date.now();
+        entryStore.put(entry);
+      }
+    });
     await transactionDone(transaction);
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -431,6 +453,21 @@ function dataUrlToBlob(dataUrl) {
 }
 
 
+
+function validateThreads(threads) {
+  if (threads === undefined) return [];
+  if (!Array.isArray(threads)) throw new Error("threads must be an array");
+  const ids = new Set();
+  threads.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id || typeof record.title !== "string" || !record.title.trim()) {
+      throw new Error("threads contains an invalid record");
+    }
+    if (ids.has(record.id)) throw new Error("threads contains duplicate IDs");
+    ids.add(record.id);
+  });
+  return threads;
+}
+
 function validateMoodCheckins(checkins) {
   if (checkins === undefined) return [];
   if (!Array.isArray(checkins)) throw new Error("moodCheckins must be an array");
@@ -460,6 +497,216 @@ function validateMediaBackup(media) {
   return media;
 }
 
+
+
+function normalizeThreadIds(entry) {
+  return Array.isArray(entry.threadIds) ? entry.threadIds.filter(id => state.threads.some(thread => thread.id === id)) : [];
+}
+
+function threadEntryCount(threadId) {
+  return state.entries.filter(entry => normalizeThreadIds(entry).includes(threadId)).length;
+}
+
+function threadEntries(threadId) {
+  return state.entries
+    .filter(entry => normalizeThreadIds(entry).includes(threadId))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt);
+}
+
+function renderHomeThreads() {
+  const host = $("homeThreadPreview");
+  if (!host) return;
+  const threads = [...state.threads]
+    .sort((a, b) => threadEntryCount(b.id) - threadEntryCount(a.id) || b.updatedAt - a.updatedAt)
+    .slice(0, 3);
+  if (!threads.length) {
+    host.innerHTML = `<button class="thread-empty-preview" type="button" id="homeCreateThread">🧵 Start a thread for a story that keeps returning.</button>`;
+    $("homeCreateThread")?.addEventListener("click", () => openThreadModal());
+    return;
+  }
+  host.innerHTML = threads.map(thread => `
+    <button class="thread-preview-card" type="button" data-thread-open="${escapeHtml(thread.id)}">
+      <span>${escapeHtml(thread.emoji || "🧵")}</span>
+      <strong>${escapeHtml(thread.title)}</strong>
+      <small>${threadEntryCount(thread.id)} ${threadEntryCount(thread.id) === 1 ? "memory" : "memories"}</small>
+    </button>
+  `).join("");
+  host.querySelectorAll("[data-thread-open]").forEach(button => {
+    button.addEventListener("click", () => openThreadDetail(button.dataset.threadOpen));
+  });
+}
+
+function renderThreads() {
+  const grid = $("threadGrid");
+  if (!grid) return;
+  const threads = [...state.threads].sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!threads.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="thread-empty-icon">🧵</div><strong>No threads yet</strong><p>Threads connect memories that belong to the same ongoing story.</p><button class="secondary-btn" id="emptyNewThread" type="button">Create your first thread</button></div>`;
+    $("emptyNewThread")?.addEventListener("click", () => openThreadModal());
+    return;
+  }
+  grid.innerHTML = threads.map(thread => {
+    const entries = threadEntries(thread.id);
+    const range = entries.length ? `${formatDate(entries[0].date)}${entries.length > 1 ? ` → ${formatDate(entries[entries.length - 1].date)}` : ""}` : "Waiting for its first memory";
+    return `
+      <article class="thread-card">
+        <button class="thread-card-main" type="button" data-thread-open="${escapeHtml(thread.id)}">
+          <span class="thread-card-emoji">${escapeHtml(thread.emoji || "🧵")}</span>
+          <div>
+            <h3>${escapeHtml(thread.title)}</h3>
+            <p>${escapeHtml(thread.description || "An ongoing story in your life.")}</p>
+            <small>${entries.length} ${entries.length === 1 ? "memory" : "memories"} · ${escapeHtml(range)}</small>
+          </div>
+        </button>
+        <button class="thread-card-edit" type="button" data-thread-edit="${escapeHtml(thread.id)}" aria-label="Edit ${escapeHtml(thread.title)}">•••</button>
+      </article>`;
+  }).join("");
+  grid.querySelectorAll("[data-thread-open]").forEach(button => button.addEventListener("click", () => openThreadDetail(button.dataset.threadOpen)));
+  grid.querySelectorAll("[data-thread-edit]").forEach(button => button.addEventListener("click", () => openThreadModal(button.dataset.threadEdit)));
+}
+
+function renderEntryThreadPicker(selectedIds = null) {
+  const host = $("entryThreadPicker");
+  if (!host) return;
+  const current = selectedIds || (editingEntryId ? normalizeThreadIds(state.entries.find(entry => entry.id === editingEntryId) || {}) : []);
+  if (!state.threads.length) {
+    host.innerHTML = `<span class="muted thread-picker-empty">No threads yet.</span>`;
+    return;
+  }
+  host.innerHTML = state.threads.map(thread => `
+    <label class="thread-choice">
+      <input type="checkbox" value="${escapeHtml(thread.id)}" ${current.includes(thread.id) ? "checked" : ""}>
+      <span>${escapeHtml(thread.emoji || "🧵")} ${escapeHtml(thread.title)}</span>
+    </label>
+  `).join("");
+}
+
+function selectedEditorThreadIds() {
+  return [...document.querySelectorAll("#entryThreadPicker input:checked")].map(input => input.value);
+}
+
+function openThreadModal(threadId = null) {
+  editingThreadId = threadId;
+  const thread = state.threads.find(item => item.id === threadId);
+  $("threadModalTitle").textContent = thread ? "Edit Memory Thread" : "New Memory Thread";
+  $("threadEmojiInput").value = thread?.emoji || "🧵";
+  $("threadEmojiPreview").textContent = thread?.emoji || "🧵";
+  $("threadTitleInput").value = thread?.title || "";
+  $("threadDescriptionInput").value = thread?.description || "";
+  $("deleteThreadButton").classList.toggle("hidden", !thread);
+  $("threadModal").classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => $("threadTitleInput").focus(), 80);
+}
+
+function closeThreadModal() {
+  $("threadModal").classList.add("hidden");
+  document.body.style.overflow = "";
+  editingThreadId = null;
+}
+
+async function saveThreadFromForm(event) {
+  event.preventDefault();
+  const title = $("threadTitleInput").value.trim();
+  if (!title) return toast("Give this thread a name first.");
+  const existing = state.threads.find(item => item.id === editingThreadId);
+  const record = {
+    id: existing?.id || crypto.randomUUID(),
+    title,
+    emoji: $("threadEmojiInput").value.trim() || "🧵",
+    description: $("threadDescriptionInput").value.trim(),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  };
+  try {
+    await diaryRepository.save("threads", record);
+    const index = state.threads.findIndex(item => item.id === record.id);
+    if (index >= 0) state.threads[index] = record;
+    else state.threads.push(record);
+    closeThreadModal();
+    renderAll();
+    if (!$("editorView").classList.contains("active")) navigate("threads");
+    toast(existing ? "Memory Thread updated 🧵" : "Memory Thread created 🧵");
+  } catch (error) {
+    console.error("Could not save thread.", error);
+    toast("Fuwa couldn't save that thread.");
+  }
+}
+
+async function deleteCurrentThread() {
+  const thread = state.threads.find(item => item.id === editingThreadId);
+  if (!thread) return;
+  if (!confirm(`Delete "${thread.title}"? Your diary entries will stay safe.`)) return;
+  try {
+    await diaryRepository.deleteThreadAndUnlink(thread.id);
+    state.threads = state.threads.filter(item => item.id !== thread.id);
+    state.entries = state.entries.map(entry => ({
+      ...entry,
+      threadIds: Array.isArray(entry.threadIds) ? entry.threadIds.filter(id => id !== thread.id) : []
+    }));
+    if (activeThreadId === thread.id) activeThreadId = null;
+    closeThreadModal();
+    renderAll();
+    navigate("threads");
+    toast("Thread removed. Your memories are still here.");
+  } catch (error) {
+    console.error("Could not delete thread.", error);
+    toast("Fuwa couldn't delete that thread.");
+  }
+}
+
+function openThreadDetail(threadId) {
+  activeThreadId = threadId;
+  renderThreadDetail();
+  navigate("threadDetail");
+}
+
+function renderThreadDetail() {
+  const thread = state.threads.find(item => item.id === activeThreadId);
+  if (!thread) return;
+  const entries = threadEntries(thread.id);
+  const first = entries[0];
+  const latest = entries[entries.length - 1];
+  $("threadDetailHero").innerHTML = `
+    <div class="thread-detail-icon">${escapeHtml(thread.emoji || "🧵")}</div>
+    <div class="thread-detail-copy">
+      <p class="eyebrow">Memory Thread</p>
+      <h2>${escapeHtml(thread.title)}</h2>
+      <p>${escapeHtml(thread.description || "An ongoing story in your life.")}</p>
+      <div class="thread-detail-stats">
+        <span><strong>${entries.length}</strong> ${entries.length === 1 ? "memory" : "memories"}</span>
+        <span>${first ? `${escapeHtml(formatDate(first.date))}${latest && latest.id !== first.id ? ` → ${escapeHtml(formatDate(latest.date))}` : ""}` : "No dates yet"}</span>
+      </div>
+      <button class="text-btn" id="editActiveThread" type="button">Edit thread</button>
+    </div>`;
+  $("editActiveThread").addEventListener("click", () => openThreadModal(thread.id));
+
+  const timeline = $("threadTimeline");
+  if (!entries.length) {
+    timeline.innerHTML = `<div class="empty-state">This thread is waiting for its first memory. Add it from any diary entry.</div>`;
+    return;
+  }
+  timeline.innerHTML = entries.map(entry => `
+    <article class="thread-timeline-item">
+      <div class="thread-timeline-dot">${moodEmoji[entry.mood] || "☁️"}</div>
+      <div class="thread-timeline-line"></div>
+      <button class="thread-timeline-card" type="button" data-entry="${escapeHtml(entry.id)}">
+        <time>${escapeHtml(formatDate(entry.date))}</time>
+        <strong>${escapeHtml(entry.title || "Untitled memory")}</strong>
+        <p>${escapeHtml((entry.body || "").slice(0, 120))}${(entry.body || "").length > 120 ? "…" : ""}</p>
+      </button>
+    </article>
+  `).join("");
+  timeline.querySelectorAll("[data-entry]").forEach(button => button.addEventListener("click", () => openEditor(button.dataset.entry)));
+}
+
+function threadChipsForEntry(entry) {
+  const ids = normalizeThreadIds(entry);
+  return ids.map(id => {
+    const thread = state.threads.find(item => item.id === id);
+    return thread ? `<span class="tag thread-tag">${escapeHtml(thread.emoji || "🧵")} ${escapeHtml(thread.title)}</span>` : "";
+  }).join("");
+}
 
 const moodLabels = {
   amazing: "Amazing",
@@ -817,6 +1064,9 @@ function renderAll() {
   renderMoodPicker();
   renderHomeMoodJar();
   renderMoodJarView();
+  renderHomeThreads();
+  renderThreads();
+  if (activeThreadId) renderThreadDetail();
   renderCalendar();
   renderRecentEntries();
   renderEntries($("entrySearch")?.value || "");
@@ -1013,7 +1263,7 @@ async function exportBackup() {
 
     const payload = {
       app: "Fuwa",
-      version: 3,
+      version: 4,
       exportedAt: new Date().toISOString(),
       data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme }
     };
@@ -1041,6 +1291,7 @@ function importBackup(file) {
       const incoming = parsed.data || parsed;
       validateContentData(incoming);
       incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
+      incoming.threads = validateThreads(incoming.threads);
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -1059,6 +1310,7 @@ function importBackup(file) {
         tinyJoys: incoming.tinyJoys,
         letters: incoming.letters,
         moodCheckins: Array.isArray(incoming.moodCheckins) ? incoming.moodCheckins : [],
+        threads: Array.isArray(incoming.threads) ? incoming.threads : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme
       };
@@ -1114,6 +1366,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
+
+
+  $("openThreadsButton").addEventListener("click", () => navigate("threads"));
+  $("newThreadButton").addEventListener("click", () => openThreadModal());
+  $("editorNewThreadButton").addEventListener("click", () => openThreadModal());
+  $("threadDetailBack").addEventListener("click", () => navigate("threads"));
+  $("threadForm").addEventListener("submit", saveThreadFromForm);
+  $("cancelThreadButton").addEventListener("click", closeThreadModal);
+  $("deleteThreadButton").addEventListener("click", deleteCurrentThread);
+  $("threadEmojiInput").addEventListener("input", () => {
+    $("threadEmojiPreview").textContent = $("threadEmojiInput").value.trim() || "🧵";
+  });
+  $("threadModal").addEventListener("click", event => {
+    if (event.target === $("threadModal")) closeThreadModal();
+  });
 
   $("openMoodJarButton").addEventListener("click", () => {
     moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
