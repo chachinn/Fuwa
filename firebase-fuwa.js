@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication — V25
+// Fuwa Firebase Authentication + Firestore Connection Check — V26
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -15,9 +15,12 @@ const FIREBASE_VERSION = "12.16.0";
 const $auth = id => document.getElementById(id);
 
 let authApi = null;
+let firestoreApi = null;
 let auth = null;
+let firestore = null;
 let authMode = "login";
 let authReady = false;
+let firestoreCheckPromise = null;
 
 function setAuthBusy(busy) {
   ["loginButton", "signupButton", "forgotPasswordButton", "authSwitchButton", "googleSignInButton"].forEach(id => {
@@ -131,16 +134,83 @@ function revealSignedIn(user) {
   }));
 }
 
+
+function setCloudConnectionStatus(message, kind = "neutral") {
+  const status = $auth("firebaseCloudConnectionStatus");
+  if (!status) return;
+
+  status.textContent = message;
+  status.dataset.status = kind;
+}
+
+async function verifyFirestoreConnection(user) {
+  if (!user?.uid || !firestore || !firestoreApi) return false;
+
+  if (firestoreCheckPromise) return firestoreCheckPromise;
+
+  firestoreCheckPromise = (async () => {
+    setCloudConnectionStatus("Checking Firestore…", "checking");
+
+    const testRef = firestoreApi.doc(
+      firestore,
+      "users",
+      user.uid,
+      "system",
+      "connection-test"
+    );
+
+    const testPayload = {
+      purpose: "fuwa-firestore-connection-test",
+      uid: user.uid,
+      checkedAt: firestoreApi.serverTimestamp()
+    };
+
+    try {
+      await firestoreApi.setDoc(testRef, testPayload);
+      const snapshot = await firestoreApi.getDoc(testRef);
+
+      if (!snapshot.exists()) {
+        throw new Error("Firestore test document could not be read back.");
+      }
+
+      await firestoreApi.deleteDoc(testRef);
+      setCloudConnectionStatus("Connected ✓", "success");
+
+      window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
+        detail: { uid: user.uid, connected: true }
+      }));
+
+      return true;
+    } catch (error) {
+      console.error("Fuwa Firestore connection check failed.", error);
+      setCloudConnectionStatus("Connection failed", "error");
+
+      window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
+        detail: { uid: user.uid, connected: false, code: error?.code || null }
+      }));
+
+      return false;
+    } finally {
+      firestoreCheckPromise = null;
+    }
+  })();
+
+  return firestoreCheckPromise;
+}
+
 async function initializeFirebaseAuth() {
   try {
-    const [appModule, authModule] = await Promise.all([
+    const [appModule, authModule, firestoreModule] = await Promise.all([
       import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`),
-      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`)
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`)
     ]);
 
     const firebaseApp = appModule.initializeApp(firebaseConfig);
     auth = authModule.getAuth(firebaseApp);
+    firestore = firestoreModule.getFirestore(firebaseApp);
     authApi = authModule;
+    firestoreApi = firestoreModule;
 
     // Be explicit: keep the user signed in across Safari/PWA reopenings.
     await authModule.setPersistence(auth, authModule.browserLocalPersistence);
@@ -152,7 +222,9 @@ async function initializeFirebaseAuth() {
 
       if (user) {
         revealSignedIn(user);
+        verifyFirestoreConnection(user);
       } else {
+        setCloudConnectionStatus("Sign in to connect", "neutral");
         setAuthMode("login");
         revealSignedOut();
       }
@@ -164,6 +236,7 @@ async function initializeFirebaseAuth() {
   } catch (error) {
     console.error("Firebase Authentication could not initialize.", error);
     authReady = false;
+    setCloudConnectionStatus("Unavailable", "error");
     revealSignedOut();
     showAuthMessage("Fuwa couldn't reach its login service. Check your internet connection and reload.");
   }
