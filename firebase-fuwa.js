@@ -1,4 +1,4 @@
-// Fuwa Firebase Authentication + Firestore Cloud Backup — V27
+// Fuwa Firebase Authentication + Firestore Backup/Restore — V28
 // Authentication only. Diary content remains in local IndexedDB.
 
 const firebaseConfig = {
@@ -500,6 +500,110 @@ async function handleCloudBackupRequest(event) {
   }
 }
 
+
+function closeCloudRestoreModal() {
+  $auth("cloudRestoreModal")?.classList.add("hidden");
+}
+
+async function getVerifiedCloudBackup(user = auth?.currentUser) {
+  if (!user?.uid || !firestore || !firestoreApi) {
+    throw new Error("cloud-not-ready");
+  }
+
+  const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
+  const snapshot = await firestoreApi.getDoc(backupRef);
+  if (!snapshot.exists()) throw new Error("no-cloud-backup");
+
+  const backup = snapshot.data();
+  if (
+    backup?.ownerUid !== user.uid
+    || backup?.app !== "Fuwa"
+    || backup?.backupFormat !== "fuwa-cloud-v1"
+    || !backup?.data
+  ) {
+    throw new Error("invalid-cloud-backup");
+  }
+
+  return backup;
+}
+
+async function openCloudRestoreModal() {
+  const modal = $auth("cloudRestoreModal");
+  if (!modal) return;
+
+  modal.classList.remove("hidden");
+  if ($auth("cloudRestoreSummary")) $auth("cloudRestoreSummary").textContent = "Checking your cloud backup…";
+  if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = "Checking…";
+  if ($auth("cloudRestoreRecords")) $auth("cloudRestoreRecords").textContent = "Checking…";
+  if ($auth("cloudRestoreConfirmButton")) $auth("cloudRestoreConfirmButton").disabled = true;
+
+  try {
+    const backup = await getVerifiedCloudBackup();
+    modal.dataset.backupId = backup.backupId || "";
+    if ($auth("cloudRestoreSummary")) {
+      $auth("cloudRestoreSummary").textContent = "Fuwa found a valid backup for this signed-in account.";
+    }
+    if ($auth("cloudRestoreDate")) {
+      $auth("cloudRestoreDate").textContent = formatCloudBackupTime(backup.backedUpAt || backup.backedUpAtClient);
+    }
+    if ($auth("cloudRestoreRecords")) {
+      const count = Number(backup.recordCount || 0);
+      $auth("cloudRestoreRecords").textContent = `${count} record${count === 1 ? "" : "s"}`;
+    }
+    if ($auth("cloudRestoreConfirmButton")) $auth("cloudRestoreConfirmButton").disabled = false;
+  } catch (error) {
+    console.error("Fuwa could not prepare cloud restore.", error);
+    const noBackup = error?.message === "no-cloud-backup";
+    if ($auth("cloudRestoreSummary")) {
+      $auth("cloudRestoreSummary").textContent = noBackup
+        ? "There isn't a Fuwa cloud backup for this account yet."
+        : "Fuwa couldn't verify this cloud backup. Nothing on your device was changed.";
+    }
+    if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = "Unavailable";
+    if ($auth("cloudRestoreRecords")) $auth("cloudRestoreRecords").textContent = "—";
+  }
+}
+
+async function handleCloudRestoreConfirm() {
+  const button = $auth("cloudRestoreConfirmButton");
+  const cancel = $auth("cloudRestoreCancelButton");
+  if (button?.disabled) return;
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Protecting this device…";
+  }
+  if (cancel) cancel.disabled = true;
+
+  try {
+    // Re-read immediately before restore instead of trusting stale modal data.
+    const backup = await getVerifiedCloudBackup();
+
+    if (typeof window.fuwaCreateRestoreSafetyBackup !== "function"
+      || typeof window.fuwaApplyCloudRestorePayload !== "function") {
+      throw new Error("restore-engine-not-ready");
+    }
+
+    await window.fuwaCreateRestoreSafetyBackup();
+
+    if (button) button.textContent = "Restoring safely…";
+
+    await window.fuwaApplyCloudRestorePayload(backup);
+
+    closeCloudRestoreModal();
+    window.alert("Fuwa was restored from your cloud backup. Your pre-restore local safety backup was downloaded too. ☁️");
+    window.location.reload();
+  } catch (error) {
+    console.error("Fuwa cloud restore failed.", error);
+    window.alert("Fuwa couldn't complete the restore. Your existing device data was kept as safely as possible. Please don't clear Fuwa data.");
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Restore safely";
+    }
+    if (cancel) cancel.disabled = false;
+  }
+}
+
 async function handleSignOut() {
   if (!auth || !authApi) return;
 
@@ -522,6 +626,12 @@ function bindAuthUI() {
   $auth("firebaseSignOutButton")?.addEventListener("click", handleSignOut);
   $auth("firebaseProfileSignOutButton")?.addEventListener("click", handleSignOut);
   $auth("cloudBackupNowButton")?.addEventListener("click", handleCloudBackupRequest);
+  $auth("cloudRestoreButton")?.addEventListener("click", openCloudRestoreModal);
+  $auth("cloudRestoreCancelButton")?.addEventListener("click", closeCloudRestoreModal);
+  $auth("cloudRestoreConfirmButton")?.addEventListener("click", handleCloudRestoreConfirm);
+  $auth("cloudRestoreModal")?.addEventListener("click", event => {
+    if (event.target === $auth("cloudRestoreModal")) closeCloudRestoreModal();
+  });
 
   $auth("authSwitchButton")?.addEventListener("click", () => {
     setAuthMode(authMode === "login" ? "signup" : "login");

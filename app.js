@@ -4012,43 +4012,126 @@ async function createCloudBackupPayload() {
 
 window.fuwaCreateCloudBackupPayload = createCloudBackupPayload;
 
-async function exportBackup() {
-  try {
-    const currentData = await diaryRepository.readCurrentData();
-    const mediaRecords = await diaryRepository.readAllMedia();
-    const media = [];
 
-    for (const record of mediaRecords) {
-      media.push({
-        id: record.id,
-        entryId: record.entryId,
-        type: record.type || record.blob?.type || "image/jpeg",
-        width: record.width || null,
-        height: record.height || null,
-        originalName: record.originalName || "photo",
-        createdAt: record.createdAt || Date.now(),
-        dataUrl: await blobToDataUrl(record.blob)
-      });
-    }
+async function createFullLocalBackupPayload() {
+  const currentData = await diaryRepository.readCurrentData();
+  const mediaRecords = await diaryRepository.readAllMedia();
+  const media = [];
 
-    const payload = {
-      app: "Fuwa",
-      version: 7,
-      exportedAt: new Date().toISOString(),
-      data: { ...currentData, media, selectedMood: state.selectedMood, theme: state.theme, wallpaperEnabled: state.wallpaperEnabled, wallpaperOverlay: state.wallpaperOverlay, sleepSound: state.sleepSound, sleepMinutes: state.sleepMinutes, sleepVolume: state.sleepVolume,
+  for (const record of mediaRecords) {
+    media.push({
+      id: record.id,
+      entryId: record.entryId,
+      type: record.type || record.blob?.type || "image/jpeg",
+      width: record.width || null,
+      height: record.height || null,
+      originalName: record.originalName || "photo",
+      createdAt: record.createdAt || Date.now(),
+      dataUrl: await blobToDataUrl(record.blob)
+    });
+  }
+
+  return {
+    app: "Fuwa",
+    version: DATABASE_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      ...currentData,
+      media,
+      selectedMood: state.selectedMood,
+      theme: state.theme,
+      wallpaperEnabled: state.wallpaperEnabled,
+      wallpaperOverlay: state.wallpaperOverlay,
+      sleepSound: state.sleepSound,
+      sleepMinutes: state.sleepMinutes,
+      sleepVolume: state.sleepVolume,
       privacyLockEnabled: state.privacyLockEnabled,
       privacyAutoLockMinutes: state.privacyAutoLockMinutes,
       privacyLockOnReopen: state.privacyLockOnReopen,
-      biometricEnabled: false }
-    };
+      biometricEnabled: false
+    }
+  };
+}
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `fuwa-backup-${isoToday()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+function downloadBackupPayload(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function createRestoreSafetyBackup() {
+  const payload = await createFullLocalBackupPayload();
+  downloadBackupPayload(payload, `fuwa-before-cloud-restore-${isoToday()}.json`);
+  return payload;
+}
+
+async function applyCloudRestorePayload(payload) {
+  if (!payload || payload.app !== "Fuwa" || payload.backupFormat !== "fuwa-cloud-v1" || !payload.data) {
+    throw new Error("invalid-cloud-backup");
+  }
+
+  const incoming = structuredClone(payload.data);
+  validateContentData(incoming);
+  incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
+  incoming.threads = validateThreads(incoming.threads);
+  incoming.bookmarks = validateBookmarks(incoming.bookmarks);
+  incoming.nightlyReflections = validateNightlyReflections(incoming.nightlyReflections);
+  incoming.thenNow = validateSimpleStore(incoming.thenNow, "thenNow");
+  incoming.comfortItems = validateSimpleStore(incoming.comfortItems, "comfortItems");
+  incoming.unsentLetters = validateSimpleStore(incoming.unsentLetters, "unsentLetters");
+  incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
+  incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
+
+  // Cloud Backup v1 deliberately contains no media. Preserve every photo/blob
+  // already on this device while replacing the structured journal stores.
+  const existingMedia = await diaryRepository.readAllMedia();
+
+  await diaryRepository.replaceContent(incoming, existingMedia);
+
+  state = {
+    ...structuredClone(defaultState),
+    entries: incoming.entries,
+    tinyJoys: incoming.tinyJoys,
+    letters: incoming.letters,
+    moodCheckins: Array.isArray(incoming.moodCheckins) ? incoming.moodCheckins : [],
+    threads: Array.isArray(incoming.threads) ? incoming.threads : [],
+    bookmarks: Array.isArray(incoming.bookmarks) ? incoming.bookmarks : [],
+    nightlyReflections: Array.isArray(incoming.nightlyReflections) ? incoming.nightlyReflections : [],
+    thenNow: Array.isArray(incoming.thenNow) ? incoming.thenNow : [],
+    comfortItems: Array.isArray(incoming.comfortItems) ? incoming.comfortItems : [],
+    unsentLetters: Array.isArray(incoming.unsentLetters) ? incoming.unsentLetters : [],
+    thoughtBubbles: Array.isArray(incoming.thoughtBubbles) ? incoming.thoughtBubbles : [],
+    dreams: Array.isArray(incoming.dreams) ? incoming.dreams : [],
+    selectedMood: incoming.selectedMood || defaultState.selectedMood,
+    theme: incoming.theme || defaultState.theme,
+    wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
+    wallpaperOverlay: Number.isFinite(Number(incoming.wallpaperOverlay)) ? Number(incoming.wallpaperOverlay) : defaultState.wallpaperOverlay,
+    sleepSound: incoming.sleepSound || defaultState.sleepSound,
+    sleepMinutes: Number(incoming.sleepMinutes) || defaultState.sleepMinutes,
+    sleepVolume: Number.isFinite(Number(incoming.sleepVolume)) ? Number(incoming.sleepVolume) : defaultState.sleepVolume,
+    privacyLockEnabled: Boolean(incoming.privacyLockEnabled),
+    privacyAutoLockMinutes: Number(incoming.privacyAutoLockMinutes) || defaultState.privacyAutoLockMinutes,
+    privacyLockOnReopen: Boolean(incoming.privacyLockOnReopen),
+    biometricEnabled: false
+  };
+
+  saveState();
+  await loadStateFromRepository();
+  renderAll();
+  return true;
+}
+
+window.fuwaCreateRestoreSafetyBackup = createRestoreSafetyBackup;
+window.fuwaApplyCloudRestorePayload = applyCloudRestorePayload;
+
+async function exportBackup() {
+  try {
+    const payload = await createFullLocalBackupPayload();
+    downloadBackupPayload(payload, `fuwa-backup-${isoToday()}.json`);
   } catch (error) {
     console.error("Could not create Fuwa backup.", error);
     toast("Fuwa couldn't create a backup. Please try again.");

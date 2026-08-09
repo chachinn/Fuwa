@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v27-cloud-backup-v1 -->
+  <!-- FUWA_BUILD: v28-cloud-restore-v1 -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1002,7 +1002,8 @@
             <strong id="cloudBackupRecordCount">Not backed up yet</strong>
           </div>
           <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
-          <small class="cloud-backup-footnote">This does not delete or replace anything on your device. Restore will be added only after this backup is verified.</small>
+          <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>
+          <small class="cloud-backup-footnote">Cloud restore validates the backup before changing local records. Photos remain local-only for now.</small>
         </div>
 
         <div class="stats-grid" id="statsGrid">
@@ -1037,6 +1038,27 @@
 
 
 
+
+  <div class="cloud-restore-modal hidden" id="cloudRestoreModal" role="dialog" aria-modal="true" aria-labelledby="cloudRestoreTitle">
+    <div class="cloud-restore-sheet">
+      <div class="cloud-restore-icon" aria-hidden="true"><span></span></div>
+      <p class="eyebrow">Fuwa Cloud</p>
+      <h2 id="cloudRestoreTitle">Restore your Fuwa?</h2>
+      <p class="muted" id="cloudRestoreSummary">Checking your cloud backup…</p>
+      <div class="cloud-restore-details">
+        <div><span>Cloud backup</span><strong id="cloudRestoreDate">Checking…</strong></div>
+        <div><span>Records</span><strong id="cloudRestoreRecords">Checking…</strong></div>
+      </div>
+      <div class="cloud-restore-warning">
+        <strong>Your current device data will be protected first.</strong>
+        <small>Fuwa creates a downloadable local safety backup before replacing local journal records. Photos on this device are not deleted.</small>
+      </div>
+      <div class="cloud-restore-actions">
+        <button class="secondary-btn" id="cloudRestoreCancelButton" type="button">Cancel</button>
+        <button class="primary-btn" id="cloudRestoreConfirmButton" type="button">Restore safely</button>
+      </div>
+    </div>
+  </div>
 
   <div class="privacy-pin-modal hidden" id="privacyPinModal" role="dialog" aria-modal="true" aria-labelledby="privacyPinTitle">
     <form class="privacy-pin-sheet" id="privacyPinForm">
