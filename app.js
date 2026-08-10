@@ -1,13 +1,13 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 11;
+const DATABASE_VERSION = 12;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "settings"];
-const LOCAL_ONLY_STORES = new Set(["media", "journalCanvases", "stickerAssets", "settings"]);
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos", "settings"];
+const LOCAL_ONLY_STORES = new Set(["media", "journalCanvases", "stickerAssets", "scrapbookPhotos", "settings"]);
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -45,7 +45,10 @@ let state = structuredClone(defaultState);
 let currentView = "home";
 let editorMedia = [];
 let removedMediaIds = new Set();
+let activeJournalCanvasId = null;
 let activeJournalCanvasEntryId = null;
+let journalCanvasReturnView = "scrapbook";
+let journalCanvasSaveTimer = null;
 let journalCanvasState = null;
 let selectedJournalCanvasItemId = null;
 let journalCanvasAssetUrls = new Map();
@@ -387,6 +390,11 @@ const diaryRepository = {
       if (!canvasStore.indexNames.contains("entryId")) {
         canvasStore.createIndex("entryId", "entryId", { unique: true });
       }
+
+      const scrapbookPhotoStore = request.transaction.objectStore("scrapbookPhotos");
+      if (!scrapbookPhotoStore.indexNames.contains("scrapbookId")) {
+        scrapbookPhotoStore.createIndex("scrapbookId", "scrapbookId", { unique: false });
+      }
     };
     this.db = await requestResult(request);
   },
@@ -431,6 +439,33 @@ const diaryRepository = {
     return this.getAll("media");
   },
 
+  async getScrapbookPhotos(scrapbookId) {
+    const transaction = this.db.transaction("scrapbookPhotos", "readonly");
+    const store = transaction.objectStore("scrapbookPhotos");
+    if (store.indexNames.contains("scrapbookId")) {
+      return requestResult(store.index("scrapbookId").getAll(scrapbookId));
+    }
+    const all = await requestResult(store.getAll());
+    return all.filter(record => record.scrapbookId === scrapbookId);
+  },
+
+  async saveScrapbookPhotos(records) {
+    if (!records?.length) return;
+    const transaction = this.db.transaction("scrapbookPhotos", "readwrite");
+    const store = transaction.objectStore("scrapbookPhotos");
+    records.forEach(record => store.put(record));
+    await transactionDone(transaction);
+  },
+
+  async deleteScrapbookPage(scrapbookId) {
+    const photos = await this.getScrapbookPhotos(scrapbookId);
+    const transaction = this.db.transaction(["journalCanvases", "scrapbookPhotos"], "readwrite");
+    transaction.objectStore("journalCanvases").delete(scrapbookId);
+    const photoStore = transaction.objectStore("scrapbookPhotos");
+    photos.forEach(record => photoStore.delete(record.id));
+    await transactionDone(transaction);
+  },
+
   async getBookmarksForEntry(entryId) {
     const transaction = this.db.transaction("bookmarks", "readonly");
     const store = transaction.objectStore("bookmarks");
@@ -452,13 +487,50 @@ const diaryRepository = {
   },
 
   async deleteEntryWithMedia(entryId) {
-    const [mediaRecords, bookmarkRecords] = await Promise.all([
+    const [mediaRecords, bookmarkRecords, linkedCanvas] = await Promise.all([
       this.getMediaForEntry(entryId),
-      this.getBookmarksForEntry(entryId)
+      this.getBookmarksForEntry(entryId),
+      this.get("journalCanvases", entryId)
     ]);
-    const transaction = this.db.transaction(["entries", "media", "bookmarks", "journalCanvases"], "readwrite");
+
+    // Scrapbook pages are independent now. If an older page was linked to this
+    // entry, preserve the page and copy only the photos it actually uses into
+    // scrapbook-local storage before the entry media is removed.
+    const migratedScrapbookPhotos = [];
+    let preservedCanvas = null;
+    if (linkedCanvas) {
+      const mediaById = new Map(mediaRecords.map(record => [record.id, record]));
+      const migratedItems = (linkedCanvas.items || []).map(item => {
+        if (item.type !== "photo" || (item.mediaSource && item.mediaSource !== "entry")) return item;
+        const source = mediaById.get(item.mediaId);
+        if (!source?.blob) return item;
+        const newId = uid("scrapphoto");
+        migratedScrapbookPhotos.push({
+          id: newId,
+          scrapbookId: linkedCanvas.id,
+          blob: source.blob,
+          type: source.type || source.blob.type || "image/jpeg",
+          width: source.width || 0,
+          height: source.height || 0,
+          originalName: source.originalName || "Scrapbook photo",
+          createdAt: source.createdAt || Date.now()
+        });
+        return { ...item, mediaId: newId, mediaSource: "scrapbook" };
+      });
+      const { entryId: _removedEntryId, ...rest } = linkedCanvas;
+      preservedCanvas = {
+        ...rest,
+        title: linkedCanvas.title || "Scrapbook page",
+        items: migratedItems,
+        updatedAt: Date.now()
+      };
+    }
+
+    const transaction = this.db.transaction(["entries", "media", "bookmarks", "journalCanvases", "scrapbookPhotos"], "readwrite");
     transaction.objectStore("entries").delete(entryId);
-    transaction.objectStore("journalCanvases").delete(entryId);
+    if (preservedCanvas) transaction.objectStore("journalCanvases").put(preservedCanvas);
+    const scrapbookPhotoStore = transaction.objectStore("scrapbookPhotos");
+    migratedScrapbookPhotos.forEach(record => scrapbookPhotoStore.put(record));
     const mediaStore = transaction.objectStore("media");
     mediaRecords.forEach(record => mediaStore.delete(record.id));
     const bookmarkStore = transaction.objectStore("bookmarks");
@@ -488,8 +560,9 @@ const diaryRepository = {
     return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments, randomThoughts };
   },
 
-  async replaceContent(data, mediaRecords = []) {
+  async replaceContent(data, mediaRecords = [], localScrapbookData = null) {
     const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"];
+    if (localScrapbookData) stores.push("journalCanvases", "stickerAssets", "scrapbookPhotos");
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -518,6 +591,18 @@ const diaryRepository = {
       (data[storeName] || []).forEach(record => store.put(record));
     });
 
+    if (localScrapbookData) {
+      const canvasStore = transaction.objectStore("journalCanvases");
+      canvasStore.clear();
+      (localScrapbookData.journalCanvases || []).forEach(record => canvasStore.put(record));
+      const stickerStore = transaction.objectStore("stickerAssets");
+      stickerStore.clear();
+      (localScrapbookData.stickerAssets || []).forEach(record => stickerStore.put(record));
+      const scrapbookPhotoStore = transaction.objectStore("scrapbookPhotos");
+      scrapbookPhotoStore.clear();
+      (localScrapbookData.scrapbookPhotos || []).forEach(record => scrapbookPhotoStore.put(record));
+    }
+
     await transactionDone(transaction);
   },
 
@@ -538,7 +623,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -987,6 +1072,20 @@ function validateMediaBackup(media) {
     if (typeof record.dataUrl !== "string") throw new Error("media record is missing photo data");
   });
   return media;
+}
+
+
+function validateScrapbookBackupArray(value, name, { withDataUrl = false } = {}) {
+  if (value === undefined) return null;
+  if (!Array.isArray(value)) throw new Error(`${name} must be an array`);
+  const ids = new Set();
+  value.forEach(record => {
+    if (!record || typeof record.id !== "string" || !record.id) throw new Error(`${name} contains an invalid record`);
+    if (ids.has(record.id)) throw new Error(`${name} contains duplicate IDs`);
+    ids.add(record.id);
+    if (withDataUrl && typeof record.dataUrl !== "string") throw new Error(`${name} record is missing image data`);
+  });
+  return value;
 }
 
 
@@ -4747,6 +4846,7 @@ function renderViewOnDemand(view = currentView) {
   }
   if (view === "me") return renderRecentEntries();
   if (view === "entries") return renderEntries($("entrySearch")?.value || "");
+  if (view === "scrapbook") return renderScrapbookLibrary();
   if (view === "thoughts") { renderTinyJoyHistory(); return renderRandomThoughtHistory(); }
   if (view === "letters") return renderLetters();
   if (view === "threads") return renderThreads();
@@ -4837,15 +4937,29 @@ const FUWA_JOURNAL_DECOR = [
 
 let journalPaletteLoaded = { mine: false, photos: false };
 
-function defaultJournalCanvas(entryId) {
-  return {
-    id: entryId,
-    entryId,
+function queueJournalCanvasSave() {
+  if (!journalCanvasState || !activeJournalCanvasId) return;
+  clearTimeout(journalCanvasSaveTimer);
+  journalCanvasSaveTimer = setTimeout(() => {
+    journalCanvasSaveTimer = null;
+    saveJournalCanvas({ quiet: true }).catch(error => console.error("Could not auto-save scrapbook page.", error));
+  }, 700);
+}
+
+function defaultJournalCanvas({ id = uid("scrapbook"), entryId = null, title = "Untitled page", date = isoToday() } = {}) {
+  const record = {
+    id,
+    title: title || "Untitled page",
+    date: date || isoToday(),
     background: "blush",
     items: [],
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
+  // Omit entryId entirely for standalone pages so the legacy unique IndexedDB
+  // index never treats multiple standalone pages as the same linked page.
+  if (entryId) record.entryId = entryId;
+  return record;
 }
 
 function cleanupJournalCanvasUrls() {
@@ -4857,21 +4971,32 @@ function cleanupJournalCanvasUrls() {
 
 async function loadJournalCanvasReferencedUrls() {
   cleanupJournalCanvasUrls();
-  const customIds = [...new Set((journalCanvasState?.items || []).filter(item => item.type === "custom" && item.assetId).map(item => item.assetId))];
-  const mediaIds = [...new Set((journalCanvasState?.items || []).filter(item => item.type === "photo" && item.mediaId).map(item => item.mediaId))];
+  const items = journalCanvasState?.items || [];
+  const customIds = [...new Set(items.filter(item => item.type === "custom" && item.assetId).map(item => item.assetId))];
+  const entryMediaIds = [...new Set(items.filter(item => item.type === "photo" && item.mediaId && item.mediaSource !== "scrapbook").map(item => item.mediaId))];
+  const scrapbookMediaIds = [...new Set(items.filter(item => item.type === "photo" && item.mediaId && item.mediaSource === "scrapbook").map(item => item.mediaId))];
 
-  const [assets, media] = await Promise.all([
+  const [assets, entryMedia, scrapbookMedia] = await Promise.all([
     Promise.all(customIds.map(id => diaryRepository.get("stickerAssets", id))),
-    Promise.all(mediaIds.map(id => diaryRepository.get("media", id)))
+    Promise.all(entryMediaIds.map(id => diaryRepository.get("media", id))),
+    Promise.all(scrapbookMediaIds.map(id => diaryRepository.get("scrapbookPhotos", id)))
   ]);
 
   assets.filter(Boolean).forEach(asset => {
     if (asset?.blob) journalCanvasAssetUrls.set(asset.id, URL.createObjectURL(asset.blob));
   });
-  media.filter(Boolean).forEach(record => {
-    if (record?.blob) journalCanvasMediaUrls.set(record.id, URL.createObjectURL(record.blob));
+  entryMedia.filter(Boolean).forEach(record => {
+    if (record?.blob) journalCanvasMediaUrls.set(`entry:${record.id}`, URL.createObjectURL(record.blob));
+  });
+  scrapbookMedia.filter(Boolean).forEach(record => {
+    if (record?.blob) journalCanvasMediaUrls.set(`scrapbook:${record.id}`, URL.createObjectURL(record.blob));
   });
 }
+
+function journalPhotoUrlKey(item) {
+  return `${item?.mediaSource === "scrapbook" ? "scrapbook" : "entry"}:${item?.mediaId || ""}`;
+}
+
 
 function journalCanvasItemMarkup(item) {
   const style = `left:${Math.max(0, Math.min(1, Number(item.x ?? .5))) * 100}%;top:${Math.max(0, Math.min(1, Number(item.y ?? .5))) * 100}%;transform:translate(-50%,-50%) rotate(${Number(item.rotation || 0)}deg) scale(${Number(item.scale || 1)});z-index:${Number(item.z || 1)};`;
@@ -4884,7 +5009,7 @@ function journalCanvasItemMarkup(item) {
     return `<button type="button" class="journal-canvas-item image-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Custom sticker"><img src="${src}" alt="Custom sticker"></button>`;
   }
   if (item.type === "photo") {
-    const src = journalCanvasMediaUrls.get(item.mediaId) || "";
+    const src = journalCanvasMediaUrls.get(journalPhotoUrlKey(item)) || "";
     const photoStyle = journalPhotoStyle(item);
     return `<button type="button" class="journal-canvas-item photo-item photo-style-${photoStyle}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Entry photo"><img src="${src}" alt="Entry photo"></button>`;
   }
@@ -5027,6 +5152,7 @@ function beginJournalCanvasDrag(event) {
     element.removeEventListener("pointerup", end);
     element.removeEventListener("pointercancel", end);
     renderJournalCanvasControls();
+    queueJournalCanvasSave();
   };
   element.addEventListener("pointermove", move);
   element.addEventListener("pointerup", end, { once: true });
@@ -5037,17 +5163,18 @@ function addJournalCanvasItem(item) {
   if (!journalCanvasState) return;
   const maxZ = journalCanvasState.items.reduce((max, current) => Math.max(max, Number(current.z || 0)), 0);
   const record = {
+    ...item,
     id: uid("canvas"),
-    x: .5,
-    y: .46,
-    scale: 1,
-    rotation: 0,
-    z: maxZ + 1,
-    ...item
+    x: Number.isFinite(Number(item.x)) ? Number(item.x) : .5,
+    y: Number.isFinite(Number(item.y)) ? Number(item.y) : .46,
+    scale: Number.isFinite(Number(item.scale)) ? Number(item.scale) : 1,
+    rotation: Number.isFinite(Number(item.rotation)) ? Number(item.rotation) : 0,
+    z: maxZ + 1
   };
   journalCanvasState.items.push(record);
   selectedJournalCanvasItemId = record.id;
   renderJournalCanvas();
+  queueJournalCanvasSave();
 }
 
 function renderBuiltinStickerPalette() {
@@ -5100,32 +5227,92 @@ async function renderMyStickerPalette() {
   journalPaletteLoaded.mine = true;
 }
 
+async function removeStickerBackgroundLocally(blob) {
+  const image = await imageFromBlob(blob);
+  const maxDimension = 1200;
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { alpha: true, willReadFrequently: true });
+  if (!context) throw new Error("Canvas is unavailable.");
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+
+  // Estimate the background from edge pixels. This is deliberately local and
+  // lightweight rather than an AI upload. It works best for plain/light backdrops.
+  const sample = context.getImageData(0, 0, width, height);
+  const pixels = sample.data;
+  const edgeColors = [];
+  const step = Math.max(1, Math.floor(Math.min(width, height) / 60));
+  const pushPixel = (x, y) => {
+    const index = (y * width + x) * 4;
+    if (pixels[index + 3] > 20) edgeColors.push([pixels[index], pixels[index + 1], pixels[index + 2]]);
+  };
+  for (let x = 0; x < width; x += step) { pushPixel(x, 0); pushPixel(x, height - 1); }
+  for (let y = 0; y < height; y += step) { pushPixel(0, y); pushPixel(width - 1, y); }
+  if (!edgeColors.length) return blob;
+
+  const background = edgeColors.reduce((acc, color) => [acc[0] + color[0], acc[1] + color[1], acc[2] + color[2]], [0, 0, 0]).map(total => total / edgeColors.length);
+  const clearDistance = 34;
+  const featherDistance = 82;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i + 3] === 0) continue;
+    const dr = pixels[i] - background[0];
+    const dg = pixels[i + 1] - background[1];
+    const db = pixels[i + 2] - background[2];
+    const distance = Math.sqrt(dr * dr + dg * dg + db * db);
+    if (distance <= clearDistance) {
+      pixels[i + 3] = 0;
+    } else if (distance < featherDistance) {
+      const factor = (distance - clearDistance) / (featherDistance - clearDistance);
+      pixels[i + 3] = Math.round(pixels[i + 3] * factor);
+    }
+  }
+  context.putImageData(sample, 0, 0);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(result => result ? resolve(result) : reject(new Error("Background removal failed.")), "image/png");
+  });
+}
+
 async function importCustomSticker(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
   if (!file.type.startsWith("image/")) return toast("Choose an image for your sticker.");
   if (file.size > 6 * 1024 * 1024) return toast("Keep sticker images under 6 MB.");
-  const record = {
-    id: uid("sticker"),
-    name: file.name.replace(/\.[^.]+$/, "") || "My sticker",
-    blob: file,
-    type: file.type,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
+  const removeBackground = $("removeStickerBackground")?.checked === true;
+
   try {
+    if (removeBackground) {
+      toast("Removing the background on this device…");
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+    const processedBlob = removeBackground ? await removeStickerBackgroundLocally(file) : file;
+    if (processedBlob.size > 8 * 1024 * 1024) throw new Error("Processed sticker is too large.");
+    const record = {
+      id: uid("sticker"),
+      name: file.name.replace(/\.[^.]+$/, "") || "My sticker",
+      blob: processedBlob,
+      type: processedBlob.type || file.type,
+      backgroundRemoved: removeBackground,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
     await diaryRepository.save("stickerAssets", record);
     const url = URL.createObjectURL(record.blob);
     journalCanvasAssetUrls.set(record.id, url);
     await renderMyStickerPalette();
     addJournalCanvasItem({ type: "custom", assetId: record.id });
-    toast("Sticker added to My Stickers 🎀");
+    toast(removeBackground ? "Sticker saved with its background removed 🎀" : "Sticker added to My Stickers 🎀");
   } catch (error) {
     console.error("Could not save custom sticker.", error);
-    toast("Fuwa couldn't save that sticker on this device.");
+    toast(removeBackground ? "Fuwa couldn't remove that background. Try a simpler image or import it normally." : "Fuwa couldn't save that sticker on this device.");
   }
 }
+
 
 async function deleteCustomSticker(assetId) {
   if (!confirm("Delete this sticker from My Stickers? Existing decorated pages using it will show a missing sticker.")) return;
@@ -5144,17 +5331,117 @@ async function deleteCustomSticker(assetId) {
 
 async function renderJournalPhotoPalette() {
   const host = $("journalPhotoPalette");
-  if (!host) return;
-  host.innerHTML = `<p class="journal-palette-empty">Loading entry photos…</p>`;
-  const media = await diaryRepository.getMediaForEntry(activeJournalCanvasEntryId);
-  media.forEach(record => {
-    if (record?.blob && !journalCanvasMediaUrls.has(record.id)) {
-      journalCanvasMediaUrls.set(record.id, URL.createObjectURL(record.blob));
-    }
+  if (!host || !activeJournalCanvasId) return;
+  host.innerHTML = `<p class="journal-palette-empty">Loading photos…</p>`;
+
+  const [entryMedia, scrapbookMedia] = await Promise.all([
+    activeJournalCanvasEntryId ? diaryRepository.getMediaForEntry(activeJournalCanvasEntryId) : Promise.resolve([]),
+    diaryRepository.getScrapbookPhotos(activeJournalCanvasId)
+  ]);
+
+  entryMedia.forEach(record => {
+    const key = `entry:${record.id}`;
+    if (record?.blob && !journalCanvasMediaUrls.has(key)) journalCanvasMediaUrls.set(key, URL.createObjectURL(record.blob));
   });
-  host.innerHTML = media.length ? media.map(record => `<button type="button" class="journal-photo-chip" data-add-entry-photo="${escapeHtml(record.id)}"><img loading="lazy" decoding="async" src="${journalCanvasMediaUrls.get(record.id) || ""}" alt="Entry photo"></button>`).join("") : `<p class="journal-palette-empty">This entry has no saved photos yet.</p>`;
-  host.querySelectorAll("[data-add-entry-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addEntryPhoto, scale: .9, photoStyle: "classic" })));
+  scrapbookMedia.forEach(record => {
+    const key = `scrapbook:${record.id}`;
+    if (record?.blob && !journalCanvasMediaUrls.has(key)) journalCanvasMediaUrls.set(key, URL.createObjectURL(record.blob));
+  });
+
+  const blocks = [];
+  if (entryMedia.length) {
+    blocks.push(`<div class="journal-photo-source-label">From linked journal entry</div><div class="journal-photo-source-grid">${entryMedia.map(record => `<button type="button" class="journal-photo-chip" data-add-entry-photo="${escapeHtml(record.id)}"><img loading="lazy" decoding="async" src="${journalCanvasMediaUrls.get(`entry:${record.id}`) || ""}" alt="Entry photo"></button>`).join("")}</div>`);
+  }
+  if (scrapbookMedia.length) {
+    blocks.push(`<div class="journal-photo-source-label">Added to this scrapbook page</div><div class="journal-photo-source-grid">${scrapbookMedia.map(record => `<div class="journal-photo-palette-wrap"><button type="button" class="journal-photo-chip" data-add-scrapbook-photo="${escapeHtml(record.id)}"><img loading="lazy" decoding="async" src="${journalCanvasMediaUrls.get(`scrapbook:${record.id}`) || ""}" alt="Scrapbook photo"></button><button type="button" class="journal-photo-palette-delete" data-delete-scrapbook-photo="${escapeHtml(record.id)}" aria-label="Delete scrapbook photo">×</button></div>`).join("")}</div>`);
+  }
+  host.innerHTML = blocks.length ? blocks.join("") : `<p class="journal-palette-empty">No photos here yet. Tap Add Photos to bring some onto this page.</p>`;
+  host.querySelectorAll("[data-add-entry-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addEntryPhoto, mediaSource: "entry", scale: .9, photoStyle: "classic" })));
+  host.querySelectorAll("[data-add-scrapbook-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addScrapbookPhoto, mediaSource: "scrapbook", scale: .9, photoStyle: "classic" })));
+  host.querySelectorAll("[data-delete-scrapbook-photo]").forEach(button => button.addEventListener("click", () => deleteScrapbookPhoto(button.dataset.deleteScrapbookPhoto)));
   journalPaletteLoaded.photos = true;
+}
+
+async function deleteScrapbookPhoto(photoId) {
+  if (!photoId || !activeJournalCanvasId) return;
+  const inUse = (journalCanvasState?.items || []).some(item => item.type === "photo" && item.mediaSource === "scrapbook" && item.mediaId === photoId);
+  if (!confirm(inUse ? "Delete this photo? It will also be removed from the scrapbook page." : "Delete this page-only photo from this device?")) return;
+  try {
+    await diaryRepository.remove("scrapbookPhotos", photoId);
+    const key = `scrapbook:${photoId}`;
+    const url = journalCanvasMediaUrls.get(key);
+    if (url) URL.revokeObjectURL(url);
+    journalCanvasMediaUrls.delete(key);
+    if (journalCanvasState) {
+      journalCanvasState.items = journalCanvasState.items.filter(item => !(item.type === "photo" && item.mediaSource === "scrapbook" && item.mediaId === photoId));
+      if (!journalCanvasState.items.some(item => item.id === selectedJournalCanvasItemId)) selectedJournalCanvasItemId = null;
+      renderJournalCanvas();
+      queueJournalCanvasSave();
+    }
+    journalPaletteLoaded.photos = false;
+    await renderJournalPhotoPalette();
+    toast("Scrapbook photo removed.");
+  } catch (error) {
+    console.error("Could not delete scrapbook photo.", error);
+    toast("Fuwa couldn't delete that scrapbook photo.");
+  }
+}
+
+async function importScrapbookPhotos(event) {
+  const files = [...(event.target.files || [])].filter(file => file.type.startsWith("image/"));
+  event.target.value = "";
+  if (!files.length || !activeJournalCanvasId || !journalCanvasState) return;
+  const existing = await diaryRepository.getScrapbookPhotos(activeJournalCanvasId);
+  const room = Math.max(0, 12 - existing.length);
+  if (!room) return toast("Keep up to 12 page-only photos in one scrapbook page.");
+  const selected = files.slice(0, room);
+  if (files.length > room) toast(`Fuwa will add the first ${room} photos to keep this page light.`);
+
+  try {
+    toast("Preparing scrapbook photos…");
+    const records = [];
+    for (const file of selected) {
+      const compressed = await compressPhoto(file);
+      records.push({
+        id: uid("scrapphoto"),
+        scrapbookId: activeJournalCanvasId,
+        blob: compressed.blob,
+        type: compressed.type,
+        width: compressed.width,
+        height: compressed.height,
+        originalName: file.name,
+        createdAt: Date.now()
+      });
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+    await diaryRepository.saveScrapbookPhotos(records);
+    const maxZ = journalCanvasState.items.reduce((max, current) => Math.max(max, Number(current.z || 0)), 0);
+    records.forEach((record, index) => {
+      const key = `scrapbook:${record.id}`;
+      journalCanvasMediaUrls.set(key, URL.createObjectURL(record.blob));
+      journalCanvasState.items.push({
+        id: uid("canvas"),
+        type: "photo",
+        mediaId: record.id,
+        mediaSource: "scrapbook",
+        photoStyle: "classic",
+        x: Math.min(.82, .42 + index * .05),
+        y: Math.min(.82, .42 + index * .05),
+        scale: .9,
+        rotation: index % 2 ? 2 : -2,
+        z: maxZ + index + 1
+      });
+    });
+    selectedJournalCanvasItemId = records.length ? journalCanvasState.items[journalCanvasState.items.length - 1].id : null;
+    renderJournalCanvas();
+    queueJournalCanvasSave();
+    journalPaletteLoaded.photos = false;
+    await renderJournalPhotoPalette();
+    toast(`${records.length} photo${records.length === 1 ? "" : "s"} added locally 📷`);
+  } catch (error) {
+    console.error("Could not add scrapbook photos.", error);
+    toast("Fuwa couldn't add those photos.");
+  }
 }
 
 function switchJournalPalette(tab) {
@@ -5166,61 +5453,186 @@ function switchJournalPalette(tab) {
   if (tab === "photos" && !journalPaletteLoaded.photos) renderJournalPhotoPalette().catch(console.error);
 }
 
-async function openJournalCanvas() {
-  const entryId = $("entryId")?.value;
-  if (!entryId) {
-    toast("Save this entry first, then decorate its page 🎀");
-    return;
-  }
-  activeJournalCanvasEntryId = entryId;
+function scrapbookTitleForRecord(record) {
+  if (record?.title?.trim()) return record.title.trim();
+  const linkedEntry = record?.entryId ? state.entries.find(entry => entry.id === record.entryId) : null;
+  return linkedEntry?.title || "Scrapbook page";
+}
+
+async function openScrapbookCanvas(record, { returnView = "scrapbook" } = {}) {
+  if (!record?.id) return;
+  activeJournalCanvasId = record.id;
+  const linkedEntry = record.entryId ? state.entries.find(entry => entry.id === record.entryId) : null;
+  activeJournalCanvasEntryId = linkedEntry?.id || null;
+  journalCanvasReturnView = returnView;
   selectedJournalCanvasItemId = null;
   journalPaletteLoaded = { mine: false, photos: false };
-  journalCanvasState = await diaryRepository.get("journalCanvases", entryId) || defaultJournalCanvas(entryId);
+  journalCanvasState = { ...record, title: scrapbookTitleForRecord(record) };
+  if (record.entryId && !linkedEntry) delete journalCanvasState.entryId;
 
   renderBuiltinStickerPalette();
   renderJournalDecorPalette();
+  if ($("journalCanvasTitleInput")) $("journalCanvasTitleInput").value = journalCanvasState.title || "Untitled page";
+  if ($("journalCanvasEyebrow")) $("journalCanvasEyebrow").textContent = activeJournalCanvasEntryId ? "Linked to a journal memory" : "Your standalone scrapbook page";
+  if ($("journalPhotoPaletteNote")) $("journalPhotoPaletteNote").textContent = activeJournalCanvasEntryId ? "Use linked-entry photos or add photos just for this scrapbook page." : "Import photos just for this scrapbook page.";
   if ($("myStickerPalette")) $("myStickerPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load My Stickers.</p>`;
-  if ($("journalPhotoPalette")) $("journalPhotoPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load entry photos.</p>`;
+  if ($("journalPhotoPalette")) $("journalPhotoPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load photos.</p>`;
   switchJournalPalette("stickers");
   renderJournalCanvas();
   navigate("journalCanvas");
 
-  // Load only assets already used by this page. Full sticker/photo libraries
-  // remain lazy until their tabs are opened.
+  // Load only assets already used by this page. Full libraries remain lazy.
   try {
+    const expectedId = record.id;
     await loadJournalCanvasReferencedUrls();
-    if (activeJournalCanvasEntryId === entryId) renderJournalCanvas();
+    if (activeJournalCanvasId === expectedId) renderJournalCanvas();
   } catch (error) {
-    console.error("Could not load decorated page assets.", error);
+    console.error("Could not load scrapbook page assets.", error);
   }
 }
 
-function closeJournalCanvas() {
+async function openJournalCanvas() {
+  const entryId = $("entryId")?.value;
+  if (!entryId) {
+    toast("Save this entry first, then add it to your scrapbook 🎀");
+    return;
+  }
+  try {
+    const entry = state.entries.find(item => item.id === entryId);
+    let record = await diaryRepository.get("journalCanvases", entryId);
+    if (!record) {
+      record = defaultJournalCanvas({
+        id: entryId,
+        entryId,
+        title: entry?.title || "Scrapbook page",
+        date: entry?.date || isoToday()
+      });
+      await diaryRepository.save("journalCanvases", record);
+    } else if (!record.title) {
+      record = { ...record, title: entry?.title || "Scrapbook page", date: record.date || entry?.date || isoToday() };
+    }
+    await openScrapbookCanvas(record, { returnView: "editor" });
+  } catch (error) {
+    console.error("Could not open linked scrapbook page.", error);
+    toast("Fuwa couldn't open that scrapbook page.");
+  }
+}
+
+
+async function createStandaloneScrapbookPage() {
+  const record = defaultJournalCanvas({ title: "Untitled page", date: isoToday() });
+  try {
+    await diaryRepository.save("journalCanvases", record);
+    await openScrapbookCanvas(record, { returnView: "scrapbook" });
+  } catch (error) {
+    console.error("Could not create scrapbook page.", error);
+    toast("Fuwa couldn't create that scrapbook page.");
+  }
+}
+
+async function openScrapbookPageById(id) {
+  try {
+    const record = await diaryRepository.get("journalCanvases", id);
+    if (!record) return toast("That scrapbook page could not be found.");
+    await openScrapbookCanvas(record, { returnView: "scrapbook" });
+  } catch (error) {
+    console.error("Could not open scrapbook page.", error);
+    toast("Fuwa couldn't open that scrapbook page.");
+  }
+}
+
+
+async function renderScrapbookLibrary() {
+  const grid = $("scrapbookLibraryGrid");
+  if (!grid) return;
+  try {
+    const pages = await diaryRepository.getAll("journalCanvases");
+    const sort = $("scrapbookSort")?.value || "newest";
+    pages.sort((a, b) => sort === "oldest" ? Number(a.createdAt || 0) - Number(b.createdAt || 0) : Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
+    $("scrapbookPageCount").textContent = `${pages.length} page${pages.length === 1 ? "" : "s"}`;
+    $("scrapbookEmptyState")?.classList.toggle("hidden", pages.length > 0);
+    grid.innerHTML = pages.map(page => {
+      const linkedEntry = page.entryId ? state.entries.find(entry => entry.id === page.entryId) : null;
+      const title = scrapbookTitleForRecord(page);
+      const date = page.date || linkedEntry?.date || "";
+      const itemCount = Array.isArray(page.items) ? page.items.length : 0;
+      return `<article class="scrapbook-library-card" data-scrapbook-card="${escapeHtml(page.id)}">
+        <button type="button" class="scrapbook-card-open" data-open-scrapbook="${escapeHtml(page.id)}">
+          <span class="scrapbook-card-paper" data-paper="${escapeHtml(page.background || "blush")}"><i>🎀</i><b>${itemCount}</b></span>
+          <span class="scrapbook-card-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(date || "No date")}${linkedEntry ? " · Linked memory" : " · Standalone"}</small></span>
+        </button>
+        <button type="button" class="scrapbook-card-delete" data-delete-scrapbook="${escapeHtml(page.id)}" aria-label="Delete scrapbook page">×</button>
+      </article>`;
+    }).join("");
+    grid.querySelectorAll("[data-open-scrapbook]").forEach(button => button.addEventListener("click", () => openScrapbookPageById(button.dataset.openScrapbook)));
+    grid.querySelectorAll("[data-delete-scrapbook]").forEach(button => button.addEventListener("click", async () => {
+      const id = button.dataset.deleteScrapbook;
+      if (!confirm("Delete this scrapbook page? Its page-only photos will also be removed from this device.")) return;
+      try {
+        await diaryRepository.deleteScrapbookPage(id);
+        await renderScrapbookLibrary();
+        toast("Scrapbook page deleted.");
+      } catch (error) {
+        console.error("Could not delete scrapbook page.", error);
+        toast("Fuwa couldn't delete that scrapbook page.");
+      }
+    }));
+  } catch (error) {
+    console.error("Could not load scrapbook library.", error);
+    $("scrapbookPageCount").textContent = "Scrapbook unavailable";
+    $("scrapbookEmptyState")?.classList.add("hidden");
+    grid.innerHTML = `<div class="scrapbook-load-error">Fuwa couldn't load your scrapbook pages. Your local data was not changed. Try reopening Scrapbook.</div>`;
+  }
+}
+
+
+async function closeJournalCanvas() {
+  clearTimeout(journalCanvasSaveTimer);
+  journalCanvasSaveTimer = null;
+  try {
+    await saveJournalCanvas({ quiet: true });
+  } catch (error) {
+    console.error("Could not save scrapbook page before closing.", error);
+    toast("Fuwa couldn't save this page yet, so it stayed open. Please try Save again.");
+    return;
+  }
   cleanupJournalCanvasUrls();
   selectedJournalCanvasItemId = null;
   journalCanvasState = null;
   const entryId = activeJournalCanvasEntryId;
+  const returnView = journalCanvasReturnView;
+  activeJournalCanvasId = null;
   activeJournalCanvasEntryId = null;
-  openEditor(entryId);
+  journalCanvasReturnView = "scrapbook";
+  if (returnView === "editor" && entryId) openEditor(entryId);
+  else navigate("scrapbook");
 }
 
-async function saveJournalCanvas() {
-  if (!journalCanvasState || !activeJournalCanvasEntryId) return;
+async function saveJournalCanvas(options = {}) {
+  if (!journalCanvasState || !activeJournalCanvasId) return;
+  const quiet = options?.quiet === true;
+  clearTimeout(journalCanvasSaveTimer);
+  journalCanvasSaveTimer = null;
   try {
+    const title = $("journalCanvasTitleInput")?.value.trim() || journalCanvasState.title || "Untitled page";
+    journalCanvasState.title = title;
     journalCanvasState.updatedAt = Date.now();
     await diaryRepository.save("journalCanvases", structuredClone(journalCanvasState));
-    toast("Decorated page saved locally 🎀");
+    if (!quiet) toast("Scrapbook page saved locally 🎀");
   } catch (error) {
-    console.error("Could not save decorated page.", error);
-    toast("Fuwa couldn't save this decorated page.");
+    console.error("Could not save scrapbook page.", error);
+    if (!quiet) toast("Fuwa couldn't save this scrapbook page.");
+    throw error;
   }
 }
+
 
 function updateSelectedJournalItem(patch) {
   const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
   if (!item) return;
   Object.assign(item, patch);
   updateJournalCanvasItemElement(item);
+  queueJournalCanvasSave();
 }
 
 function setSelectedJournalPhotoStyle(style) {
@@ -5240,6 +5652,7 @@ function setSelectedJournalPhotoStyle(style) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
+  queueJournalCanvasSave();
 }
 
 function syncJournalTextControls(item) {
@@ -5295,6 +5708,7 @@ function setSelectedJournalTextStyle(property, value) {
   item[property] = value;
   refreshSelectedJournalTextElement(item);
   syncJournalTextControls(item);
+  queueJournalCanvasSave();
 }
 
 function toggleSelectedJournalTextStyle(property) {
@@ -5303,6 +5717,7 @@ function toggleSelectedJournalTextStyle(property) {
   item[property] = item[property] !== true;
   refreshSelectedJournalTextElement(item);
   syncJournalTextControls(item);
+  queueJournalCanvasSave();
 }
 
 function editSelectedJournalText() {
@@ -5312,6 +5727,7 @@ function editSelectedJournalText() {
   if (text == null || !text.trim()) return;
   item.text = text.trim();
   refreshSelectedJournalTextElement(item);
+  queueJournalCanvasSave();
 }
 
 function removeSelectedJournalItem() {
@@ -5319,6 +5735,7 @@ function removeSelectedJournalItem() {
   journalCanvasState.items = journalCanvasState.items.filter(x => x.id !== selectedJournalCanvasItemId);
   selectedJournalCanvasItemId = null;
   renderJournalCanvas();
+  queueJournalCanvasSave();
 }
 
 function duplicateSelectedJournalItem() {
@@ -5333,6 +5750,7 @@ function moveSelectedJournalItemLayer(direction) {
   const zValues = journalCanvasState.items.map(x => Number(x.z || 1));
   item.z = direction > 0 ? Math.max(...zValues, 1) + 1 : Math.min(...zValues, 1) - 1;
   renderJournalCanvas();
+  queueJournalCanvasSave();
 }
 
 function addJournalText() {
@@ -5357,6 +5775,7 @@ function setJournalPaper(name) {
   journalCanvasState.background = name;
   document.querySelectorAll("[data-journal-paper]").forEach(button => button.classList.toggle("active", button.dataset.journalPaper === name));
   renderJournalCanvas();
+  queueJournalCanvasSave();
 }
 
 async function saveEntry() {
@@ -5604,8 +6023,15 @@ window.fuwaCreateCloudBackupPayload = createCloudBackupPayload;
 
 async function createFullLocalBackupPayload() {
   const currentData = await diaryRepository.readCurrentData();
-  const mediaRecords = await diaryRepository.readAllMedia();
+  const [mediaRecords, journalCanvases, stickerRecords, scrapbookPhotoRecords] = await Promise.all([
+    diaryRepository.readAllMedia(),
+    diaryRepository.getAll("journalCanvases"),
+    diaryRepository.getAll("stickerAssets"),
+    diaryRepository.getAll("scrapbookPhotos")
+  ]);
   const media = [];
+  const stickerAssets = [];
+  const scrapbookPhotos = [];
 
   for (const record of mediaRecords) {
     media.push({
@@ -5620,13 +6046,44 @@ async function createFullLocalBackupPayload() {
     });
   }
 
+  for (const record of stickerRecords) {
+    if (!record?.blob) continue;
+    stickerAssets.push({
+      id: record.id,
+      name: record.name || "My sticker",
+      type: record.type || record.blob.type || "image/png",
+      backgroundRemoved: record.backgroundRemoved === true,
+      createdAt: record.createdAt || Date.now(),
+      updatedAt: record.updatedAt || record.createdAt || Date.now(),
+      dataUrl: await blobToDataUrl(record.blob)
+    });
+  }
+
+  for (const record of scrapbookPhotoRecords) {
+    if (!record?.blob) continue;
+    scrapbookPhotos.push({
+      id: record.id,
+      scrapbookId: record.scrapbookId,
+      type: record.type || record.blob.type || "image/jpeg",
+      width: record.width || null,
+      height: record.height || null,
+      originalName: record.originalName || "Scrapbook photo",
+      createdAt: record.createdAt || Date.now(),
+      dataUrl: await blobToDataUrl(record.blob)
+    });
+  }
+
   return {
     app: "Fuwa",
     version: DATABASE_VERSION,
     exportedAt: new Date().toISOString(),
+    localScrapbookIncluded: true,
     data: {
       ...currentData,
       media,
+      journalCanvases,
+      stickerAssets,
+      scrapbookPhotos,
       selectedMood: state.selectedMood,
       theme: state.theme,
       wallpaperEnabled: state.wallpaperEnabled,
@@ -5641,6 +6098,7 @@ async function createFullLocalBackupPayload() {
     }
   };
 }
+
 
 function downloadBackupPayload(payload, filename) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -5851,7 +6309,35 @@ function importBackup(file) {
         originalName: record.originalName || "photo",
         createdAt: record.createdAt || Date.now()
       }));
-      await diaryRepository.replaceContent(incoming, mediaRecords);
+
+      const canvasBackup = validateScrapbookBackupArray(incoming.journalCanvases, "journalCanvases");
+      const stickerBackup = validateScrapbookBackupArray(incoming.stickerAssets, "stickerAssets", { withDataUrl: true });
+      const scrapbookPhotoBackup = validateScrapbookBackupArray(incoming.scrapbookPhotos, "scrapbookPhotos", { withDataUrl: true });
+      const hasScrapbookBackup = canvasBackup !== null || stickerBackup !== null || scrapbookPhotoBackup !== null;
+      const localScrapbookData = hasScrapbookBackup ? {
+        journalCanvases: canvasBackup || [],
+        stickerAssets: (stickerBackup || []).map(record => ({
+          id: record.id,
+          name: record.name || "My sticker",
+          blob: dataUrlToBlob(record.dataUrl),
+          type: record.type || "image/png",
+          backgroundRemoved: record.backgroundRemoved === true,
+          createdAt: record.createdAt || Date.now(),
+          updatedAt: record.updatedAt || record.createdAt || Date.now()
+        })),
+        scrapbookPhotos: (scrapbookPhotoBackup || []).map(record => ({
+          id: record.id,
+          scrapbookId: record.scrapbookId,
+          blob: dataUrlToBlob(record.dataUrl),
+          type: record.type || "image/jpeg",
+          width: record.width || null,
+          height: record.height || null,
+          originalName: record.originalName || "Scrapbook photo",
+          createdAt: record.createdAt || Date.now()
+        }))
+      } : null;
+
+      await diaryRepository.replaceContent(incoming, mediaRecords, localScrapbookData);
       state = {
         ...structuredClone(defaultState),
         entries: incoming.entries,
@@ -5895,7 +6381,7 @@ function importBackup(file) {
 }
 
 async function clearAll() {
-  if (!confirm("Clear all Fuwa entries, joys, and letters stored on this device?")) return;
+  if (!confirm("Clear all Fuwa journal and scrapbook content on this device, including photos and imported stickers?")) return;
   if (!confirm("This cannot be undone unless you exported a backup. Continue?")) return;
 
   try {
@@ -6764,6 +7250,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("journalCanvasPaper")?.addEventListener("click", () => { selectedJournalCanvasItemId = null; renderJournalCanvas(); });
   $("importStickerButton")?.addEventListener("click", () => $("customStickerInput")?.click());
   $("customStickerInput")?.addEventListener("change", importCustomSticker);
+  $("importScrapbookPhotoButton")?.addEventListener("click", () => $("scrapbookPhotosInput")?.click());
+  $("scrapbookPhotosInput")?.addEventListener("change", importScrapbookPhotos);
+  $("newScrapbookPageButton")?.addEventListener("click", createStandaloneScrapbookPage);
+  $("scrapbookEmptyCreateButton")?.addEventListener("click", createStandaloneScrapbookPage);
+  $("scrapbookSort")?.addEventListener("change", renderScrapbookLibrary);
+  $("journalCanvasTitleInput")?.addEventListener("input", event => {
+    if (!journalCanvasState) return;
+    journalCanvasState.title = event.target.value;
+    queueJournalCanvasSave();
+  });
   $("addJournalTextButton")?.addEventListener("click", addJournalText);
   document.querySelectorAll("[data-journal-palette-tab]").forEach(button => button.addEventListener("click", () => switchJournalPalette(button.dataset.journalPaletteTab)));
   document.querySelectorAll("[data-journal-paper]").forEach(button => button.addEventListener("click", () => setJournalPaper(button.dataset.journalPaper)));

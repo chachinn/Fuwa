@@ -7626,3 +7626,57 @@ button,
 @media(max-width:370px){
   .journal-text-option-grid.four{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+/* FUWA v66 — standalone scrapbook library + local sticker background removal */
+.scrapbook-view{padding-bottom:28px}
+.scrapbook-library-head{align-items:flex-start;gap:14px}
+.scrapbook-library-head>div{min-width:0;flex:1}
+.scrapbook-library-head .muted{margin:6px 0 0;max-width:360px;line-height:1.5}
+.scrapbook-new-page{flex:0 0 auto}
+.scrapbook-library-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.72);font-size:10px;color:var(--muted)}
+.scrapbook-library-toolbar label{display:flex;align-items:center;gap:7px}
+.scrapbook-library-toolbar select{border:1px solid var(--line);border-radius:999px;background:#fff;padding:7px 10px;color:var(--ink);font-size:10px}
+.scrapbook-empty-card{margin:12px 0 18px;padding:28px 20px;text-align:center;border:1px dashed #e5bdca;border-radius:24px;background:linear-gradient(145deg,#fff8fb,#fbf8ff)}
+.scrapbook-empty-mark{display:block;font-size:34px;margin-bottom:8px}
+.scrapbook-empty-card h3{margin:0 0 6px;font:600 21px Georgia,"Times New Roman",serif;color:#5e4651}
+.scrapbook-empty-card p{margin:0 auto 16px;max-width:310px;font-size:10px;line-height:1.55;color:var(--muted)}
+.scrapbook-library-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.scrapbook-library-card{position:relative;min-width:0;border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.88);box-shadow:0 8px 22px rgba(105,74,88,.06);overflow:hidden}
+.scrapbook-card-open{display:grid;width:100%;padding:0;border:0;background:transparent;text-align:left;color:inherit}
+.scrapbook-card-paper{position:relative;display:grid;place-items:center;aspect-ratio:4/3;margin:8px 8px 0;border-radius:14px;overflow:hidden;border:1px solid rgba(125,92,106,.08);background:linear-gradient(135deg,#fff5f8,#fcebf2)}
+.scrapbook-card-paper[data-paper="cream"]{background:linear-gradient(135deg,#fffdf4,#f8efd9)}
+.scrapbook-card-paper[data-paper="lavender"]{background:linear-gradient(135deg,#fbf8ff,#eee6f8)}
+.scrapbook-card-paper[data-paper="grid"]{background-color:#fffafc;background-image:linear-gradient(rgba(214,180,193,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(214,180,193,.22) 1px,transparent 1px);background-size:14px 14px}
+.scrapbook-card-paper i{font-style:normal;font-size:30px;filter:drop-shadow(0 4px 6px rgba(97,63,78,.08))}
+.scrapbook-card-paper b{position:absolute;right:8px;bottom:7px;min-width:20px;padding:4px 6px;border-radius:999px;background:rgba(255,255,255,.82);font-size:8px;text-align:center;color:#765d68}
+.scrapbook-card-copy{display:grid;gap:3px;padding:10px 11px 12px;min-width:0}
+.scrapbook-card-copy strong{font:600 13px Georgia,"Times New Roman",serif;color:#5b4650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scrapbook-card-copy small{font-size:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scrapbook-card-delete{position:absolute;top:12px;right:12px;width:25px;height:25px;border:1px solid rgba(155,91,112,.16);border-radius:50%;background:rgba(255,255,255,.92);color:#a46c80;font-size:14px;line-height:1;box-shadow:0 3px 10px rgba(81,51,64,.08)}
+.scrapbook-drawer-icon{display:grid;place-items:center;font-size:16px}
+
+.journal-canvas-title-wrap{display:grid;gap:1px;justify-items:center;min-width:0;max-width:62vw}
+.journal-canvas-title-input{width:100%;min-width:0;border:0;border-bottom:1px solid transparent;background:transparent;padding:1px 4px 3px;text-align:center;font:600 21px Georgia,"Times New Roman",serif;color:#5a444e;outline:none;text-overflow:ellipsis}
+.journal-canvas-title-input:focus{border-bottom-color:#ddb0bf;background:rgba(255,255,255,.45)}
+.sticker-background-toggle{display:flex;align-items:flex-start;gap:9px;margin:-1px 0 11px;padding:10px 11px;border:1px solid #ead4dc;border-radius:14px;background:#fff9fb;color:#634f58}
+.sticker-background-toggle input{margin:2px 0 0;accent-color:#d997ae}
+.sticker-background-toggle span{display:grid;gap:2px}
+.sticker-background-toggle strong{font-size:10px;font-weight:700}
+.sticker-background-toggle small{font-size:8px;line-height:1.4;color:var(--muted)}
+.journal-photo-source-label{margin:11px 0 7px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9d7987}
+.journal-photo-source-label:first-child{margin-top:0}
+.journal-photo-source-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.journal-photo-source-grid .journal-photo-chip{width:100%;aspect-ratio:1;border-radius:12px;overflow:hidden}
+.journal-photo-source-grid .journal-photo-chip img{width:100%;height:100%;object-fit:cover}
+
+@media (max-width:390px){
+  .scrapbook-library-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .scrapbook-card-copy{padding:9px 9px 11px}
+  .journal-canvas-title-wrap{max-width:58vw}
+  .journal-canvas-title-input{font-size:18px}
+  .journal-photo-source-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+.journal-photo-palette-wrap{position:relative;min-width:0}
+.journal-photo-palette-delete{position:absolute;top:-5px;right:-5px;width:22px;height:22px;border:1px solid rgba(155,91,112,.18);border-radius:50%;background:#fff;color:#a36379;font-size:13px;line-height:1;box-shadow:0 3px 8px rgba(80,50,62,.12)}
+.local-backup-note{margin:0;padding:11px 13px;border-bottom:1px solid var(--line);font-size:8.5px;line-height:1.45;color:var(--muted);background:rgba(255,248,251,.65)}
+.scrapbook-load-error{grid-column:1/-1;padding:18px;border:1px solid #ead2db;border-radius:18px;background:#fff9fb;color:#8b6876;font-size:10px;line-height:1.55;text-align:center}

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v65-scrapbook-text-styles -->
+  <!-- FUWA_BUILD: v66-standalone-scrapbook -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -299,6 +299,7 @@
           <p class="drawer-section-label">Journal</p>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="life" type="button"><span class="drawer-item-icon life-pages-icon">✦</span><span><strong>Daily Life Pages</strong><small>Check in once. Fuwa builds the trackers.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="scrapbook" type="button"><span class="drawer-item-icon scrapbook-drawer-icon">🎀</span><span><strong>Scrapbook</strong><small>Make little pages from photos, stickers, and memories.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="threads" type="button"><span class="drawer-item-icon drawer-thread-icon"></span><span><strong>Memory Threads</strong><small>Stories that keep returning.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="bookmarks" type="button"><span class="drawer-item-icon drawer-bookmark-icon"></span><span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></span><b>›</b></button>
@@ -1222,10 +1223,10 @@
 
           <div class="editor-section journal-decorate-entry-section">
             <div>
-              <label>Decorated Journal Page</label>
-              <small>Turn this saved entry into a scrapbook page with stickers, photos, and little notes.</small>
+              <label>Add to Scrapbook</label>
+              <small>Optional: turn this saved memory into a scrapbook page. Scrapbook pages can also be made without diary entries.</small>
             </div>
-            <button type="button" class="journal-decorate-button" id="decorateEntryButton">🎀 Decorate Page</button>
+            <button type="button" class="journal-decorate-button" id="decorateEntryButton">🎀 Add to Scrapbook</button>
           </div>
 
           <div class="editor-section">
@@ -1245,12 +1246,39 @@
         </form>
       </section>
 
+      <section class="view scrapbook-view" id="scrapbookView">
+        <div class="page-title-row scrapbook-library-head">
+          <div>
+            <p class="eyebrow">Your little paper world</p>
+            <h2>Scrapbook 🎀</h2>
+            <p class="muted">Make pages from photos, stickers, words, or nothing but a mood. A diary entry is optional.</p>
+          </div>
+          <button class="round-add scrapbook-new-page" id="newScrapbookPageButton" type="button" aria-label="Create scrapbook page">＋</button>
+        </div>
+        <div class="scrapbook-library-toolbar">
+          <span id="scrapbookPageCount">0 pages</span>
+          <label>Sort
+            <select id="scrapbookSort">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </select>
+          </label>
+        </div>
+        <div class="scrapbook-empty-card hidden" id="scrapbookEmptyState">
+          <span class="scrapbook-empty-mark">🎀</span>
+          <h3>Your first blank page is waiting.</h3>
+          <p>You can start with photos, stickers, washi, or a tiny note. No journal entry needed.</p>
+          <button type="button" class="primary-btn compact" id="scrapbookEmptyCreateButton">＋ New Page</button>
+        </div>
+        <div class="scrapbook-library-grid" id="scrapbookLibraryGrid"></div>
+      </section>
+
       <section class="view journal-canvas-view" id="journalCanvasView">
         <div class="journal-canvas-topbar">
           <button class="text-btn" id="journalCanvasBack" type="button">Back</button>
-          <div>
-            <p class="eyebrow">Decorate your memory</p>
-            <h2>Journal Page</h2>
+          <div class="journal-canvas-title-wrap">
+            <p class="eyebrow" id="journalCanvasEyebrow">Your scrapbook page</p>
+            <input id="journalCanvasTitleInput" class="journal-canvas-title-input" maxlength="80" value="Untitled page" aria-label="Scrapbook page title" />
           </div>
           <button class="text-btn strong" id="saveJournalCanvasButton" type="button">Save</button>
         </div>
@@ -1361,12 +1389,20 @@
               </div>
               <button type="button" class="journal-import-sticker" id="importStickerButton">＋ Import Sticker</button>
             </div>
+            <label class="sticker-background-toggle"><input id="removeStickerBackground" type="checkbox" /><span><strong>Remove background</strong><small>Best for stickers on a plain or light background. Processing stays on this device.</small></span></label>
             <input id="customStickerInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
             <div class="my-sticker-palette" id="myStickerPalette"></div>
           </div>
 
           <div class="journal-palette-panel" data-journal-palette-panel="photos">
-            <p class="journal-palette-note">Use photos already attached to this entry.</p>
+            <div class="journal-palette-heading">
+              <div>
+                <strong>Photos</strong>
+                <small id="journalPhotoPaletteNote">Import photos just for this scrapbook page.</small>
+              </div>
+              <button type="button" class="journal-import-sticker" id="importScrapbookPhotoButton">＋ Add Photos</button>
+            </div>
+            <input id="scrapbookPhotosInput" type="file" accept="image/*" multiple hidden />
             <div class="journal-photo-palette" id="journalPhotoPalette"></div>
           </div>
 
@@ -1380,7 +1416,7 @@
           </div>
 
           <button type="button" class="journal-add-text-button" id="addJournalTextButton">＋ Add a little text</button>
-          <p class="journal-local-note">🎀 Decorated pages and imported stickers stay on this device and are not included in Fuwa Cloud backup.</p>
+          <p class="journal-local-note">🎀 Scrapbook pages, scrapbook photos, and imported stickers stay on this device and are not included in Fuwa Cloud backup.</p>
         </div>
       </section>
 
@@ -1448,6 +1484,7 @@
           <div class="stat-card"><strong id="nightlyCount">0</strong><span>Wind-Downs</span></div>
         </div>
 <div class="settings-card">
+          <p class="local-backup-note">Local backup includes diary photos, scrapbook pages, imported stickers, and scrapbook-only photos.</p>
           <button id="exportButton">Export Local Backup <span>›</span></button>
           <label class="import-row">
             Import Local Backup <span>›</span>
@@ -1485,7 +1522,7 @@
       </div>
       <div class="cloud-restore-warning">
         <strong>Your current device data will be protected first.</strong>
-        <small>Fuwa creates a downloadable local safety backup before replacing local journal records. Photos on this device are not deleted.</small>
+        <small>Fuwa creates a downloadable local safety backup before replacing local journal records. Photos, scrapbook pages, and imported stickers on this device are not deleted.</small>
       </div>
       <div class="cloud-restore-actions">
         <button class="secondary-btn" id="cloudRestoreCancelButton" type="button">Cancel</button>
@@ -1643,7 +1680,7 @@
             </div>
             <span class="cloud-backup-badge" id="cloudBackupBadge">Ready</span>
           </div>
-          <p class="muted cloud-backup-copy">Backs up your journal text and Fuwa records to your signed-in Firebase account. Photos stay on this device for now.</p>
+          <p class="muted cloud-backup-copy">Backs up your journal text and Fuwa records to your signed-in Firebase account. Photos, scrapbook pages, and imported stickers stay on this device.</p>
           <div class="cloud-backup-meta">
             <span>Last cloud backup</span>
             <strong id="cloudBackupLastTime">No cloud backup yet</strong>
@@ -1662,7 +1699,7 @@
           </div>
           <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
           <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>
-          <small class="cloud-backup-footnote"><strong>Photo reminder:</strong> Fuwa Cloud cannot restore attached photos. Save important photos to your device’s Photos library before deleting Fuwa, clearing browser data, or moving to another device.</small>
+          <small class="cloud-backup-footnote"><strong>Local-only reminder:</strong> Fuwa Cloud cannot restore attached photos, scrapbook pages, imported stickers, or scrapbook-only photos. Use Export Local Backup before deleting Fuwa, clearing browser data, or moving to another device.</small>
         </div>
 
 
