@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v46-optional-login -->
+  <!-- FUWA_BUILD: v47-app-lock-wallpaper-polish -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -283,7 +283,7 @@
           <p class="drawer-section-label">Fuwa</p>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" id="themeButton" type="button"><span class="drawer-item-icon drawer-appearance-icon"></span><span><strong>Appearance</strong><small>Theme, wallpaper, and softness.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" id="quickHideButton" type="button"><span class="drawer-item-icon drawer-hide-icon"></span><span><strong>Quick Hide</strong><small>Cover your diary instantly.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" id="quickHideButton" type="button"><span class="drawer-item-icon drawer-hide-icon"></span><span><strong>Lock Fuwa</strong><small>Protect your journal with your Fuwa PIN.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Cloud</strong><small>Cloud backup, local export, and recovery tools.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-me-icon"></span><span><strong>Profile & Settings</strong><small>Stats and local data controls.</small></span><b>›</b></button>
           </div>
@@ -1418,13 +1418,7 @@
     </div>
   </div>
 
-  <div class="quick-hide-screen hidden" id="quickHideScreen">
-    <div class="quick-hide-neutral">
-      <div class="quick-hide-neutral-cloud" aria-hidden="true"></div>
-      <h1>Fuwa</h1>
-      <p>Tap to return.</p>
-    </div>
-  </div>
+  <div class="quick-hide-screen hidden" id="quickHideScreen" aria-hidden="true"></div>
 
   <div class="feature-modal hidden" id="momentModal" role="dialog" aria-modal="true" aria-label="Fuwa Moment">
     <div class="feature-modal-card moment-modal-card">
@@ -1527,45 +1521,52 @@
         </div>
       </section>
 
-      <section class="appearance-section wallpaper-section">
-        <div class="appearance-section-title">
-          <h3>Custom Wallpaper</h3>
+      <section class="appearance-section wallpaper-section wallpaper-section-v47">
+        <div class="appearance-section-title wallpaper-title-v47">
+          <div>
+            <h3>Custom Wallpaper</h3>
+            <p>Use one of your photos as Fuwa's background. It stays private on this device.</p>
+          </div>
           <span id="wallpaperStatus">Off</span>
         </div>
 
-        <div class="wallpaper-preview" id="wallpaperPreview">
+        <input id="wallpaperFileInput" type="file" accept="image/*" hidden />
+
+        <div class="wallpaper-preview wallpaper-preview-v47" id="wallpaperPreview">
           <div class="wallpaper-preview-empty" id="wallpaperPreviewEmpty">
             <span class="wallpaper-cloud-icon" aria-hidden="true"></span>
-            <p>Choose a photo from this device.<br>It stays private and local to Fuwa.</p>
+            <strong>No photo selected</strong>
+            <small>Choose a photo, then drag and zoom it to fit your screen.</small>
+          </div>
+          <div class="wallpaper-preview-actions">
+            <button class="wallpaper-photo-btn primary" id="chooseWallpaperButton" type="button">Choose Photo</button>
+            <button class="wallpaper-photo-btn danger hidden" id="removeWallpaperButton" type="button">Remove</button>
           </div>
         </div>
 
-        <input id="wallpaperFileInput" type="file" accept="image/*" hidden />
-        <button class="appearance-secondary-btn" id="chooseWallpaperButton" type="button">Choose Photo</button>
-
-        <div class="wallpaper-toggle-row">
-          <div>
-            <strong>Wallpaper</strong>
-            <span>Turn the saved photo background on or off.</span>
+        <div class="wallpaper-controls-v47">
+          <div class="wallpaper-toggle-row wallpaper-toggle-v47">
+            <div>
+              <strong>Wallpaper</strong>
+              <span>Show the saved photo behind Fuwa.</span>
+            </div>
+            <label class="fuwa-switch">
+              <input id="wallpaperToggle" type="checkbox" />
+              <span></span>
+            </label>
           </div>
-          <label class="fuwa-switch">
-            <input id="wallpaperToggle" type="checkbox" />
-            <span></span>
-          </label>
-        </div>
 
-        <div class="overlay-group">
-          <strong>Overlay strength</strong>
-          <div class="overlay-options" id="overlayOptions">
-            <button type="button" data-overlay="light">Light</button>
-            <button type="button" data-overlay="medium">Medium</button>
-            <button type="button" data-overlay="strong">Strong</button>
+          <div class="overlay-group overlay-group-v47">
+            <div class="overlay-heading-v47">
+              <strong>Overlay</strong>
+              <span>Choose how softly the photo shows through.</span>
+            </div>
+            <div class="overlay-options" id="overlayOptions">
+              <button type="button" data-overlay="light">Light</button>
+              <button type="button" data-overlay="medium">Medium</button>
+              <button type="button" data-overlay="strong">Strong</button>
+            </div>
           </div>
-        </div>
-
-        <div class="wallpaper-crop-note">
-          <strong>Wallpaper Crop</strong>
-          <span>When you choose a photo, Fuwa lets you drag and zoom it to fit your screen before saving.</span>
         </div>
       </section>
 

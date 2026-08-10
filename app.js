@@ -1305,7 +1305,8 @@ function renderPinDots(inputId, dotsId) {
   });
 }
 
-function openPrivacyPinSetup() {
+function openPrivacyPinSetup({ lockAfterSetup = false } = {}) {
+  privacyLockAfterPinSetup = !!lockAfterSetup;
   privacySetupStage = "new";
   privacyFirstPin = "";
   $("privacyPinTitle").textContent = "Set Fuwa PIN";
@@ -1322,6 +1323,7 @@ function closePrivacyPinSetup() {
   document.body.style.overflow = privacyIsLocked ? "hidden" : "";
   privacySetupStage = "new";
   privacyFirstPin = "";
+  privacyLockAfterPinSetup = false;
   $("privacyPinInput").value = "";
 }
 
@@ -1361,9 +1363,14 @@ async function handlePrivacyPinSetup(event) {
     await savePrivacyCredential(pin);
     state.privacyLockEnabled = true;
     savePreferences();
+    const shouldLockNow = privacyLockAfterPinSetup;
     closePrivacyPinSetup();
     renderPrivacySettings();
-    toast("Fuwa lock is ready 🔒");
+    if (shouldLockNow) {
+      setTimeout(() => lockFuwa("manual"), 80);
+    } else {
+      toast("Fuwa lock is ready 🔒");
+    }
   } catch (error) {
     console.error("Could not save privacy PIN.", error);
     $("privacyPinHelp").textContent = "Fuwa couldn't save the PIN on this device.";
@@ -1445,9 +1452,7 @@ function lockFuwa(reason = "manual") {
   document.body.classList.add("privacy-locked");
   document.body.style.overflow = "hidden";
 
-  if (!quickHideActive) {
-    setTimeout(() => $("unlockPinInput").focus(), 100);
-  }
+  setTimeout(() => $("unlockPinInput").focus(), 100);
 }
 
 function unlockFuwaSuccess() {
@@ -1618,23 +1623,30 @@ function installPrivacyActivityWatch() {
   }, 15000);
 }
 
+async function lockFuwaFromDrawer() {
+  const credential = await getPrivacyCredential();
+
+  if (!credential?.hash) {
+    openPrivacyPinSetup({ lockAfterSetup: true });
+    return;
+  }
+
+  if (!state.privacyLockEnabled) {
+    state.privacyLockEnabled = true;
+    savePreferences();
+    renderPrivacySettings();
+  }
+
+  lockFuwa("manual");
+}
+
 function quickHideFuwa() {
-  quickHideActive = true;
-  $("quickHideScreen").classList.remove("hidden");
-  document.body.classList.add("quick-hide-active");
-  document.body.style.overflow = "hidden";
+  lockFuwaFromDrawer();
 }
 
 function exitQuickHide() {
-  quickHideActive = false;
-  $("quickHideScreen").classList.add("hidden");
-  document.body.classList.remove("quick-hide-active");
-
-  if (state.privacyLockEnabled) {
-    lockFuwa("quick-hide");
-  } else {
-    document.body.style.overflow = "";
-  }
+  // Retained for backwards compatibility only.
+  // v47 no longer uses a tap-to-return privacy cover.
 }
 
 
@@ -3017,6 +3029,7 @@ let privacyFirstPin = "";
 let privacyLastActiveAt = Date.now();
 let privacyIsLocked = false;
 let privacyBiometricAvailable = false;
+let privacyLockAfterPinSetup = false;
 let quickHideActive = false;
 
 
@@ -4027,24 +4040,28 @@ function renderAppearanceControls(savedWallpaper = null) {
 function updateWallpaperPreview(saved) {
   const preview = $("wallpaperPreview");
   const empty = $("wallpaperPreviewEmpty");
+  const chooseButton = $("chooseWallpaperButton");
+  const removeButton = $("removeWallpaperButton");
   if (!preview || !empty) return;
 
   const old = preview.querySelector(".wallpaper-preview-image");
   if (old) old.remove();
 
-  if (!saved?.blob) {
-    empty.classList.remove("hidden");
-    return;
-  }
+  const hasWallpaper = !!saved?.blob;
+  empty.classList.toggle("hidden", hasWallpaper);
+  if (chooseButton) chooseButton.textContent = hasWallpaper ? "Change Photo" : "Choose Photo";
+  removeButton?.classList.toggle("hidden", !hasWallpaper);
+  preview.classList.toggle("has-wallpaper", hasWallpaper);
 
-  empty.classList.add("hidden");
+  if (!hasWallpaper) return;
+
   const url = URL.createObjectURL(saved.blob);
   const img = document.createElement("img");
   img.className = "wallpaper-preview-image";
   img.alt = "Saved Fuwa wallpaper";
   img.src = url;
   img.onload = () => URL.revokeObjectURL(url);
-  preview.appendChild(img);
+  preview.prepend(img);
 }
 
 function openAppearance() {
@@ -4224,6 +4241,18 @@ async function saveCroppedWallpaper() {
     $("saveWallpaperCrop").disabled = false;
     $("saveWallpaperCrop").textContent = "Save";
   }
+}
+
+async function removeCustomWallpaper() {
+  const saved = await diaryRepository.getSetting("custom-wallpaper");
+  if (!saved?.blob) return;
+  if (!confirm("Remove your custom wallpaper from this device?")) return;
+
+  state.wallpaperEnabled = false;
+  savePreferences();
+  await diaryRepository.removeSetting("custom-wallpaper");
+  await applyWallpaper();
+  toast("Wallpaper removed");
 }
 
 async function resetAppearance() {
@@ -5233,8 +5262,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (event.key === "Escape" && $("fuwaDrawer")?.classList.contains("open")) closeFuwaDrawer();
   });
 
-  $("quickHideButton").addEventListener("click", () => { closeFuwaDrawer(); quickHideFuwa(); });
-  $("quickHideScreen").addEventListener("click", exitQuickHide);
+  $("quickHideButton").addEventListener("click", async () => { closeFuwaDrawer(); await lockFuwaFromDrawer(); });
 
   $("privacyLockToggle")?.addEventListener("change", enableOrDisablePrivacyLock);
   $("setPrivacyPinButton")?.addEventListener("click", openPrivacyPinSetup);
@@ -5433,6 +5461,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("chooseWallpaperButton").addEventListener("click", openWallpaperPicker);
+  $("removeWallpaperButton")?.addEventListener("click", removeCustomWallpaper);
   $("wallpaperFileInput").addEventListener("change", event => {
     const file = event.target.files?.[0];
     event.target.value = "";

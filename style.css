@@ -6857,3 +6857,39 @@ body.auth-local #fuwaAuthGate{display:none!important}body.auth-local .app-shell{
 .firebase-profile-login{width:100%;margin-top:12px}.firebase-account-panel.local-mode .firebase-local-data-note{background:#fff6f9}
 .firebase-account-panel.local-mode #firebaseEmailDetail,.firebase-account-panel.local-mode #firebaseProviderDetail,.firebase-account-panel.local-mode #firebaseCloudDetail{display:none}
 #cloudBackupCard.local-hidden{display:none!important}
+
+
+/* FUWA V47 — APP LOCK + CLEAN WALLPAPER UI */
+.quick-hide-screen{display:none!important}
+
+.wallpaper-section-v47{padding:18px!important;border-radius:24px!important;overflow:hidden}
+.wallpaper-title-v47{align-items:flex-start!important;margin-bottom:14px!important}
+.wallpaper-title-v47>div{min-width:0}
+.wallpaper-title-v47 h3{margin:0 0 4px}
+.wallpaper-title-v47 p{margin:0;max-width:245px;color:var(--muted);font-size:8.5px;line-height:1.45}
+.wallpaper-title-v47>span{flex:0 0 auto;padding:6px 9px;border-radius:999px;background:#fff3f7;color:var(--accent-dark);font-size:8px;font-weight:800}
+.wallpaper-preview-v47{position:relative;min-height:220px;margin:0!important;overflow:hidden;border:1px dashed rgba(211,151,172,.55)!important;border-radius:20px!important;background:linear-gradient(145deg,#fff9fb,#fbf6ff)!important}
+.wallpaper-preview-v47.has-wallpaper{border-style:solid!important;background:#f4edf1!important}
+.wallpaper-preview-v47 .wallpaper-preview-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.wallpaper-preview-empty{min-height:220px!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:24px 20px!important;text-align:center}
+.wallpaper-preview-empty.hidden{display:none!important}
+.wallpaper-preview-empty strong{font-size:11px;color:#67525c}
+.wallpaper-preview-empty small{max-width:230px;color:var(--muted);font-size:8px;line-height:1.45}
+.wallpaper-preview-empty p{display:none!important}
+.wallpaper-preview-actions{position:absolute;z-index:3;left:12px;right:12px;bottom:12px;display:flex;gap:7px;justify-content:center}
+.wallpaper-photo-btn{min-height:39px;border-radius:999px;padding:9px 14px;font-size:8.5px;font-weight:850;box-shadow:0 5px 14px rgba(91,62,74,.10)}
+.wallpaper-photo-btn.primary{flex:1;border:1px solid rgba(213,151,173,.55);background:rgba(255,250,252,.94);color:#985973;backdrop-filter:blur(8px)}
+.wallpaper-photo-btn.danger{flex:0 0 auto;border:1px solid rgba(192,109,126,.24);background:rgba(255,245,247,.94);color:#b75b72}
+.wallpaper-controls-v47{margin-top:12px;border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.66);overflow:hidden}
+.wallpaper-toggle-v47{margin:0!important;padding:13px 14px!important;border:0!important}
+.wallpaper-toggle-v47 strong{font-size:10px}
+.wallpaper-toggle-v47 span{font-size:7.5px!important}
+.overlay-group-v47{margin:0!important;padding:13px 14px 14px!important;border-top:1px solid var(--line)}
+.overlay-heading-v47{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.overlay-heading-v47 strong{font-size:10px;color:#644f58}
+.overlay-heading-v47 span{max-width:180px;text-align:right;color:var(--muted);font-size:7.5px;line-height:1.35}
+.overlay-group-v47 .overlay-options{margin-top:0!important}
+.overlay-group-v47 .overlay-options button{min-height:38px!important}
+.wallpaper-crop-note{display:none!important}
+.wallpaper-section-v47>.appearance-secondary-btn{display:none!important}
+@media(max-width:370px){.wallpaper-title-v47 p{max-width:205px}.overlay-heading-v47{display:grid}.overlay-heading-v47 span{text-align:left;max-width:none}}
