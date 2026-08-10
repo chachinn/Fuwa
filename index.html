@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v62-local-journal-canvas -->
+  <!-- FUWA_BUILD: v65-scrapbook-text-styles -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1262,6 +1262,66 @@
         <div class="journal-item-controls hidden" id="journalCanvasItemControls">
           <label>Size <input id="journalCanvasScale" type="range" min="45" max="180" value="100" /></label>
           <label>Rotate <input id="journalCanvasRotation" type="range" min="-180" max="180" value="0" /></label>
+          <div class="journal-photo-style-controls hidden" id="journalPhotoStyleControls">
+            <span>Photo style</span>
+            <div class="journal-photo-style-options" role="group" aria-label="Photo style">
+              <button type="button" data-journal-photo-style="classic" aria-pressed="true">Classic</button>
+              <button type="button" data-journal-photo-style="plain" aria-pressed="false">Clean</button>
+              <button type="button" data-journal-photo-style="polaroid" aria-pressed="false">Polaroid</button>
+              <button type="button" data-journal-photo-style="rounded" aria-pressed="false">Rounded</button>
+              <button type="button" data-journal-photo-style="taped" aria-pressed="false">Taped</button>
+              <button type="button" data-journal-photo-style="circle" aria-pressed="false">Circle</button>
+            </div>
+          </div>
+          <div class="journal-text-style-controls hidden" id="journalTextStyleControls">
+            <div class="journal-text-style-heading"><span>Text style</span><button type="button" id="journalTextEdit">Edit text</button></div>
+            <div class="journal-text-style-row">
+              <span>Font</span>
+              <div class="journal-text-option-grid three" role="group" aria-label="Text font">
+                <button type="button" data-journal-text-font="journal" aria-pressed="true">Journal</button>
+                <button type="button" data-journal-text-font="soft" aria-pressed="false">Soft</button>
+                <button type="button" data-journal-text-font="typewriter" aria-pressed="false">Typewriter</button>
+              </div>
+            </div>
+            <div class="journal-text-style-row">
+              <span>Size</span>
+              <div class="journal-text-option-grid three" role="group" aria-label="Text size">
+                <button type="button" data-journal-text-size="small" aria-pressed="false">Small</button>
+                <button type="button" data-journal-text-size="medium" aria-pressed="true">Medium</button>
+                <button type="button" data-journal-text-size="large" aria-pressed="false">Large</button>
+              </div>
+            </div>
+            <div class="journal-text-style-row">
+              <span>Align</span>
+              <div class="journal-text-option-grid three" role="group" aria-label="Text alignment">
+                <button type="button" data-journal-text-align="left" aria-pressed="false">Left</button>
+                <button type="button" data-journal-text-align="center" aria-pressed="true">Center</button>
+                <button type="button" data-journal-text-align="right" aria-pressed="false">Right</button>
+              </div>
+            </div>
+            <div class="journal-text-style-row">
+              <span>Color</span>
+              <div class="journal-text-option-grid four journal-text-colors" role="group" aria-label="Text color">
+                <button type="button" data-journal-text-color="ink" aria-pressed="true"><i class="text-color-dot ink"></i>Ink</button>
+                <button type="button" data-journal-text-color="rose" aria-pressed="false"><i class="text-color-dot rose"></i>Rose</button>
+                <button type="button" data-journal-text-color="lavender" aria-pressed="false"><i class="text-color-dot lavender"></i>Lavender</button>
+                <button type="button" data-journal-text-color="cocoa" aria-pressed="false"><i class="text-color-dot cocoa"></i>Cocoa</button>
+              </div>
+            </div>
+            <div class="journal-text-style-row">
+              <span>Card</span>
+              <div class="journal-text-option-grid four" role="group" aria-label="Text background">
+                <button type="button" data-journal-text-background="paper" aria-pressed="true">Paper</button>
+                <button type="button" data-journal-text-background="none" aria-pressed="false">None</button>
+                <button type="button" data-journal-text-background="blush" aria-pressed="false">Blush</button>
+                <button type="button" data-journal-text-background="lavender" aria-pressed="false">Lavender</button>
+              </div>
+            </div>
+            <div class="journal-text-emphasis" role="group" aria-label="Text emphasis">
+              <button type="button" id="journalTextBold" aria-pressed="false"><strong>B</strong> Bold</button>
+              <button type="button" id="journalTextItalic" aria-pressed="false"><em>I</em> Italic</button>
+            </div>
+          </div>
           <div class="journal-layer-actions">
             <button type="button" id="journalCanvasBackward">Back layer</button>
             <button type="button" id="journalCanvasForward">Front layer</button>
@@ -1273,6 +1333,7 @@
         <div class="journal-palette">
           <div class="journal-palette-tabs">
             <button type="button" class="active" data-journal-palette-tab="stickers">Stickers</button>
+            <button type="button" data-journal-palette-tab="decor">Journal Bits</button>
             <button type="button" data-journal-palette-tab="mine">My Stickers</button>
             <button type="button" data-journal-palette-tab="photos">Photos</button>
             <button type="button" data-journal-palette-tab="paper">Paper</button>
@@ -1280,6 +1341,16 @@
 
           <div class="journal-palette-panel active" data-journal-palette-panel="stickers">
             <div class="builtin-sticker-palette" id="builtinStickerPalette"></div>
+          </div>
+
+          <div class="journal-palette-panel" data-journal-palette-panel="decor">
+            <div class="journal-palette-heading compact">
+              <div>
+                <strong>Journal Bits</strong>
+                <small>Washi tape, paper scraps, and little labels.</small>
+              </div>
+            </div>
+            <div class="journal-decor-palette" id="journalDecorPalette"></div>
           </div>
 
           <div class="journal-palette-panel" data-journal-palette-panel="mine">

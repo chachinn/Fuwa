@@ -4013,7 +4013,9 @@ function applyTheme() {
   if (state.theme === "mint") document.body.classList.add("theme-mint");
   if (state.theme === "yellow") document.body.classList.add("theme-yellow");
 
-  renderAppearanceControls();
+  // Keep normal renders lightweight. Appearance controls (and their IndexedDB
+  // wallpaper read) are refreshed only when Appearance is actually opened or
+  // when wallpaper/theme settings change.
 }
 
 async function applyWallpaper() {
@@ -4104,6 +4106,7 @@ async function selectTheme(theme) {
   state.theme = theme;
   savePreferences();
   applyTheme();
+  renderAppearanceControls();
 }
 
 async function toggleWallpaperEnabled() {
@@ -4817,6 +4820,23 @@ const FUWA_BUILTIN_STICKERS = [
   "☕","🧸","🐰","🐱","🫧","🌿","🍀","🕯️","📖","📎","✈️","🎧"
 ];
 
+const FUWA_JOURNAL_DECOR = [
+  { id: "washi-blush", kind: "washi", variant: "blush", label: "Blush tape" },
+  { id: "washi-lavender", kind: "washi", variant: "lavender", label: "Lavender tape" },
+  { id: "washi-daisy", kind: "washi", variant: "daisy", label: "Daisy tape" },
+  { id: "washi-grid", kind: "washi", variant: "grid", label: "Grid tape" },
+  { id: "scrap-rose", kind: "scrap", variant: "rose", label: "Rose paper" },
+  { id: "scrap-cream", kind: "scrap", variant: "cream", label: "Cream paper" },
+  { id: "scrap-lavender", kind: "scrap", variant: "lavender", label: "Lavender paper" },
+  { id: "scrap-note", kind: "scrap", variant: "note", label: "Note paper" },
+  { id: "label-today", kind: "label", variant: "blush", text: "TODAY", label: "Today label" },
+  { id: "label-memory", kind: "label", variant: "lavender", text: "MEMORY", label: "Memory label" },
+  { id: "label-love", kind: "label", variant: "cream", text: "♡ LITTLE THING", label: "Little thing label" },
+  { id: "label-date", kind: "label", variant: "rose", text: "DATE", label: "Date label" }
+];
+
+let journalPaletteLoaded = { mine: false, photos: false };
+
 function defaultJournalCanvas(entryId) {
   return {
     id: entryId,
@@ -4835,19 +4855,22 @@ function cleanupJournalCanvasUrls() {
   journalCanvasMediaUrls.clear();
 }
 
-async function loadJournalCanvasAssetUrls() {
+async function loadJournalCanvasReferencedUrls() {
   cleanupJournalCanvasUrls();
+  const customIds = [...new Set((journalCanvasState?.items || []).filter(item => item.type === "custom" && item.assetId).map(item => item.assetId))];
+  const mediaIds = [...new Set((journalCanvasState?.items || []).filter(item => item.type === "photo" && item.mediaId).map(item => item.mediaId))];
+
   const [assets, media] = await Promise.all([
-    diaryRepository.getAll("stickerAssets"),
-    activeJournalCanvasEntryId ? diaryRepository.getMediaForEntry(activeJournalCanvasEntryId) : Promise.resolve([])
+    Promise.all(customIds.map(id => diaryRepository.get("stickerAssets", id))),
+    Promise.all(mediaIds.map(id => diaryRepository.get("media", id)))
   ]);
-  assets.forEach(asset => {
+
+  assets.filter(Boolean).forEach(asset => {
     if (asset?.blob) journalCanvasAssetUrls.set(asset.id, URL.createObjectURL(asset.blob));
   });
-  media.forEach(record => {
+  media.filter(Boolean).forEach(record => {
     if (record?.blob) journalCanvasMediaUrls.set(record.id, URL.createObjectURL(record.blob));
   });
-  return { assets, media };
 }
 
 function journalCanvasItemMarkup(item) {
@@ -4862,10 +4885,71 @@ function journalCanvasItemMarkup(item) {
   }
   if (item.type === "photo") {
     const src = journalCanvasMediaUrls.get(item.mediaId) || "";
-    return `<button type="button" class="journal-canvas-item photo-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Entry photo"><img src="${src}" alt="Entry photo"></button>`;
+    const photoStyle = journalPhotoStyle(item);
+    return `<button type="button" class="journal-canvas-item photo-item photo-style-${photoStyle}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Entry photo"><img src="${src}" alt="Entry photo"></button>`;
   }
-  return `<button type="button" class="journal-canvas-item text-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}">${escapeHtml(item.text || "Little note")}</button>`;
+  if (item.type === "decor") {
+    const allowedKinds = ["washi", "scrap", "label"];
+    const allowedVariants = ["blush", "lavender", "daisy", "grid", "rose", "cream", "note"];
+    const kind = allowedKinds.includes(item.decorKind) ? item.decorKind : "label";
+    const variant = allowedVariants.includes(item.variant) ? item.variant : "blush";
+    const text = kind === "label" ? escapeHtml(item.text || "NOTE") : "";
+    return `<button type="button" class="journal-canvas-item decor-item decor-${kind} decor-${variant}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Journal decoration">${text ? `<span>${text}</span>` : ""}</button>`;
+  }
+  return `<button type="button" class="journal-canvas-item text-item ${journalTextClassNames(item)}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}">${escapeHtml(item.text || "Little note")}</button>`;
 }
+
+const JOURNAL_PHOTO_STYLES = ["classic", "plain", "polaroid", "rounded", "taped", "circle"];
+
+function journalPhotoStyle(item) {
+  return JOURNAL_PHOTO_STYLES.includes(item?.photoStyle) ? item.photoStyle : "classic";
+}
+
+const JOURNAL_TEXT_FONTS = ["journal", "soft", "typewriter"];
+const JOURNAL_TEXT_SIZES = ["small", "medium", "large"];
+const JOURNAL_TEXT_ALIGNS = ["left", "center", "right"];
+const JOURNAL_TEXT_COLORS = ["ink", "rose", "lavender", "cocoa"];
+const JOURNAL_TEXT_BACKGROUNDS = ["paper", "none", "blush", "lavender"];
+
+function journalTextStyle(item) {
+  return {
+    font: JOURNAL_TEXT_FONTS.includes(item?.textFont) ? item.textFont : "journal",
+    size: JOURNAL_TEXT_SIZES.includes(item?.textSize) ? item.textSize : "medium",
+    align: JOURNAL_TEXT_ALIGNS.includes(item?.textAlign) ? item.textAlign : "center",
+    color: JOURNAL_TEXT_COLORS.includes(item?.textColor) ? item.textColor : "ink",
+    background: JOURNAL_TEXT_BACKGROUNDS.includes(item?.textBackground) ? item.textBackground : "paper",
+    bold: item?.textBold === true,
+    italic: item?.textItalic === true
+  };
+}
+
+function journalTextClassNames(item) {
+  const style = journalTextStyle(item);
+  return [
+    `text-font-${style.font}`,
+    `text-size-${style.size}`,
+    `text-align-${style.align}`,
+    `text-color-${style.color}`,
+    `text-bg-${style.background}`,
+    style.bold ? "text-bold" : "",
+    style.italic ? "text-italic" : ""
+  ].filter(Boolean).join(" ");
+}
+
+function journalCanvasTransformStyle(item) {
+  return `translate(-50%,-50%) rotate(${Number(item.rotation || 0)}deg) scale(${Number(item.scale || 1)})`;
+}
+
+function updateJournalCanvasItemElement(item) {
+  if (!item) return;
+  const element = [...document.querySelectorAll("[data-canvas-item]")].find(node => node.dataset.canvasItem === item.id);
+  if (!element) return;
+  element.style.left = `${Math.max(0, Math.min(1, Number(item.x ?? .5))) * 100}%`;
+  element.style.top = `${Math.max(0, Math.min(1, Number(item.y ?? .5))) * 100}%`;
+  element.style.transform = journalCanvasTransformStyle(item);
+  element.style.zIndex = String(Number(item.z || 1));
+}
+
 
 function bindJournalCanvasItems() {
   document.querySelectorAll("[data-canvas-item]").forEach(element => {
@@ -4892,11 +4976,32 @@ function renderJournalCanvasControls() {
   if (!item) return;
   if ($("journalCanvasScale")) $("journalCanvasScale").value = String(Math.round((item.scale || 1) * 100));
   if ($("journalCanvasRotation")) $("journalCanvasRotation").value = String(Number(item.rotation || 0));
+
+  const photoControls = $("journalPhotoStyleControls");
+  const textControls = $("journalTextStyleControls");
+  const isPhoto = item.type === "photo";
+  const isText = item.type === "text";
+  photoControls?.classList.toggle("hidden", !isPhoto);
+  textControls?.classList.toggle("hidden", !isText);
+
+  if (isPhoto) {
+    const activeStyle = journalPhotoStyle(item);
+    document.querySelectorAll("[data-journal-photo-style]").forEach(button => {
+      const active = button.dataset.journalPhotoStyle === activeStyle;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  if (isText) syncJournalTextControls(item);
 }
 
 function selectJournalCanvasItem(id) {
   selectedJournalCanvasItemId = id;
-  renderJournalCanvas();
+  document.querySelectorAll("[data-canvas-item]").forEach(element => {
+    element.classList.toggle("selected", element.dataset.canvasItem === id);
+  });
+  renderJournalCanvasControls();
 }
 
 function beginJournalCanvasDrag(event) {
@@ -4954,16 +5059,45 @@ function renderBuiltinStickerPalette() {
   });
 }
 
+function renderJournalDecorPalette() {
+  const host = $("journalDecorPalette");
+  if (!host) return;
+  host.innerHTML = FUWA_JOURNAL_DECOR.map(item => `
+    <button type="button" class="journal-decor-palette-item ${escapeHtml(`preview-${item.kind}`)} ${escapeHtml(`preview-${item.variant}`)}" data-add-journal-decor="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.label)}">
+      ${item.kind === "label" ? `<span>${escapeHtml(item.text || "NOTE")}</span>` : ""}
+    </button>`).join("");
+  host.querySelectorAll("[data-add-journal-decor]").forEach(button => {
+    button.addEventListener("click", () => {
+      const decor = FUWA_JOURNAL_DECOR.find(item => item.id === button.dataset.addJournalDecor);
+      if (!decor) return;
+      addJournalCanvasItem({
+        type: "decor",
+        decorKind: decor.kind,
+        variant: decor.variant,
+        text: decor.text || "",
+        scale: decor.kind === "washi" ? 1.15 : decor.kind === "scrap" ? 1.05 : .9
+      });
+    });
+  });
+}
+
 async function renderMyStickerPalette() {
   const host = $("myStickerPalette");
   if (!host) return;
+  host.innerHTML = `<p class="journal-palette-empty">Loading My Stickers…</p>`;
   const assets = await diaryRepository.getAll("stickerAssets");
+  assets.forEach(asset => {
+    if (asset?.blob && !journalCanvasAssetUrls.has(asset.id)) {
+      journalCanvasAssetUrls.set(asset.id, URL.createObjectURL(asset.blob));
+    }
+  });
   host.innerHTML = assets.length ? assets.sort((a,b) => b.createdAt - a.createdAt).map(asset => {
     const src = journalCanvasAssetUrls.get(asset.id) || "";
-    return `<div class="my-sticker-chip"><button type="button" data-add-custom-sticker="${escapeHtml(asset.id)}"><img src="${src}" alt="${escapeHtml(asset.name || "My sticker")}"></button><button type="button" class="my-sticker-delete" data-delete-custom-sticker="${escapeHtml(asset.id)}" aria-label="Delete sticker">×</button></div>`;
+    return `<div class="my-sticker-chip"><button type="button" data-add-custom-sticker="${escapeHtml(asset.id)}"><img loading="lazy" decoding="async" src="${src}" alt="${escapeHtml(asset.name || "My sticker")}"></button><button type="button" class="my-sticker-delete" data-delete-custom-sticker="${escapeHtml(asset.id)}" aria-label="Delete sticker">×</button></div>`;
   }).join("") : `<p class="journal-palette-empty">Import PNG, JPG, or WebP stickers from your device. Transparent PNG/WebP works best.</p>`;
   host.querySelectorAll("[data-add-custom-sticker]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "custom", assetId: button.dataset.addCustomSticker })));
   host.querySelectorAll("[data-delete-custom-sticker]").forEach(button => button.addEventListener("click", () => deleteCustomSticker(button.dataset.deleteCustomSticker)));
+  journalPaletteLoaded.mine = true;
 }
 
 async function importCustomSticker(event) {
@@ -5011,14 +5145,25 @@ async function deleteCustomSticker(assetId) {
 async function renderJournalPhotoPalette() {
   const host = $("journalPhotoPalette");
   if (!host) return;
+  host.innerHTML = `<p class="journal-palette-empty">Loading entry photos…</p>`;
   const media = await diaryRepository.getMediaForEntry(activeJournalCanvasEntryId);
-  host.innerHTML = media.length ? media.map(record => `<button type="button" class="journal-photo-chip" data-add-entry-photo="${escapeHtml(record.id)}"><img src="${journalCanvasMediaUrls.get(record.id) || ""}" alt="Entry photo"></button>`).join("") : `<p class="journal-palette-empty">This entry has no saved photos yet.</p>`;
-  host.querySelectorAll("[data-add-entry-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addEntryPhoto, scale: .9 })));
+  media.forEach(record => {
+    if (record?.blob && !journalCanvasMediaUrls.has(record.id)) {
+      journalCanvasMediaUrls.set(record.id, URL.createObjectURL(record.blob));
+    }
+  });
+  host.innerHTML = media.length ? media.map(record => `<button type="button" class="journal-photo-chip" data-add-entry-photo="${escapeHtml(record.id)}"><img loading="lazy" decoding="async" src="${journalCanvasMediaUrls.get(record.id) || ""}" alt="Entry photo"></button>`).join("") : `<p class="journal-palette-empty">This entry has no saved photos yet.</p>`;
+  host.querySelectorAll("[data-add-entry-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addEntryPhoto, scale: .9, photoStyle: "classic" })));
+  journalPaletteLoaded.photos = true;
 }
 
 function switchJournalPalette(tab) {
   document.querySelectorAll("[data-journal-palette-tab]").forEach(button => button.classList.toggle("active", button.dataset.journalPaletteTab === tab));
   document.querySelectorAll("[data-journal-palette-panel]").forEach(panel => panel.classList.toggle("active", panel.dataset.journalPalettePanel === tab));
+
+  // Heavy local image palettes are intentionally loaded only when opened.
+  if (tab === "mine" && !journalPaletteLoaded.mine) renderMyStickerPalette().catch(console.error);
+  if (tab === "photos" && !journalPaletteLoaded.photos) renderJournalPhotoPalette().catch(console.error);
 }
 
 async function openJournalCanvas() {
@@ -5029,14 +5174,25 @@ async function openJournalCanvas() {
   }
   activeJournalCanvasEntryId = entryId;
   selectedJournalCanvasItemId = null;
+  journalPaletteLoaded = { mine: false, photos: false };
   journalCanvasState = await diaryRepository.get("journalCanvases", entryId) || defaultJournalCanvas(entryId);
-  await loadJournalCanvasAssetUrls();
+
   renderBuiltinStickerPalette();
-  await renderMyStickerPalette();
-  await renderJournalPhotoPalette();
+  renderJournalDecorPalette();
+  if ($("myStickerPalette")) $("myStickerPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load My Stickers.</p>`;
+  if ($("journalPhotoPalette")) $("journalPhotoPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load entry photos.</p>`;
   switchJournalPalette("stickers");
   renderJournalCanvas();
   navigate("journalCanvas");
+
+  // Load only assets already used by this page. Full sticker/photo libraries
+  // remain lazy until their tabs are opened.
+  try {
+    await loadJournalCanvasReferencedUrls();
+    if (activeJournalCanvasEntryId === entryId) renderJournalCanvas();
+  } catch (error) {
+    console.error("Could not load decorated page assets.", error);
+  }
 }
 
 function closeJournalCanvas() {
@@ -5064,7 +5220,98 @@ function updateSelectedJournalItem(patch) {
   const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
   if (!item) return;
   Object.assign(item, patch);
-  renderJournalCanvas();
+  updateJournalCanvasItemElement(item);
+}
+
+function setSelectedJournalPhotoStyle(style) {
+  if (!JOURNAL_PHOTO_STYLES.includes(style)) return;
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item || item.type !== "photo") return;
+
+  item.photoStyle = style;
+  const element = [...document.querySelectorAll("[data-canvas-item]")].find(node => node.dataset.canvasItem === item.id);
+  if (element) {
+    JOURNAL_PHOTO_STYLES.forEach(name => element.classList.remove(`photo-style-${name}`));
+    element.classList.add(`photo-style-${style}`);
+  }
+
+  document.querySelectorAll("[data-journal-photo-style]").forEach(button => {
+    const active = button.dataset.journalPhotoStyle === style;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
+function syncJournalTextControls(item) {
+  const style = journalTextStyle(item);
+  const groups = [
+    ["[data-journal-text-font]", "journalTextFont", style.font],
+    ["[data-journal-text-size]", "journalTextSize", style.size],
+    ["[data-journal-text-align]", "journalTextAlign", style.align],
+    ["[data-journal-text-color]", "journalTextColor", style.color],
+    ["[data-journal-text-background]", "journalTextBackground", style.background]
+  ];
+  groups.forEach(([selector, datasetKey, value]) => {
+    document.querySelectorAll(selector).forEach(button => {
+      const active = button.dataset[datasetKey] === value;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  });
+  const boldButton = $("journalTextBold");
+  const italicButton = $("journalTextItalic");
+  if (boldButton) {
+    boldButton.classList.toggle("active", style.bold);
+    boldButton.setAttribute("aria-pressed", style.bold ? "true" : "false");
+  }
+  if (italicButton) {
+    italicButton.classList.toggle("active", style.italic);
+    italicButton.setAttribute("aria-pressed", style.italic ? "true" : "false");
+  }
+}
+
+function refreshSelectedJournalTextElement(item) {
+  if (!item || item.type !== "text") return;
+  const element = [...document.querySelectorAll("[data-canvas-item]")].find(node => node.dataset.canvasItem === item.id);
+  if (!element) return;
+  const wasSelected = element.classList.contains("selected");
+  element.className = `journal-canvas-item text-item ${journalTextClassNames(item)}${wasSelected ? " selected" : ""}`;
+  element.textContent = item.text || "Little note";
+}
+
+function setSelectedJournalTextStyle(property, value) {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item || item.type !== "text") return;
+
+  const allowed = {
+    textFont: JOURNAL_TEXT_FONTS,
+    textSize: JOURNAL_TEXT_SIZES,
+    textAlign: JOURNAL_TEXT_ALIGNS,
+    textColor: JOURNAL_TEXT_COLORS,
+    textBackground: JOURNAL_TEXT_BACKGROUNDS
+  };
+  if (!allowed[property]?.includes(value)) return;
+
+  item[property] = value;
+  refreshSelectedJournalTextElement(item);
+  syncJournalTextControls(item);
+}
+
+function toggleSelectedJournalTextStyle(property) {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item || item.type !== "text" || !["textBold", "textItalic"].includes(property)) return;
+  item[property] = item[property] !== true;
+  refreshSelectedJournalTextElement(item);
+  syncJournalTextControls(item);
+}
+
+function editSelectedJournalText() {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item || item.type !== "text") return;
+  const text = window.prompt("Edit this little text:", item.text || "Little note");
+  if (text == null || !text.trim()) return;
+  item.text = text.trim();
+  refreshSelectedJournalTextElement(item);
 }
 
 function removeSelectedJournalItem() {
@@ -5091,7 +5338,18 @@ function moveSelectedJournalItemLayer(direction) {
 function addJournalText() {
   const text = window.prompt("Add a little text to the page:", "Little note");
   if (text == null || !text.trim()) return;
-  addJournalCanvasItem({ type: "text", text: text.trim(), scale: .9 });
+  addJournalCanvasItem({
+    type: "text",
+    text: text.trim(),
+    scale: .9,
+    textFont: "journal",
+    textSize: "medium",
+    textAlign: "center",
+    textColor: "ink",
+    textBackground: "paper",
+    textBold: false,
+    textItalic: false
+  });
 }
 
 function setJournalPaper(name) {
@@ -6269,10 +6527,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (requestedView === "life") { navigate("life"); history.replaceState(null, "", window.location.pathname); }
     await applyWallpaper();
     renderSleepControls();
-    await detectBiometricAvailability();
-    installPrivacyActivityWatch();
 
+    // Show the usable shell before nonessential capability checks. This keeps
+    // startup responsive as the local diary grows.
     document.body.classList.remove("fuwa-loading");
+    const runDeferredStartup = () => {
+      detectBiometricAvailability().catch(error => console.warn("Biometric availability check failed.", error));
+      installPrivacyActivityWatch();
+    };
+    if ("requestIdleCallback" in window) window.requestIdleCallback(runDeferredStartup, { timeout: 1200 });
+    else window.setTimeout(runDeferredStartup, 60);
+
     maybeOpenFirstUseTutorial();
 
     window.addEventListener("fuwa-auth-ready", () => {
@@ -6504,6 +6769,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("[data-journal-paper]").forEach(button => button.addEventListener("click", () => setJournalPaper(button.dataset.journalPaper)));
   $("journalCanvasScale")?.addEventListener("input", event => updateSelectedJournalItem({ scale: Number(event.target.value) / 100 }));
   $("journalCanvasRotation")?.addEventListener("input", event => updateSelectedJournalItem({ rotation: Number(event.target.value) }));
+  document.querySelectorAll("[data-journal-photo-style]").forEach(button => {
+    button.addEventListener("click", () => setSelectedJournalPhotoStyle(button.dataset.journalPhotoStyle));
+  });
+  document.querySelectorAll("[data-journal-text-font]").forEach(button => button.addEventListener("click", () => setSelectedJournalTextStyle("textFont", button.dataset.journalTextFont)));
+  document.querySelectorAll("[data-journal-text-size]").forEach(button => button.addEventListener("click", () => setSelectedJournalTextStyle("textSize", button.dataset.journalTextSize)));
+  document.querySelectorAll("[data-journal-text-align]").forEach(button => button.addEventListener("click", () => setSelectedJournalTextStyle("textAlign", button.dataset.journalTextAlign)));
+  document.querySelectorAll("[data-journal-text-color]").forEach(button => button.addEventListener("click", () => setSelectedJournalTextStyle("textColor", button.dataset.journalTextColor)));
+  document.querySelectorAll("[data-journal-text-background]").forEach(button => button.addEventListener("click", () => setSelectedJournalTextStyle("textBackground", button.dataset.journalTextBackground)));
+  $("journalTextBold")?.addEventListener("click", () => toggleSelectedJournalTextStyle("textBold"));
+  $("journalTextItalic")?.addEventListener("click", () => toggleSelectedJournalTextStyle("textItalic"));
+  $("journalTextEdit")?.addEventListener("click", editSelectedJournalText);
   $("journalCanvasDuplicate")?.addEventListener("click", duplicateSelectedJournalItem);
   $("journalCanvasForward")?.addEventListener("click", () => moveSelectedJournalItemLayer(1));
   $("journalCanvasBackward")?.addEventListener("click", () => moveSelectedJournalItemLayer(-1));
