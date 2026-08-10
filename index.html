@@ -118,13 +118,13 @@
       top: -10px;
     }
 
-body.auth-signed-in #fuwaStartupSplash,
-body.auth-signed-out #fuwaStartupSplash,
-body.auth-local #fuwaStartupSplash {
-  opacity: 0;
-  pointer-events: none;
-  visibility: hidden;
-}
+    body.auth-signed-in #fuwaStartupSplash,
+    body.auth-signed-out #fuwaStartupSplash,
+    body.auth-local #fuwaStartupSplash {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
   </style>
 
 </head>
@@ -135,6 +135,53 @@ body.auth-local #fuwaStartupSplash {
       <span>Fuwa</span>
     </div>
   </div>
+
+  <script>
+    (function () {
+      const body = document.body;
+      const splash = document.getElementById("fuwaStartupSplash");
+
+      function hideStartupSplash() {
+        if (!splash) return;
+        splash.style.opacity = "0";
+        splash.style.visibility = "hidden";
+        splash.style.pointerEvents = "none";
+      }
+
+      function enterLocalModeImmediately() {
+        body.classList.remove(
+          "auth-pending",
+          "auth-signed-out",
+          "auth-signed-in"
+        );
+        body.classList.add("auth-local");
+        hideStartupSplash();
+      }
+
+      try {
+        if (localStorage.getItem("fuwaLocalModeV1") === "1") {
+          enterLocalModeImmediately();
+          return;
+        }
+      } catch (error) {
+        console.warn("Fuwa could not read local mode during startup.", error);
+      }
+
+      /*
+        Safety fallback:
+        Never leave Fuwa permanently stuck on the startup splash.
+        If authentication has not resolved after 8 seconds, show the
+        signed-out screen rather than exposing the private journal.
+      */
+      window.setTimeout(function () {
+        if (!document.body.classList.contains("auth-pending")) return;
+
+        document.body.classList.remove("auth-pending");
+        document.body.classList.add("auth-signed-out");
+        hideStartupSplash();
+      }, 8000);
+    })();
+  </script>
 
   <div class="cozy-ambient" aria-hidden="true">
     <span class="ambient-cloud ambient-cloud-one"></span>
