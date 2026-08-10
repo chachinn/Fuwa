@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v66-standalone-scrapbook -->
+  <!-- FUWA_BUILD: v68-expanded-scrapbook-library -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1251,12 +1251,12 @@
           <div>
             <p class="eyebrow">Your little paper world</p>
             <h2>Scrapbook 🎀</h2>
-            <p class="muted">Make pages from photos, stickers, words, or nothing but a mood. A diary entry is optional.</p>
+            <p class="muted">Make little books from photos, stickers, words, or nothing but a mood. A diary entry is optional.</p>
           </div>
-          <button class="round-add scrapbook-new-page" id="newScrapbookPageButton" type="button" aria-label="Create scrapbook page">＋</button>
+          <button class="round-add scrapbook-new-page" id="newScrapbookPageButton" type="button" aria-label="Create scrapbook">＋</button>
         </div>
         <div class="scrapbook-library-toolbar">
-          <span id="scrapbookPageCount">0 pages</span>
+          <span id="scrapbookPageCount">0 scrapbooks</span>
           <label>Sort
             <select id="scrapbookSort">
               <option value="newest">Newest</option>
@@ -1266,9 +1266,9 @@
         </div>
         <div class="scrapbook-empty-card hidden" id="scrapbookEmptyState">
           <span class="scrapbook-empty-mark">🎀</span>
-          <h3>Your first blank page is waiting.</h3>
-          <p>You can start with photos, stickers, washi, or a tiny note. No journal entry needed.</p>
-          <button type="button" class="primary-btn compact" id="scrapbookEmptyCreateButton">＋ New Page</button>
+          <h3>Your first scrapbook is waiting.</h3>
+          <p>Start with one blank page, then add more whenever the story grows. No journal entry needed.</p>
+          <button type="button" class="primary-btn compact" id="scrapbookEmptyCreateButton">＋ New Scrapbook</button>
         </div>
         <div class="scrapbook-library-grid" id="scrapbookLibraryGrid"></div>
       </section>
@@ -1277,10 +1277,27 @@
         <div class="journal-canvas-topbar">
           <button class="text-btn" id="journalCanvasBack" type="button">Back</button>
           <div class="journal-canvas-title-wrap">
-            <p class="eyebrow" id="journalCanvasEyebrow">Your scrapbook page</p>
-            <input id="journalCanvasTitleInput" class="journal-canvas-title-input" maxlength="80" value="Untitled page" aria-label="Scrapbook page title" />
+            <p class="eyebrow" id="journalCanvasEyebrow">Your scrapbook</p>
+            <input id="journalBookTitleInput" class="journal-book-title-input" maxlength="80" value="Untitled scrapbook" aria-label="Scrapbook title" />
+            <input id="journalCanvasTitleInput" class="journal-canvas-title-input" maxlength="80" value="Page 1" aria-label="Scrapbook page title" />
           </div>
           <button class="text-btn strong" id="saveJournalCanvasButton" type="button">Save</button>
+        </div>
+
+        <div class="scrapbook-page-navigator" aria-label="Scrapbook pages">
+          <button type="button" class="scrapbook-page-arrow" id="scrapbookPrevPage" aria-label="Previous page">‹</button>
+          <div class="scrapbook-page-navigator-main">
+            <div class="scrapbook-page-position" id="scrapbookPagePosition">Page 1 of 1</div>
+            <div class="scrapbook-page-strip" id="scrapbookPageStrip"></div>
+          </div>
+          <button type="button" class="scrapbook-page-arrow" id="scrapbookNextPage" aria-label="Next page">›</button>
+        </div>
+        <div class="scrapbook-page-actions" aria-label="Page actions">
+          <button type="button" id="scrapbookAddPage">＋ Add Page</button>
+          <button type="button" id="scrapbookDuplicatePage">Duplicate</button>
+          <button type="button" id="scrapbookMovePageLeft">← Move</button>
+          <button type="button" id="scrapbookMovePageRight">Move →</button>
+          <button type="button" class="danger" id="scrapbookDeletePage">Delete Page</button>
         </div>
 
         <div class="journal-paper-wrap">
@@ -1368,6 +1385,7 @@
           </div>
 
           <div class="journal-palette-panel active" data-journal-palette-panel="stickers">
+            <div class="scrapbook-category-bar" id="stickerCategoryBar" aria-label="Sticker categories"></div>
             <div class="builtin-sticker-palette" id="builtinStickerPalette"></div>
           </div>
 
@@ -1375,9 +1393,10 @@
             <div class="journal-palette-heading compact">
               <div>
                 <strong>Journal Bits</strong>
-                <small>Washi tape, paper scraps, and little labels.</small>
+                <small>Washi, scraps, labels, tickets, tags, stamps, corners, and frames.</small>
               </div>
             </div>
+            <div class="scrapbook-category-bar" id="journalBitGroupBar" aria-label="Journal Bit categories"></div>
             <div class="journal-decor-palette" id="journalDecorPalette"></div>
           </div>
 
@@ -1407,12 +1426,8 @@
           </div>
 
           <div class="journal-palette-panel" data-journal-palette-panel="paper">
-            <div class="journal-paper-options">
-              <button type="button" class="active" data-journal-paper="blush"><span class="paper-swatch blush"></span>Blush</button>
-              <button type="button" data-journal-paper="cream"><span class="paper-swatch cream"></span>Cream</button>
-              <button type="button" data-journal-paper="lavender"><span class="paper-swatch lavender"></span>Lavender</button>
-              <button type="button" data-journal-paper="grid"><span class="paper-swatch grid"></span>Grid</button>
-            </div>
+            <div class="scrapbook-category-bar" id="paperCategoryBar" aria-label="Paper categories"></div>
+            <div class="journal-paper-options" id="journalPaperOptions"></div>
           </div>
 
           <button type="button" class="journal-add-text-button" id="addJournalTextButton">＋ Add a little text</button>
@@ -2019,6 +2034,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="firebase-fuwa.js"></script>
+  <script src="data/scrapbook-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

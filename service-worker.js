@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v66";
+const CACHE_NAME = "fuwa-shell-v68";
 
 const CORE_ASSETS = [
   "./",
@@ -16,9 +16,16 @@ const STATIC_ASSETS = [
   "./icon/favicon-32.png"
 ];
 
+const OPTIONAL_ASSETS = [
+  "./data/scrapbook-data.js"
+];
+
 self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]))
+    caches.open(CACHE_NAME).then(async cache => {
+      await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
+      await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));
+    })
   );
   self.skipWaiting();
 });
@@ -46,6 +53,7 @@ function isCoreRequest(request) {
     url.pathname.endsWith("/style.css") ||
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/firebase-fuwa.js") ||
+    url.pathname.endsWith("/data/scrapbook-data.js") ||
     url.pathname.endsWith("/manifest.json")
   );
 }

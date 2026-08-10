@@ -1,0 +1,4463 @@
+{
+  "schemaVersion": 1,
+  "libraryVersion": "2026.08.10",
+  "notes": "Fuwa scrapbook built-in library. Sticker characters use Unicode emoji/symbols; journal bits and papers are original CSS/data recipes. No external image assets are bundled.",
+  "referenceSources": [
+    {
+      "name": "Unicode Emoji 17.0 / CLDR",
+      "use": "category coverage and searchable naming inspiration"
+    },
+    {
+      "name": "OpenMoji",
+      "use": "open emoji ecosystem reference only; no OpenMoji artwork bundled"
+    },
+    {
+      "name": "MDN CSS gradients",
+      "use": "browser-compatible CSS pattern approach"
+    }
+  ],
+  "stickerCategories": [
+    {
+      "id": "cute-love",
+      "label": "Cute & Love",
+      "icon": "🎀",
+      "order": 10
+    },
+    {
+      "id": "flowers",
+      "label": "Flowers",
+      "icon": "🌸",
+      "order": 20
+    },
+    {
+      "id": "food",
+      "label": "Food & Drinks",
+      "icon": "🍓",
+      "order": 30
+    },
+    {
+      "id": "travel",
+      "label": "Travel",
+      "icon": "✈️",
+      "order": 40
+    },
+    {
+      "id": "cozy",
+      "label": "Cozy",
+      "icon": "☕",
+      "order": 50
+    },
+    {
+      "id": "animals",
+      "label": "Animals",
+      "icon": "🐰",
+      "order": 60
+    },
+    {
+      "id": "weather",
+      "label": "Weather & Seasons",
+      "icon": "🌙",
+      "order": 70
+    },
+    {
+      "id": "stationery",
+      "label": "Stationery",
+      "icon": "📎",
+      "order": 80
+    },
+    {
+      "id": "celebration",
+      "label": "Celebration",
+      "icon": "🎂",
+      "order": 90
+    },
+    {
+      "id": "symbols",
+      "label": "Symbols",
+      "icon": "✨",
+      "order": 100
+    }
+  ],
+  "stickers": [
+    {
+      "id": "pink-heart",
+      "emoji": "🩷",
+      "label": "Pink heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "pink",
+        "heart"
+      ]
+    },
+    {
+      "id": "red-heart",
+      "emoji": "❤️",
+      "label": "Red heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "heart"
+      ]
+    },
+    {
+      "id": "sparkling-heart",
+      "emoji": "💖",
+      "label": "Sparkling heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "sparkle"
+      ]
+    },
+    {
+      "id": "two-hearts",
+      "emoji": "💕",
+      "label": "Two hearts",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "cute"
+      ]
+    },
+    {
+      "id": "revolving-hearts",
+      "emoji": "💞",
+      "label": "Revolving hearts",
+      "category": "cute-love",
+      "tags": [
+        "love"
+      ]
+    },
+    {
+      "id": "heart-ribbon",
+      "emoji": "💝",
+      "label": "Heart with ribbon",
+      "category": "cute-love",
+      "tags": [
+        "gift",
+        "love"
+      ]
+    },
+    {
+      "id": "love-letter",
+      "emoji": "💌",
+      "label": "Love letter",
+      "category": "cute-love",
+      "tags": [
+        "letter",
+        "love"
+      ]
+    },
+    {
+      "id": "ribbon",
+      "emoji": "🎀",
+      "label": "Ribbon",
+      "category": "cute-love",
+      "tags": [
+        "bow",
+        "pink",
+        "cute"
+      ]
+    },
+    {
+      "id": "heart-decoration",
+      "emoji": "💟",
+      "label": "Heart decoration",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "symbol"
+      ]
+    },
+    {
+      "id": "white-heart",
+      "emoji": "🤍",
+      "label": "White heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "soft"
+      ]
+    },
+    {
+      "id": "purple-heart",
+      "emoji": "💜",
+      "label": "Purple heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "lavender"
+      ]
+    },
+    {
+      "id": "blue-heart",
+      "emoji": "🩵",
+      "label": "Light blue heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "blue"
+      ]
+    },
+    {
+      "id": "yellow-heart",
+      "emoji": "💛",
+      "label": "Yellow heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "sunny"
+      ]
+    },
+    {
+      "id": "green-heart",
+      "emoji": "💚",
+      "label": "Green heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "nature"
+      ]
+    },
+    {
+      "id": "orange-heart",
+      "emoji": "🧡",
+      "label": "Orange heart",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "warm"
+      ]
+    },
+    {
+      "id": "heart-hands",
+      "emoji": "🫶",
+      "label": "Heart hands",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "hands"
+      ]
+    },
+    {
+      "id": "smiling-hearts",
+      "emoji": "🥰",
+      "label": "Smiling face with hearts",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "happy"
+      ]
+    },
+    {
+      "id": "heart-eyes",
+      "emoji": "😍",
+      "label": "Heart eyes",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "happy"
+      ]
+    },
+    {
+      "id": "kiss",
+      "emoji": "💋",
+      "label": "Kiss mark",
+      "category": "cute-love",
+      "tags": [
+        "love",
+        "lipstick"
+      ]
+    },
+    {
+      "id": "bubble",
+      "emoji": "🫧",
+      "label": "Bubbles",
+      "category": "cute-love",
+      "tags": [
+        "soft",
+        "cute"
+      ]
+    },
+    {
+      "id": "cloud",
+      "emoji": "☁️",
+      "label": "Cloud",
+      "category": "cute-love",
+      "tags": [
+        "soft",
+        "dreamy"
+      ]
+    },
+    {
+      "id": "sparkles",
+      "emoji": "✨",
+      "label": "Sparkles",
+      "category": "cute-love",
+      "tags": [
+        "sparkle",
+        "cute"
+      ]
+    },
+    {
+      "id": "star",
+      "emoji": "⭐",
+      "label": "Star",
+      "category": "cute-love",
+      "tags": [
+        "star",
+        "cute"
+      ]
+    },
+    {
+      "id": "glowing-star",
+      "emoji": "🌟",
+      "label": "Glowing star",
+      "category": "cute-love",
+      "tags": [
+        "star",
+        "sparkle"
+      ]
+    },
+    {
+      "id": "shooting-star",
+      "emoji": "🌠",
+      "label": "Shooting star",
+      "category": "cute-love",
+      "tags": [
+        "star",
+        "wish"
+      ]
+    },
+    {
+      "id": "cherry-blossom",
+      "emoji": "🌸",
+      "label": "Cherry blossom",
+      "category": "flowers",
+      "tags": [
+        "sakura",
+        "spring",
+        "pink"
+      ]
+    },
+    {
+      "id": "tulip",
+      "emoji": "🌷",
+      "label": "Tulip",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "spring"
+      ]
+    },
+    {
+      "id": "rose",
+      "emoji": "🌹",
+      "label": "Rose",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "love"
+      ]
+    },
+    {
+      "id": "hibiscus",
+      "emoji": "🌺",
+      "label": "Hibiscus",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "tropical"
+      ]
+    },
+    {
+      "id": "sunflower",
+      "emoji": "🌻",
+      "label": "Sunflower",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "summer"
+      ]
+    },
+    {
+      "id": "blossom",
+      "emoji": "🌼",
+      "label": "Blossom",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "daisy"
+      ]
+    },
+    {
+      "id": "bouquet",
+      "emoji": "💐",
+      "label": "Bouquet",
+      "category": "flowers",
+      "tags": [
+        "flowers",
+        "gift"
+      ]
+    },
+    {
+      "id": "lotus",
+      "emoji": "🪷",
+      "label": "Lotus",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "calm"
+      ]
+    },
+    {
+      "id": "hyacinth",
+      "emoji": "🪻",
+      "label": "Hyacinth",
+      "category": "flowers",
+      "tags": [
+        "flower",
+        "purple"
+      ]
+    },
+    {
+      "id": "seedling",
+      "emoji": "🌱",
+      "label": "Seedling",
+      "category": "flowers",
+      "tags": [
+        "plant",
+        "growth"
+      ]
+    },
+    {
+      "id": "herb",
+      "emoji": "🌿",
+      "label": "Herb",
+      "category": "flowers",
+      "tags": [
+        "plant",
+        "green"
+      ]
+    },
+    {
+      "id": "four-leaf-clover",
+      "emoji": "🍀",
+      "label": "Four leaf clover",
+      "category": "flowers",
+      "tags": [
+        "lucky",
+        "green"
+      ]
+    },
+    {
+      "id": "clover",
+      "emoji": "☘️",
+      "label": "Shamrock",
+      "category": "flowers",
+      "tags": [
+        "plant",
+        "green"
+      ]
+    },
+    {
+      "id": "leaf",
+      "emoji": "🍃",
+      "label": "Leaf fluttering",
+      "category": "flowers",
+      "tags": [
+        "leaf",
+        "green"
+      ]
+    },
+    {
+      "id": "fallen-leaf",
+      "emoji": "🍂",
+      "label": "Fallen leaf",
+      "category": "flowers",
+      "tags": [
+        "autumn",
+        "leaf"
+      ]
+    },
+    {
+      "id": "maple-leaf",
+      "emoji": "🍁",
+      "label": "Maple leaf",
+      "category": "flowers",
+      "tags": [
+        "autumn",
+        "leaf"
+      ]
+    },
+    {
+      "id": "potted-plant",
+      "emoji": "🪴",
+      "label": "Potted plant",
+      "category": "flowers",
+      "tags": [
+        "plant",
+        "home"
+      ]
+    },
+    {
+      "id": "cactus",
+      "emoji": "🌵",
+      "label": "Cactus",
+      "category": "flowers",
+      "tags": [
+        "plant",
+        "desert"
+      ]
+    },
+    {
+      "id": "mushroom",
+      "emoji": "🍄",
+      "label": "Mushroom",
+      "category": "flowers",
+      "tags": [
+        "forest",
+        "cute"
+      ]
+    },
+    {
+      "id": "sheaf-rice",
+      "emoji": "🌾",
+      "label": "Sheaf of rice",
+      "category": "flowers",
+      "tags": [
+        "field",
+        "nature"
+      ]
+    },
+    {
+      "id": "evergreen",
+      "emoji": "🌲",
+      "label": "Evergreen tree",
+      "category": "flowers",
+      "tags": [
+        "forest",
+        "winter"
+      ]
+    },
+    {
+      "id": "deciduous",
+      "emoji": "🌳",
+      "label": "Tree",
+      "category": "flowers",
+      "tags": [
+        "nature",
+        "green"
+      ]
+    },
+    {
+      "id": "palm",
+      "emoji": "🌴",
+      "label": "Palm tree",
+      "category": "flowers",
+      "tags": [
+        "tropical",
+        "travel"
+      ]
+    },
+    {
+      "id": "nest",
+      "emoji": "🪹",
+      "label": "Empty nest",
+      "category": "flowers",
+      "tags": [
+        "nature",
+        "spring"
+      ]
+    },
+    {
+      "id": "nest-eggs",
+      "emoji": "🪺",
+      "label": "Nest with eggs",
+      "category": "flowers",
+      "tags": [
+        "nature",
+        "spring"
+      ]
+    },
+    {
+      "id": "strawberry",
+      "emoji": "🍓",
+      "label": "Strawberry",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "pink",
+        "sweet"
+      ]
+    },
+    {
+      "id": "cherries",
+      "emoji": "🍒",
+      "label": "Cherries",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "cute"
+      ]
+    },
+    {
+      "id": "peach",
+      "emoji": "🍑",
+      "label": "Peach",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "pink"
+      ]
+    },
+    {
+      "id": "apple",
+      "emoji": "🍎",
+      "label": "Red apple",
+      "category": "food",
+      "tags": [
+        "fruit"
+      ]
+    },
+    {
+      "id": "tangerine",
+      "emoji": "🍊",
+      "label": "Tangerine",
+      "category": "food",
+      "tags": [
+        "fruit"
+      ]
+    },
+    {
+      "id": "lemon",
+      "emoji": "🍋",
+      "label": "Lemon",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "yellow"
+      ]
+    },
+    {
+      "id": "watermelon",
+      "emoji": "🍉",
+      "label": "Watermelon",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "summer"
+      ]
+    },
+    {
+      "id": "grapes",
+      "emoji": "🍇",
+      "label": "Grapes",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "purple"
+      ]
+    },
+    {
+      "id": "blueberries",
+      "emoji": "🫐",
+      "label": "Blueberries",
+      "category": "food",
+      "tags": [
+        "fruit",
+        "blue"
+      ]
+    },
+    {
+      "id": "cake",
+      "emoji": "🍰",
+      "label": "Shortcake",
+      "category": "food",
+      "tags": [
+        "dessert",
+        "birthday"
+      ]
+    },
+    {
+      "id": "cupcake",
+      "emoji": "🧁",
+      "label": "Cupcake",
+      "category": "food",
+      "tags": [
+        "dessert",
+        "cute"
+      ]
+    },
+    {
+      "id": "donut",
+      "emoji": "🍩",
+      "label": "Donut",
+      "category": "food",
+      "tags": [
+        "dessert",
+        "sweet"
+      ]
+    },
+    {
+      "id": "cookie",
+      "emoji": "🍪",
+      "label": "Cookie",
+      "category": "food",
+      "tags": [
+        "dessert",
+        "cozy"
+      ]
+    },
+    {
+      "id": "candy",
+      "emoji": "🍬",
+      "label": "Candy",
+      "category": "food",
+      "tags": [
+        "sweet",
+        "cute"
+      ]
+    },
+    {
+      "id": "lollipop",
+      "emoji": "🍭",
+      "label": "Lollipop",
+      "category": "food",
+      "tags": [
+        "sweet",
+        "cute"
+      ]
+    },
+    {
+      "id": "chocolate",
+      "emoji": "🍫",
+      "label": "Chocolate",
+      "category": "food",
+      "tags": [
+        "sweet",
+        "cozy"
+      ]
+    },
+    {
+      "id": "honey",
+      "emoji": "🍯",
+      "label": "Honey",
+      "category": "food",
+      "tags": [
+        "sweet",
+        "warm"
+      ]
+    },
+    {
+      "id": "coffee",
+      "emoji": "☕",
+      "label": "Coffee",
+      "category": "food",
+      "tags": [
+        "drink",
+        "cafe",
+        "cozy"
+      ]
+    },
+    {
+      "id": "tea",
+      "emoji": "🍵",
+      "label": "Tea",
+      "category": "food",
+      "tags": [
+        "drink",
+        "matcha",
+        "cozy"
+      ]
+    },
+    {
+      "id": "bubble-tea",
+      "emoji": "🧋",
+      "label": "Bubble tea",
+      "category": "food",
+      "tags": [
+        "drink",
+        "cute"
+      ]
+    },
+    {
+      "id": "milk",
+      "emoji": "🥛",
+      "label": "Milk",
+      "category": "food",
+      "tags": [
+        "drink"
+      ]
+    },
+    {
+      "id": "croissant",
+      "emoji": "🥐",
+      "label": "Croissant",
+      "category": "food",
+      "tags": [
+        "bread",
+        "cafe"
+      ]
+    },
+    {
+      "id": "bread",
+      "emoji": "🍞",
+      "label": "Bread",
+      "category": "food",
+      "tags": [
+        "bakery",
+        "cozy"
+      ]
+    },
+    {
+      "id": "rice-ball",
+      "emoji": "🍙",
+      "label": "Rice ball",
+      "category": "food",
+      "tags": [
+        "japan",
+        "food"
+      ]
+    },
+    {
+      "id": "bento",
+      "emoji": "🍱",
+      "label": "Bento box",
+      "category": "food",
+      "tags": [
+        "japan",
+        "food"
+      ]
+    },
+    {
+      "id": "ramen",
+      "emoji": "🍜",
+      "label": "Steaming bowl",
+      "category": "food",
+      "tags": [
+        "japan",
+        "noodles"
+      ]
+    },
+    {
+      "id": "sushi",
+      "emoji": "🍣",
+      "label": "Sushi",
+      "category": "food",
+      "tags": [
+        "japan",
+        "food"
+      ]
+    },
+    {
+      "id": "dango",
+      "emoji": "🍡",
+      "label": "Dango",
+      "category": "food",
+      "tags": [
+        "japan",
+        "sweet"
+      ]
+    },
+    {
+      "id": "shaved-ice",
+      "emoji": "🍧",
+      "label": "Shaved ice",
+      "category": "food",
+      "tags": [
+        "dessert",
+        "summer"
+      ]
+    },
+    {
+      "id": "ice-cream",
+      "emoji": "🍨",
+      "label": "Ice cream",
+      "category": "food",
+      "tags": [
+        "dessert"
+      ]
+    },
+    {
+      "id": "airplane",
+      "emoji": "✈️",
+      "label": "Airplane",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "flight"
+      ]
+    },
+    {
+      "id": "airplane-departure",
+      "emoji": "🛫",
+      "label": "Airplane departure",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "flight"
+      ]
+    },
+    {
+      "id": "airplane-arrival",
+      "emoji": "🛬",
+      "label": "Airplane arrival",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "flight"
+      ]
+    },
+    {
+      "id": "luggage",
+      "emoji": "🧳",
+      "label": "Luggage",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "bag"
+      ]
+    },
+    {
+      "id": "camera",
+      "emoji": "📷",
+      "label": "Camera",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "photo"
+      ]
+    },
+    {
+      "id": "camera-flash",
+      "emoji": "📸",
+      "label": "Camera with flash",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "photo"
+      ]
+    },
+    {
+      "id": "map",
+      "emoji": "🗺️",
+      "label": "World map",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "map"
+      ]
+    },
+    {
+      "id": "pin",
+      "emoji": "📍",
+      "label": "Map pin",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "location"
+      ]
+    },
+    {
+      "id": "compass",
+      "emoji": "🧭",
+      "label": "Compass",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "direction"
+      ]
+    },
+    {
+      "id": "ticket",
+      "emoji": "🎫",
+      "label": "Ticket",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "event"
+      ]
+    },
+    {
+      "id": "train",
+      "emoji": "🚆",
+      "label": "Train",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "rail"
+      ]
+    },
+    {
+      "id": "bullet-train",
+      "emoji": "🚅",
+      "label": "Bullet train",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "japan"
+      ]
+    },
+    {
+      "id": "tram",
+      "emoji": "🚊",
+      "label": "Tram",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "city"
+      ]
+    },
+    {
+      "id": "metro",
+      "emoji": "🚇",
+      "label": "Metro",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "city"
+      ]
+    },
+    {
+      "id": "bus",
+      "emoji": "🚌",
+      "label": "Bus",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "road"
+      ]
+    },
+    {
+      "id": "taxi",
+      "emoji": "🚕",
+      "label": "Taxi",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "road"
+      ]
+    },
+    {
+      "id": "car",
+      "emoji": "🚗",
+      "label": "Car",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "road"
+      ]
+    },
+    {
+      "id": "bicycle",
+      "emoji": "🚲",
+      "label": "Bicycle",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "ride"
+      ]
+    },
+    {
+      "id": "ship",
+      "emoji": "🚢",
+      "label": "Ship",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "sea"
+      ]
+    },
+    {
+      "id": "ferry",
+      "emoji": "⛴️",
+      "label": "Ferry",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "sea"
+      ]
+    },
+    {
+      "id": "hotel",
+      "emoji": "🏨",
+      "label": "Hotel",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "stay"
+      ]
+    },
+    {
+      "id": "mountain",
+      "emoji": "⛰️",
+      "label": "Mountain",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "nature"
+      ]
+    },
+    {
+      "id": "beach",
+      "emoji": "🏖️",
+      "label": "Beach",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "summer"
+      ]
+    },
+    {
+      "id": "camping",
+      "emoji": "🏕️",
+      "label": "Camping",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "outdoors"
+      ]
+    },
+    {
+      "id": "torii",
+      "emoji": "⛩️",
+      "label": "Shinto shrine",
+      "category": "travel",
+      "tags": [
+        "japan",
+        "travel"
+      ]
+    },
+    {
+      "id": "japanese-castle",
+      "emoji": "🏯",
+      "label": "Japanese castle",
+      "category": "travel",
+      "tags": [
+        "japan",
+        "travel"
+      ]
+    },
+    {
+      "id": "tokyo-tower",
+      "emoji": "🗼",
+      "label": "Tokyo tower",
+      "category": "travel",
+      "tags": [
+        "japan",
+        "travel"
+      ]
+    },
+    {
+      "id": "sunrise-mountain",
+      "emoji": "🌄",
+      "label": "Sunrise over mountains",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "morning"
+      ]
+    },
+    {
+      "id": "cityscape",
+      "emoji": "🏙️",
+      "label": "Cityscape",
+      "category": "travel",
+      "tags": [
+        "travel",
+        "city"
+      ]
+    },
+    {
+      "id": "teddy",
+      "emoji": "🧸",
+      "label": "Teddy bear",
+      "category": "cozy",
+      "tags": [
+        "cozy",
+        "cute"
+      ]
+    },
+    {
+      "id": "candle",
+      "emoji": "🕯️",
+      "label": "Candle",
+      "category": "cozy",
+      "tags": [
+        "cozy",
+        "warm"
+      ]
+    },
+    {
+      "id": "book",
+      "emoji": "📖",
+      "label": "Open book",
+      "category": "cozy",
+      "tags": [
+        "reading",
+        "cozy"
+      ]
+    },
+    {
+      "id": "books",
+      "emoji": "📚",
+      "label": "Books",
+      "category": "cozy",
+      "tags": [
+        "reading",
+        "study"
+      ]
+    },
+    {
+      "id": "headphones",
+      "emoji": "🎧",
+      "label": "Headphones",
+      "category": "cozy",
+      "tags": [
+        "music",
+        "cozy"
+      ]
+    },
+    {
+      "id": "music-note",
+      "emoji": "🎵",
+      "label": "Music note",
+      "category": "cozy",
+      "tags": [
+        "music"
+      ]
+    },
+    {
+      "id": "notes",
+      "emoji": "🎶",
+      "label": "Musical notes",
+      "category": "cozy",
+      "tags": [
+        "music"
+      ]
+    },
+    {
+      "id": "lamp",
+      "emoji": "🪔",
+      "label": "Lamp",
+      "category": "cozy",
+      "tags": [
+        "warm",
+        "cozy"
+      ]
+    },
+    {
+      "id": "yarn",
+      "emoji": "🧶",
+      "label": "Yarn",
+      "category": "cozy",
+      "tags": [
+        "craft",
+        "cozy"
+      ]
+    },
+    {
+      "id": "sewing",
+      "emoji": "🧵",
+      "label": "Thread",
+      "category": "cozy",
+      "tags": [
+        "craft",
+        "cozy"
+      ]
+    },
+    {
+      "id": "knitting",
+      "emoji": "🪡",
+      "label": "Sewing needle",
+      "category": "cozy",
+      "tags": [
+        "craft"
+      ]
+    },
+    {
+      "id": "pillow",
+      "emoji": "🛏️",
+      "label": "Bed",
+      "category": "cozy",
+      "tags": [
+        "rest",
+        "cozy"
+      ]
+    },
+    {
+      "id": "bath",
+      "emoji": "🛁",
+      "label": "Bath",
+      "category": "cozy",
+      "tags": [
+        "self-care",
+        "cozy"
+      ]
+    },
+    {
+      "id": "soap",
+      "emoji": "🧼",
+      "label": "Soap",
+      "category": "cozy",
+      "tags": [
+        "self-care"
+      ]
+    },
+    {
+      "id": "lotion",
+      "emoji": "🧴",
+      "label": "Lotion bottle",
+      "category": "cozy",
+      "tags": [
+        "self-care"
+      ]
+    },
+    {
+      "id": "mirror",
+      "emoji": "🪞",
+      "label": "Mirror",
+      "category": "cozy",
+      "tags": [
+        "self-care"
+      ]
+    },
+    {
+      "id": "comb",
+      "emoji": "🪮",
+      "label": "Hair pick",
+      "category": "cozy",
+      "tags": [
+        "self-care"
+      ]
+    },
+    {
+      "id": "perfume",
+      "emoji": "🧴",
+      "label": "Bottle",
+      "category": "cozy",
+      "tags": [
+        "self-care"
+      ]
+    },
+    {
+      "id": "house",
+      "emoji": "🏠",
+      "label": "House",
+      "category": "cozy",
+      "tags": [
+        "home",
+        "cozy"
+      ]
+    },
+    {
+      "id": "window",
+      "emoji": "🪟",
+      "label": "Window",
+      "category": "cozy",
+      "tags": [
+        "home",
+        "cozy"
+      ]
+    },
+    {
+      "id": "chair",
+      "emoji": "🪑",
+      "label": "Chair",
+      "category": "cozy",
+      "tags": [
+        "home",
+        "cozy"
+      ]
+    },
+    {
+      "id": "plant-home",
+      "emoji": "🪴",
+      "label": "Potted plant",
+      "category": "cozy",
+      "tags": [
+        "home",
+        "green"
+      ]
+    },
+    {
+      "id": "rabbit",
+      "emoji": "🐰",
+      "label": "Rabbit face",
+      "category": "animals",
+      "tags": [
+        "bunny",
+        "cute"
+      ]
+    },
+    {
+      "id": "rabbit-body",
+      "emoji": "🐇",
+      "label": "Rabbit",
+      "category": "animals",
+      "tags": [
+        "bunny",
+        "cute"
+      ]
+    },
+    {
+      "id": "cat",
+      "emoji": "🐱",
+      "label": "Cat face",
+      "category": "animals",
+      "tags": [
+        "cat",
+        "cute"
+      ]
+    },
+    {
+      "id": "cat-body",
+      "emoji": "🐈",
+      "label": "Cat",
+      "category": "animals",
+      "tags": [
+        "cat"
+      ]
+    },
+    {
+      "id": "dog",
+      "emoji": "🐶",
+      "label": "Dog face",
+      "category": "animals",
+      "tags": [
+        "dog",
+        "cute"
+      ]
+    },
+    {
+      "id": "bear",
+      "emoji": "🐻",
+      "label": "Bear",
+      "category": "animals",
+      "tags": [
+        "bear",
+        "cute"
+      ]
+    },
+    {
+      "id": "polar-bear",
+      "emoji": "🐻‍❄️",
+      "label": "Polar bear",
+      "category": "animals",
+      "tags": [
+        "bear",
+        "winter"
+      ]
+    },
+    {
+      "id": "panda",
+      "emoji": "🐼",
+      "label": "Panda",
+      "category": "animals",
+      "tags": [
+        "cute"
+      ]
+    },
+    {
+      "id": "hamster",
+      "emoji": "🐹",
+      "label": "Hamster",
+      "category": "animals",
+      "tags": [
+        "cute"
+      ]
+    },
+    {
+      "id": "mouse",
+      "emoji": "🐭",
+      "label": "Mouse",
+      "category": "animals",
+      "tags": [
+        "cute"
+      ]
+    },
+    {
+      "id": "fox",
+      "emoji": "🦊",
+      "label": "Fox",
+      "category": "animals",
+      "tags": [
+        "forest",
+        "cute"
+      ]
+    },
+    {
+      "id": "deer",
+      "emoji": "🦌",
+      "label": "Deer",
+      "category": "animals",
+      "tags": [
+        "forest"
+      ]
+    },
+    {
+      "id": "hedgehog",
+      "emoji": "🦔",
+      "label": "Hedgehog",
+      "category": "animals",
+      "tags": [
+        "cute"
+      ]
+    },
+    {
+      "id": "otter",
+      "emoji": "🦦",
+      "label": "Otter",
+      "category": "animals",
+      "tags": [
+        "cute",
+        "water"
+      ]
+    },
+    {
+      "id": "seal",
+      "emoji": "🦭",
+      "label": "Seal",
+      "category": "animals",
+      "tags": [
+        "cute",
+        "water"
+      ]
+    },
+    {
+      "id": "duck",
+      "emoji": "🦆",
+      "label": "Duck",
+      "category": "animals",
+      "tags": [
+        "bird",
+        "cute"
+      ]
+    },
+    {
+      "id": "chick",
+      "emoji": "🐥",
+      "label": "Front-facing chick",
+      "category": "animals",
+      "tags": [
+        "bird",
+        "cute"
+      ]
+    },
+    {
+      "id": "penguin",
+      "emoji": "🐧",
+      "label": "Penguin",
+      "category": "animals",
+      "tags": [
+        "bird",
+        "winter"
+      ]
+    },
+    {
+      "id": "butterfly",
+      "emoji": "🦋",
+      "label": "Butterfly",
+      "category": "animals",
+      "tags": [
+        "nature",
+        "spring"
+      ]
+    },
+    {
+      "id": "bee",
+      "emoji": "🐝",
+      "label": "Honeybee",
+      "category": "animals",
+      "tags": [
+        "nature",
+        "spring"
+      ]
+    },
+    {
+      "id": "ladybug",
+      "emoji": "🐞",
+      "label": "Lady beetle",
+      "category": "animals",
+      "tags": [
+        "nature",
+        "cute"
+      ]
+    },
+    {
+      "id": "snail",
+      "emoji": "🐌",
+      "label": "Snail",
+      "category": "animals",
+      "tags": [
+        "nature",
+        "cute"
+      ]
+    },
+    {
+      "id": "frog",
+      "emoji": "🐸",
+      "label": "Frog",
+      "category": "animals",
+      "tags": [
+        "nature",
+        "cute"
+      ]
+    },
+    {
+      "id": "whale",
+      "emoji": "🐳",
+      "label": "Spouting whale",
+      "category": "animals",
+      "tags": [
+        "sea",
+        "cute"
+      ]
+    },
+    {
+      "id": "sun",
+      "emoji": "☀️",
+      "label": "Sun",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "summer"
+      ]
+    },
+    {
+      "id": "sun-face",
+      "emoji": "🌞",
+      "label": "Sun with face",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "cute"
+      ]
+    },
+    {
+      "id": "moon",
+      "emoji": "🌙",
+      "label": "Crescent moon",
+      "category": "weather",
+      "tags": [
+        "night",
+        "weather"
+      ]
+    },
+    {
+      "id": "full-moon",
+      "emoji": "🌕",
+      "label": "Full moon",
+      "category": "weather",
+      "tags": [
+        "night"
+      ]
+    },
+    {
+      "id": "new-moon-face",
+      "emoji": "🌚",
+      "label": "New moon face",
+      "category": "weather",
+      "tags": [
+        "night",
+        "cute"
+      ]
+    },
+    {
+      "id": "cloud-weather",
+      "emoji": "☁️",
+      "label": "Cloud",
+      "category": "weather",
+      "tags": [
+        "weather"
+      ]
+    },
+    {
+      "id": "sun-cloud",
+      "emoji": "🌤️",
+      "label": "Sun behind small cloud",
+      "category": "weather",
+      "tags": [
+        "weather"
+      ]
+    },
+    {
+      "id": "cloud-rain",
+      "emoji": "🌧️",
+      "label": "Cloud with rain",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "rain"
+      ]
+    },
+    {
+      "id": "umbrella-rain",
+      "emoji": "☔",
+      "label": "Umbrella with rain",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "rain"
+      ]
+    },
+    {
+      "id": "umbrella",
+      "emoji": "🌂",
+      "label": "Closed umbrella",
+      "category": "weather",
+      "tags": [
+        "rain",
+        "cute"
+      ]
+    },
+    {
+      "id": "rainbow",
+      "emoji": "🌈",
+      "label": "Rainbow",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "color"
+      ]
+    },
+    {
+      "id": "snowflake",
+      "emoji": "❄️",
+      "label": "Snowflake",
+      "category": "weather",
+      "tags": [
+        "winter",
+        "weather"
+      ]
+    },
+    {
+      "id": "snowman",
+      "emoji": "☃️",
+      "label": "Snowman",
+      "category": "weather",
+      "tags": [
+        "winter"
+      ]
+    },
+    {
+      "id": "wind",
+      "emoji": "💨",
+      "label": "Dashing away",
+      "category": "weather",
+      "tags": [
+        "wind",
+        "weather"
+      ]
+    },
+    {
+      "id": "fog",
+      "emoji": "🌫️",
+      "label": "Fog",
+      "category": "weather",
+      "tags": [
+        "weather"
+      ]
+    },
+    {
+      "id": "lightning",
+      "emoji": "⚡",
+      "label": "High voltage",
+      "category": "weather",
+      "tags": [
+        "weather",
+        "storm"
+      ]
+    },
+    {
+      "id": "spring",
+      "emoji": "🌸",
+      "label": "Spring",
+      "category": "weather",
+      "tags": [
+        "season",
+        "spring"
+      ]
+    },
+    {
+      "id": "summer",
+      "emoji": "🌻",
+      "label": "Summer",
+      "category": "weather",
+      "tags": [
+        "season",
+        "summer"
+      ]
+    },
+    {
+      "id": "autumn",
+      "emoji": "🍁",
+      "label": "Autumn",
+      "category": "weather",
+      "tags": [
+        "season",
+        "autumn"
+      ]
+    },
+    {
+      "id": "winter",
+      "emoji": "⛄",
+      "label": "Winter",
+      "category": "weather",
+      "tags": [
+        "season",
+        "winter"
+      ]
+    },
+    {
+      "id": "night-stars",
+      "emoji": "🌌",
+      "label": "Milky way",
+      "category": "weather",
+      "tags": [
+        "night",
+        "stars"
+      ]
+    },
+    {
+      "id": "sunrise",
+      "emoji": "🌅",
+      "label": "Sunrise",
+      "category": "weather",
+      "tags": [
+        "morning"
+      ]
+    },
+    {
+      "id": "sunset",
+      "emoji": "🌇",
+      "label": "Sunset",
+      "category": "weather",
+      "tags": [
+        "evening"
+      ]
+    },
+    {
+      "id": "paperclip",
+      "emoji": "📎",
+      "label": "Paperclip",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "office"
+      ]
+    },
+    {
+      "id": "linked-paperclips",
+      "emoji": "🖇️",
+      "label": "Linked paperclips",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "pushpin",
+      "emoji": "📌",
+      "label": "Pushpin",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "round-pushpin",
+      "emoji": "📍",
+      "label": "Round pushpin",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "pencil",
+      "emoji": "✏️",
+      "label": "Pencil",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "write"
+      ]
+    },
+    {
+      "id": "pen",
+      "emoji": "🖊️",
+      "label": "Pen",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "write"
+      ]
+    },
+    {
+      "id": "fountain-pen",
+      "emoji": "🖋️",
+      "label": "Fountain pen",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "write"
+      ]
+    },
+    {
+      "id": "crayon",
+      "emoji": "🖍️",
+      "label": "Crayon",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "draw"
+      ]
+    },
+    {
+      "id": "paintbrush",
+      "emoji": "🖌️",
+      "label": "Paintbrush",
+      "category": "stationery",
+      "tags": [
+        "art",
+        "draw"
+      ]
+    },
+    {
+      "id": "palette",
+      "emoji": "🎨",
+      "label": "Artist palette",
+      "category": "stationery",
+      "tags": [
+        "art",
+        "color"
+      ]
+    },
+    {
+      "id": "scissors",
+      "emoji": "✂️",
+      "label": "Scissors",
+      "category": "stationery",
+      "tags": [
+        "craft"
+      ]
+    },
+    {
+      "id": "ruler",
+      "emoji": "📏",
+      "label": "Straight ruler",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "triangle-ruler",
+      "emoji": "📐",
+      "label": "Triangular ruler",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "notebook",
+      "emoji": "📓",
+      "label": "Notebook",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "journal"
+      ]
+    },
+    {
+      "id": "ledger",
+      "emoji": "📒",
+      "label": "Ledger",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "journal"
+      ]
+    },
+    {
+      "id": "memo",
+      "emoji": "📝",
+      "label": "Memo",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "note"
+      ]
+    },
+    {
+      "id": "bookmark",
+      "emoji": "🔖",
+      "label": "Bookmark",
+      "category": "stationery",
+      "tags": [
+        "reading",
+        "stationery"
+      ]
+    },
+    {
+      "id": "envelope",
+      "emoji": "✉️",
+      "label": "Envelope",
+      "category": "stationery",
+      "tags": [
+        "letter",
+        "stationery"
+      ]
+    },
+    {
+      "id": "mailbox",
+      "emoji": "📫",
+      "label": "Mailbox",
+      "category": "stationery",
+      "tags": [
+        "letter"
+      ]
+    },
+    {
+      "id": "calendar",
+      "emoji": "📅",
+      "label": "Calendar",
+      "category": "stationery",
+      "tags": [
+        "date",
+        "stationery"
+      ]
+    },
+    {
+      "id": "spiral-calendar",
+      "emoji": "🗓️",
+      "label": "Spiral calendar",
+      "category": "stationery",
+      "tags": [
+        "date",
+        "stationery"
+      ]
+    },
+    {
+      "id": "folder",
+      "emoji": "📁",
+      "label": "Folder",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "clipboard",
+      "emoji": "📋",
+      "label": "Clipboard",
+      "category": "stationery",
+      "tags": [
+        "stationery"
+      ]
+    },
+    {
+      "id": "label",
+      "emoji": "🏷️",
+      "label": "Label",
+      "category": "stationery",
+      "tags": [
+        "stationery",
+        "tag"
+      ]
+    },
+    {
+      "id": "stamp",
+      "emoji": "📮",
+      "label": "Postbox",
+      "category": "stationery",
+      "tags": [
+        "mail",
+        "stationery"
+      ]
+    },
+    {
+      "id": "birthday-cake",
+      "emoji": "🎂",
+      "label": "Birthday cake",
+      "category": "celebration",
+      "tags": [
+        "birthday",
+        "celebration"
+      ]
+    },
+    {
+      "id": "party-popper",
+      "emoji": "🎉",
+      "label": "Party popper",
+      "category": "celebration",
+      "tags": [
+        "party",
+        "celebration"
+      ]
+    },
+    {
+      "id": "confetti",
+      "emoji": "🎊",
+      "label": "Confetti ball",
+      "category": "celebration",
+      "tags": [
+        "party",
+        "celebration"
+      ]
+    },
+    {
+      "id": "balloon",
+      "emoji": "🎈",
+      "label": "Balloon",
+      "category": "celebration",
+      "tags": [
+        "party",
+        "celebration"
+      ]
+    },
+    {
+      "id": "gift",
+      "emoji": "🎁",
+      "label": "Wrapped gift",
+      "category": "celebration",
+      "tags": [
+        "gift",
+        "celebration"
+      ]
+    },
+    {
+      "id": "sparkler",
+      "emoji": "🎇",
+      "label": "Sparkler",
+      "category": "celebration",
+      "tags": [
+        "celebration",
+        "night"
+      ]
+    },
+    {
+      "id": "fireworks",
+      "emoji": "🎆",
+      "label": "Fireworks",
+      "category": "celebration",
+      "tags": [
+        "celebration",
+        "night"
+      ]
+    },
+    {
+      "id": "medal",
+      "emoji": "🏅",
+      "label": "Sports medal",
+      "category": "celebration",
+      "tags": [
+        "achievement"
+      ]
+    },
+    {
+      "id": "trophy",
+      "emoji": "🏆",
+      "label": "Trophy",
+      "category": "celebration",
+      "tags": [
+        "achievement"
+      ]
+    },
+    {
+      "id": "crown",
+      "emoji": "👑",
+      "label": "Crown",
+      "category": "celebration",
+      "tags": [
+        "celebration",
+        "cute"
+      ]
+    },
+    {
+      "id": "gem",
+      "emoji": "💎",
+      "label": "Gem stone",
+      "category": "celebration",
+      "tags": [
+        "sparkle",
+        "celebration"
+      ]
+    },
+    {
+      "id": "bell",
+      "emoji": "🔔",
+      "label": "Bell",
+      "category": "celebration",
+      "tags": [
+        "celebration"
+      ]
+    },
+    {
+      "id": "christmas-tree",
+      "emoji": "🎄",
+      "label": "Christmas tree",
+      "category": "celebration",
+      "tags": [
+        "holiday",
+        "winter"
+      ]
+    },
+    {
+      "id": "lantern",
+      "emoji": "🏮",
+      "label": "Red paper lantern",
+      "category": "celebration",
+      "tags": [
+        "festival",
+        "japan"
+      ]
+    },
+    {
+      "id": "tanabata",
+      "emoji": "🎋",
+      "label": "Tanabata tree",
+      "category": "celebration",
+      "tags": [
+        "festival",
+        "japan"
+      ]
+    },
+    {
+      "id": "carp-streamer",
+      "emoji": "🎏",
+      "label": "Carp streamer",
+      "category": "celebration",
+      "tags": [
+        "festival",
+        "japan"
+      ]
+    },
+    {
+      "id": "moon-viewing",
+      "emoji": "🎑",
+      "label": "Moon viewing ceremony",
+      "category": "celebration",
+      "tags": [
+        "festival",
+        "japan"
+      ]
+    },
+    {
+      "id": "dolls",
+      "emoji": "🎎",
+      "label": "Japanese dolls",
+      "category": "celebration",
+      "tags": [
+        "festival",
+        "japan"
+      ]
+    },
+    {
+      "id": "sparkle-symbol",
+      "emoji": "✨",
+      "label": "Sparkles",
+      "category": "symbols",
+      "tags": [
+        "sparkle"
+      ]
+    },
+    {
+      "id": "star-symbol",
+      "emoji": "☆",
+      "label": "Outline star",
+      "category": "symbols",
+      "tags": [
+        "star"
+      ]
+    },
+    {
+      "id": "heart-symbol",
+      "emoji": "♡",
+      "label": "Outline heart",
+      "category": "symbols",
+      "tags": [
+        "heart"
+      ]
+    },
+    {
+      "id": "black-heart-symbol",
+      "emoji": "♥",
+      "label": "Heart suit",
+      "category": "symbols",
+      "tags": [
+        "heart"
+      ]
+    },
+    {
+      "id": "flower-symbol",
+      "emoji": "✿",
+      "label": "Flower symbol",
+      "category": "symbols",
+      "tags": [
+        "flower"
+      ]
+    },
+    {
+      "id": "white-flower-symbol",
+      "emoji": "❀",
+      "label": "White flower",
+      "category": "symbols",
+      "tags": [
+        "flower"
+      ]
+    },
+    {
+      "id": "music-symbol",
+      "emoji": "♪",
+      "label": "Music note",
+      "category": "symbols",
+      "tags": [
+        "music"
+      ]
+    },
+    {
+      "id": "double-music",
+      "emoji": "♫",
+      "label": "Music notes",
+      "category": "symbols",
+      "tags": [
+        "music"
+      ]
+    },
+    {
+      "id": "check",
+      "emoji": "✓",
+      "label": "Check mark",
+      "category": "symbols",
+      "tags": [
+        "check"
+      ]
+    },
+    {
+      "id": "heavy-check",
+      "emoji": "✔️",
+      "label": "Heavy check mark",
+      "category": "symbols",
+      "tags": [
+        "check"
+      ]
+    },
+    {
+      "id": "cross",
+      "emoji": "×",
+      "label": "Multiply sign",
+      "category": "symbols",
+      "tags": [
+        "cross"
+      ]
+    },
+    {
+      "id": "plus",
+      "emoji": "＋",
+      "label": "Plus",
+      "category": "symbols",
+      "tags": [
+        "plus"
+      ]
+    },
+    {
+      "id": "arrow-right",
+      "emoji": "→",
+      "label": "Right arrow",
+      "category": "symbols",
+      "tags": [
+        "arrow"
+      ]
+    },
+    {
+      "id": "arrow-left",
+      "emoji": "←",
+      "label": "Left arrow",
+      "category": "symbols",
+      "tags": [
+        "arrow"
+      ]
+    },
+    {
+      "id": "arrow-up",
+      "emoji": "↑",
+      "label": "Up arrow",
+      "category": "symbols",
+      "tags": [
+        "arrow"
+      ]
+    },
+    {
+      "id": "arrow-down",
+      "emoji": "↓",
+      "label": "Down arrow",
+      "category": "symbols",
+      "tags": [
+        "arrow"
+      ]
+    },
+    {
+      "id": "curly-arrow",
+      "emoji": "↝",
+      "label": "Wavy arrow",
+      "category": "symbols",
+      "tags": [
+        "arrow"
+      ]
+    },
+    {
+      "id": "infinity",
+      "emoji": "∞",
+      "label": "Infinity",
+      "category": "symbols",
+      "tags": [
+        "symbol"
+      ]
+    },
+    {
+      "id": "ellipsis",
+      "emoji": "…",
+      "label": "Ellipsis",
+      "category": "symbols",
+      "tags": [
+        "symbol"
+      ]
+    },
+    {
+      "id": "quote-left",
+      "emoji": "“",
+      "label": "Opening quote",
+      "category": "symbols",
+      "tags": [
+        "quote"
+      ]
+    },
+    {
+      "id": "quote-right",
+      "emoji": "”",
+      "label": "Closing quote",
+      "category": "symbols",
+      "tags": [
+        "quote"
+      ]
+    },
+    {
+      "id": "asterisk",
+      "emoji": "＊",
+      "label": "Asterisk",
+      "category": "symbols",
+      "tags": [
+        "symbol"
+      ]
+    },
+    {
+      "id": "circle",
+      "emoji": "○",
+      "label": "Circle",
+      "category": "symbols",
+      "tags": [
+        "shape"
+      ]
+    },
+    {
+      "id": "dot",
+      "emoji": "•",
+      "label": "Dot",
+      "category": "symbols",
+      "tags": [
+        "shape"
+      ]
+    },
+    {
+      "id": "diamond",
+      "emoji": "◇",
+      "label": "Diamond",
+      "category": "symbols",
+      "tags": [
+        "shape"
+      ]
+    },
+    {
+      "id": "wave",
+      "emoji": "〰️",
+      "label": "Wavy dash",
+      "category": "symbols",
+      "tags": [
+        "symbol"
+      ]
+    },
+    {
+      "id": "flower-play",
+      "emoji": "❁",
+      "label": "Floral ornament",
+      "category": "symbols",
+      "tags": [
+        "flower"
+      ]
+    },
+    {
+      "id": "star-four",
+      "emoji": "✦",
+      "label": "Four-point star",
+      "category": "symbols",
+      "tags": [
+        "star"
+      ]
+    },
+    {
+      "id": "star-hollow",
+      "emoji": "✧",
+      "label": "Hollow four-point star",
+      "category": "symbols",
+      "tags": [
+        "star"
+      ]
+    },
+    {
+      "id": "cloud-symbol",
+      "emoji": "☁︎",
+      "label": "Cloud symbol",
+      "category": "symbols",
+      "tags": [
+        "cloud"
+      ]
+    }
+  ],
+  "journalBitGroups": [
+    {
+      "id": "washi",
+      "label": "Washi Tape",
+      "icon": "🎀",
+      "order": 10
+    },
+    {
+      "id": "paper-scraps",
+      "label": "Paper Scraps",
+      "icon": "📄",
+      "order": 20
+    },
+    {
+      "id": "labels",
+      "label": "Labels",
+      "icon": "🏷️",
+      "order": 30
+    },
+    {
+      "id": "tickets",
+      "label": "Tickets",
+      "icon": "🎫",
+      "order": 40
+    },
+    {
+      "id": "tags",
+      "label": "Tags",
+      "icon": "🔖",
+      "order": 50
+    },
+    {
+      "id": "stamps",
+      "label": "Stamps",
+      "icon": "💌",
+      "order": 60
+    },
+    {
+      "id": "photo-corners",
+      "label": "Photo Corners",
+      "icon": "◰",
+      "order": 70
+    },
+    {
+      "id": "frames",
+      "label": "Frames",
+      "icon": "▣",
+      "order": 80
+    }
+  ],
+  "journalBits": [
+    {
+      "id": "washi-blush-solid",
+      "label": "Blush tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "blush-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f3b8c8",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-lavender-solid",
+      "label": "Lavender tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "lavender-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#d7c2ec",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-peach-solid",
+      "label": "Peach tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "peach-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f6cbb5",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-mint-solid",
+      "label": "Mint tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "mint-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#cbe7d8",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-sky-solid",
+      "label": "Sky tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "sky-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#c9deef",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-cream-solid",
+      "label": "Cream tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "cream-solid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#f4e6bf",
+        "pattern": "solid"
+      },
+      "tags": [
+        "tape",
+        "solid"
+      ]
+    },
+    {
+      "id": "washi-pink-stripe",
+      "label": "Pink stripe tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "pink-stripe",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f6bfd0",
+        "pattern": "stripe"
+      },
+      "tags": [
+        "tape",
+        "stripe"
+      ]
+    },
+    {
+      "id": "washi-lavender-stripe",
+      "label": "Lavender stripe tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "lavender-stripe",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#d9c4ef",
+        "pattern": "stripe"
+      },
+      "tags": [
+        "tape",
+        "stripe"
+      ]
+    },
+    {
+      "id": "washi-pink-grid",
+      "label": "Pink grid tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "pink-grid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f8d4de",
+        "pattern": "grid"
+      },
+      "tags": [
+        "tape",
+        "grid"
+      ]
+    },
+    {
+      "id": "washi-lavender-grid",
+      "label": "Lavender grid tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "lavender-grid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#e4d8f2",
+        "pattern": "grid"
+      },
+      "tags": [
+        "tape",
+        "grid"
+      ]
+    },
+    {
+      "id": "washi-peach-grid",
+      "label": "Peach grid tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "peach-grid",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f6d9c8",
+        "pattern": "grid"
+      },
+      "tags": [
+        "tape",
+        "grid"
+      ]
+    },
+    {
+      "id": "washi-daisy",
+      "label": "Daisy tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "daisy",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#f7d7df",
+        "pattern": "daisy"
+      },
+      "tags": [
+        "tape",
+        "daisy"
+      ]
+    },
+    {
+      "id": "washi-sakura",
+      "label": "Sakura tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "sakura",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f8cad8",
+        "pattern": "sakura"
+      },
+      "tags": [
+        "tape",
+        "sakura"
+      ]
+    },
+    {
+      "id": "washi-hearts",
+      "label": "Tiny hearts tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "hearts",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#f8d7e1",
+        "pattern": "hearts"
+      },
+      "tags": [
+        "tape",
+        "hearts"
+      ]
+    },
+    {
+      "id": "washi-stars",
+      "label": "Tiny stars tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "stars",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#ddd5f2",
+        "pattern": "stars"
+      },
+      "tags": [
+        "tape",
+        "stars"
+      ]
+    },
+    {
+      "id": "washi-dots",
+      "label": "Polka dot tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "dots",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#f3c7d4",
+        "pattern": "dots"
+      },
+      "tags": [
+        "tape",
+        "dots"
+      ]
+    },
+    {
+      "id": "washi-gingham",
+      "label": "Pink gingham tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "gingham",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f5ced9",
+        "pattern": "gingham"
+      },
+      "tags": [
+        "tape",
+        "gingham"
+      ]
+    },
+    {
+      "id": "washi-kraft",
+      "label": "Kraft tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "kraft",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#d8bf95",
+        "pattern": "paper"
+      },
+      "tags": [
+        "tape",
+        "paper"
+      ]
+    },
+    {
+      "id": "washi-newsprint",
+      "label": "Newsprint tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "newsprint",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#ece7dd",
+        "pattern": "text"
+      },
+      "tags": [
+        "tape",
+        "text"
+      ]
+    },
+    {
+      "id": "washi-music",
+      "label": "Music tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "music",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#eee3ef",
+        "pattern": "music"
+      },
+      "tags": [
+        "tape",
+        "music"
+      ]
+    },
+    {
+      "id": "washi-rainbow",
+      "label": "Pastel rainbow tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "rainbow",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#f5cddd",
+        "pattern": "rainbow"
+      },
+      "tags": [
+        "tape",
+        "rainbow"
+      ]
+    },
+    {
+      "id": "washi-night",
+      "label": "Night sky tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "night",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#b9b6d8",
+        "pattern": "stars"
+      },
+      "tags": [
+        "tape",
+        "stars"
+      ]
+    },
+    {
+      "id": "washi-leaf",
+      "label": "Leafy tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "leaf",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": 2,
+      "style": {
+        "base": "#d5e6d6",
+        "pattern": "leaf"
+      },
+      "tags": [
+        "tape",
+        "leaf"
+      ]
+    },
+    {
+      "id": "washi-stitch",
+      "label": "Stitched tape",
+      "kind": "washi",
+      "group": "washi",
+      "variant": "stitch",
+      "text": "",
+      "defaultScale": 1.15,
+      "defaultRotation": -3,
+      "style": {
+        "base": "#efc9d4",
+        "pattern": "stitch"
+      },
+      "tags": [
+        "tape",
+        "stitch"
+      ]
+    },
+    {
+      "id": "scrap-rose-torn",
+      "label": "Rose torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "rose-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f7d9e2",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-cream-torn",
+      "label": "Cream torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "cream-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f7edd5",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-lavender-torn",
+      "label": "Lavender torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "lavender-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#e9def4",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-mint-torn",
+      "label": "Mint torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "mint-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#def0e6",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-kraft-torn",
+      "label": "Kraft torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "kraft-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#dbc69f",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-blue-torn",
+      "label": "Blue torn paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "blue-torn",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#dcecf7",
+        "pattern": "torn"
+      },
+      "tags": [
+        "paper",
+        "torn"
+      ]
+    },
+    {
+      "id": "scrap-pink-grid",
+      "label": "Pink grid scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "pink-grid",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fff5f8",
+        "pattern": "grid"
+      },
+      "tags": [
+        "paper",
+        "grid"
+      ]
+    },
+    {
+      "id": "scrap-lavender-grid",
+      "label": "Lavender grid scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "lavender-grid",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#faf6ff",
+        "pattern": "grid"
+      },
+      "tags": [
+        "paper",
+        "grid"
+      ]
+    },
+    {
+      "id": "scrap-cream-lined",
+      "label": "Cream lined note",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "cream-lined",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fffaf0",
+        "pattern": "lined"
+      },
+      "tags": [
+        "paper",
+        "lined"
+      ]
+    },
+    {
+      "id": "scrap-pink-lined",
+      "label": "Pink lined note",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "pink-lined",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fff7fa",
+        "pattern": "lined"
+      },
+      "tags": [
+        "paper",
+        "lined"
+      ]
+    },
+    {
+      "id": "scrap-blue-lined",
+      "label": "Blue lined note",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "blue-lined",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f7fbff",
+        "pattern": "lined"
+      },
+      "tags": [
+        "paper",
+        "lined"
+      ]
+    },
+    {
+      "id": "scrap-dot-grid",
+      "label": "Dot-grid scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "dot-grid",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fffafc",
+        "pattern": "dots"
+      },
+      "tags": [
+        "paper",
+        "dots"
+      ]
+    },
+    {
+      "id": "scrap-receipt",
+      "label": "Receipt paper",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "receipt",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fbf7ee",
+        "pattern": "receipt"
+      },
+      "tags": [
+        "paper",
+        "receipt"
+      ]
+    },
+    {
+      "id": "scrap-notebook",
+      "label": "Notebook scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "notebook",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#fffdf7",
+        "pattern": "notebook"
+      },
+      "tags": [
+        "paper",
+        "notebook"
+      ]
+    },
+    {
+      "id": "scrap-vellum",
+      "label": "Vellum scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "vellum",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "rgba(255,248,250,.72)",
+        "pattern": "vellum"
+      },
+      "tags": [
+        "paper",
+        "vellum"
+      ]
+    },
+    {
+      "id": "scrap-memo-pink",
+      "label": "Pink memo",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "memo-pink",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f9d7e1",
+        "pattern": "memo"
+      },
+      "tags": [
+        "paper",
+        "memo"
+      ]
+    },
+    {
+      "id": "scrap-memo-yellow",
+      "label": "Yellow memo",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "memo-yellow",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f7ebba",
+        "pattern": "memo"
+      },
+      "tags": [
+        "paper",
+        "memo"
+      ]
+    },
+    {
+      "id": "scrap-memo-lavender",
+      "label": "Lavender memo",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "memo-lavender",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#e7dcf3",
+        "pattern": "memo"
+      },
+      "tags": [
+        "paper",
+        "memo"
+      ]
+    },
+    {
+      "id": "scrap-memo-mint",
+      "label": "Mint memo",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "memo-mint",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#dceade",
+        "pattern": "memo"
+      },
+      "tags": [
+        "paper",
+        "memo"
+      ]
+    },
+    {
+      "id": "scrap-postcard",
+      "label": "Postcard scrap",
+      "kind": "scrap",
+      "group": "paper-scraps",
+      "variant": "postcard",
+      "text": "",
+      "defaultScale": 1.05,
+      "defaultRotation": -2,
+      "style": {
+        "base": "#f7eadb",
+        "pattern": "postcard"
+      },
+      "tags": [
+        "paper",
+        "postcard"
+      ]
+    },
+    {
+      "id": "label-today",
+      "label": "Today",
+      "kind": "label",
+      "group": "labels",
+      "variant": "blush",
+      "text": "TODAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "blush"
+      },
+      "tags": [
+        "label",
+        "today"
+      ]
+    },
+    {
+      "id": "label-memory",
+      "label": "Memory",
+      "kind": "label",
+      "group": "labels",
+      "variant": "lavender",
+      "text": "MEMORY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "lavender"
+      },
+      "tags": [
+        "label",
+        "memory"
+      ]
+    },
+    {
+      "id": "label-little-thing",
+      "label": "Little Thing",
+      "kind": "label",
+      "group": "labels",
+      "variant": "cream",
+      "text": "LITTLE THING",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "cream"
+      },
+      "tags": [
+        "label",
+        "little-thing"
+      ]
+    },
+    {
+      "id": "label-remember",
+      "label": "Remember",
+      "kind": "label",
+      "group": "labels",
+      "variant": "rose",
+      "text": "REMEMBER",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "rose"
+      },
+      "tags": [
+        "label",
+        "remember"
+      ]
+    },
+    {
+      "id": "label-love-this",
+      "label": "Love This",
+      "kind": "label",
+      "group": "labels",
+      "variant": "mint",
+      "text": "LOVE THIS",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "mint"
+      },
+      "tags": [
+        "label",
+        "love-this"
+      ]
+    },
+    {
+      "id": "label-favorite",
+      "label": "Favorite",
+      "kind": "label",
+      "group": "labels",
+      "variant": "sky",
+      "text": "FAVORITE",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "sky"
+      },
+      "tags": [
+        "label",
+        "favorite"
+      ]
+    },
+    {
+      "id": "label-currently",
+      "label": "Currently",
+      "kind": "label",
+      "group": "labels",
+      "variant": "blush",
+      "text": "CURRENTLY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "blush"
+      },
+      "tags": [
+        "label",
+        "currently"
+      ]
+    },
+    {
+      "id": "label-weekend",
+      "label": "Weekend",
+      "kind": "label",
+      "group": "labels",
+      "variant": "lavender",
+      "text": "WEEKEND",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "lavender"
+      },
+      "tags": [
+        "label",
+        "weekend"
+      ]
+    },
+    {
+      "id": "label-good-day",
+      "label": "Good Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "cream",
+      "text": "GOOD DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "cream"
+      },
+      "tags": [
+        "label",
+        "good-day"
+      ]
+    },
+    {
+      "id": "label-slow-day",
+      "label": "Slow Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "rose",
+      "text": "SLOW DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "rose"
+      },
+      "tags": [
+        "label",
+        "slow-day"
+      ]
+    },
+    {
+      "id": "label-tiny-win",
+      "label": "Tiny Win",
+      "kind": "label",
+      "group": "labels",
+      "variant": "mint",
+      "text": "TINY WIN",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "mint"
+      },
+      "tags": [
+        "label",
+        "tiny-win"
+      ]
+    },
+    {
+      "id": "label-note",
+      "label": "Note",
+      "kind": "label",
+      "group": "labels",
+      "variant": "sky",
+      "text": "NOTE",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "sky"
+      },
+      "tags": [
+        "label",
+        "note"
+      ]
+    },
+    {
+      "id": "label-details",
+      "label": "Details",
+      "kind": "label",
+      "group": "labels",
+      "variant": "blush",
+      "text": "DETAILS",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "blush"
+      },
+      "tags": [
+        "label",
+        "details"
+      ]
+    },
+    {
+      "id": "label-date",
+      "label": "Date",
+      "kind": "label",
+      "group": "labels",
+      "variant": "lavender",
+      "text": "DATE",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "lavender"
+      },
+      "tags": [
+        "label",
+        "date"
+      ]
+    },
+    {
+      "id": "label-place",
+      "label": "Place",
+      "kind": "label",
+      "group": "labels",
+      "variant": "cream",
+      "text": "PLACE",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "cream"
+      },
+      "tags": [
+        "label",
+        "place"
+      ]
+    },
+    {
+      "id": "label-photo",
+      "label": "Photo",
+      "kind": "label",
+      "group": "labels",
+      "variant": "rose",
+      "text": "PHOTO",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "rose"
+      },
+      "tags": [
+        "label",
+        "photo"
+      ]
+    },
+    {
+      "id": "label-mood",
+      "label": "Mood",
+      "kind": "label",
+      "group": "labels",
+      "variant": "mint",
+      "text": "MOOD",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "mint"
+      },
+      "tags": [
+        "label",
+        "mood"
+      ]
+    },
+    {
+      "id": "label-playlist",
+      "label": "Playlist",
+      "kind": "label",
+      "group": "labels",
+      "variant": "sky",
+      "text": "PLAYLIST",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "sky"
+      },
+      "tags": [
+        "label",
+        "playlist"
+      ]
+    },
+    {
+      "id": "label-cafe-day",
+      "label": "Café Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "blush",
+      "text": "CAFÉ DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "blush"
+      },
+      "tags": [
+        "label",
+        "cafe-day"
+      ]
+    },
+    {
+      "id": "label-travel-day",
+      "label": "Travel Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "lavender",
+      "text": "TRAVEL DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "lavender"
+      },
+      "tags": [
+        "label",
+        "travel-day"
+      ]
+    },
+    {
+      "id": "label-happy-mail",
+      "label": "Happy Mail",
+      "kind": "label",
+      "group": "labels",
+      "variant": "cream",
+      "text": "HAPPY MAIL",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "cream"
+      },
+      "tags": [
+        "label",
+        "happy-mail"
+      ]
+    },
+    {
+      "id": "label-for-later",
+      "label": "For Later",
+      "kind": "label",
+      "group": "labels",
+      "variant": "rose",
+      "text": "FOR LATER",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "rose"
+      },
+      "tags": [
+        "label",
+        "for-later"
+      ]
+    },
+    {
+      "id": "label-dear-me",
+      "label": "Dear Me",
+      "kind": "label",
+      "group": "labels",
+      "variant": "mint",
+      "text": "DEAR ME",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "mint"
+      },
+      "tags": [
+        "label",
+        "dear-me"
+      ]
+    },
+    {
+      "id": "label-right-now",
+      "label": "Right Now",
+      "kind": "label",
+      "group": "labels",
+      "variant": "sky",
+      "text": "RIGHT NOW",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "sky"
+      },
+      "tags": [
+        "label",
+        "right-now"
+      ]
+    },
+    {
+      "id": "label-little-joy",
+      "label": "Little Joy",
+      "kind": "label",
+      "group": "labels",
+      "variant": "blush",
+      "text": "LITTLE JOY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "blush"
+      },
+      "tags": [
+        "label",
+        "little-joy"
+      ]
+    },
+    {
+      "id": "label-cozy-day",
+      "label": "Cozy Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "lavender",
+      "text": "COZY DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "lavender"
+      },
+      "tags": [
+        "label",
+        "cozy-day"
+      ]
+    },
+    {
+      "id": "label-spring-day",
+      "label": "Spring Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "cream",
+      "text": "SPRING DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "cream"
+      },
+      "tags": [
+        "label",
+        "spring-day"
+      ]
+    },
+    {
+      "id": "label-summer-day",
+      "label": "Summer Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "rose",
+      "text": "SUMMER DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "rose"
+      },
+      "tags": [
+        "label",
+        "summer-day"
+      ]
+    },
+    {
+      "id": "label-autumn-day",
+      "label": "Autumn Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "mint",
+      "text": "AUTUMN DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "mint"
+      },
+      "tags": [
+        "label",
+        "autumn-day"
+      ]
+    },
+    {
+      "id": "label-winter-day",
+      "label": "Winter Day",
+      "kind": "label",
+      "group": "labels",
+      "variant": "sky",
+      "text": "WINTER DAY",
+      "defaultScale": 0.9,
+      "defaultRotation": 0,
+      "style": {
+        "palette": "sky"
+      },
+      "tags": [
+        "label",
+        "winter-day"
+      ]
+    },
+    {
+      "id": "ticket-cafe",
+      "label": "Café ticket",
+      "kind": "ticket",
+      "group": "tickets",
+      "variant": "cafe",
+      "text": "CAFÉ  ·  10:30",
+      "defaultScale": 1.0,
+      "defaultRotation": -2,
+      "style": {},
+      "tags": [
+        "ticket",
+        "tickets"
+      ]
+    },
+    {
+      "id": "ticket-trip",
+      "label": "Trip ticket",
+      "kind": "ticket",
+      "group": "tickets",
+      "variant": "travel",
+      "text": "TRIP  ·  DAY 01",
+      "defaultScale": 1.0,
+      "defaultRotation": 2,
+      "style": {},
+      "tags": [
+        "ticket",
+        "tickets"
+      ]
+    },
+    {
+      "id": "ticket-movie",
+      "label": "Movie ticket",
+      "kind": "ticket",
+      "group": "tickets",
+      "variant": "movie",
+      "text": "ADMIT ONE",
+      "defaultScale": 1.0,
+      "defaultRotation": -1,
+      "style": {},
+      "tags": [
+        "ticket",
+        "tickets"
+      ]
+    },
+    {
+      "id": "ticket-memory",
+      "label": "Memory ticket",
+      "kind": "ticket",
+      "group": "tickets",
+      "variant": "memory",
+      "text": "KEEP THIS",
+      "defaultScale": 1.0,
+      "defaultRotation": 1,
+      "style": {},
+      "tags": [
+        "ticket",
+        "tickets"
+      ]
+    },
+    {
+      "id": "tag-date",
+      "label": "Date tag",
+      "kind": "tag",
+      "group": "tags",
+      "variant": "blush",
+      "text": "DATE",
+      "defaultScale": 0.9,
+      "defaultRotation": -3,
+      "style": {},
+      "tags": [
+        "tag",
+        "tags"
+      ]
+    },
+    {
+      "id": "tag-place",
+      "label": "Place tag",
+      "kind": "tag",
+      "group": "tags",
+      "variant": "lavender",
+      "text": "PLACE",
+      "defaultScale": 0.9,
+      "defaultRotation": 2,
+      "style": {},
+      "tags": [
+        "tag",
+        "tags"
+      ]
+    },
+    {
+      "id": "tag-note",
+      "label": "Note tag",
+      "kind": "tag",
+      "group": "tags",
+      "variant": "cream",
+      "text": "NOTE",
+      "defaultScale": 0.9,
+      "defaultRotation": -2,
+      "style": {},
+      "tags": [
+        "tag",
+        "tags"
+      ]
+    },
+    {
+      "id": "stamp-sakura",
+      "label": "Sakura postage stamp",
+      "kind": "stamp",
+      "group": "stamps",
+      "variant": "sakura",
+      "text": "🌸",
+      "defaultScale": 0.85,
+      "defaultRotation": -5,
+      "style": {},
+      "tags": [
+        "stamp",
+        "stamps"
+      ]
+    },
+    {
+      "id": "stamp-star",
+      "label": "Star postage stamp",
+      "kind": "stamp",
+      "group": "stamps",
+      "variant": "star",
+      "text": "★",
+      "defaultScale": 0.85,
+      "defaultRotation": 4,
+      "style": {},
+      "tags": [
+        "stamp",
+        "stamps"
+      ]
+    },
+    {
+      "id": "stamp-heart",
+      "label": "Heart postage stamp",
+      "kind": "stamp",
+      "group": "stamps",
+      "variant": "heart",
+      "text": "♡",
+      "defaultScale": 0.85,
+      "defaultRotation": -3,
+      "style": {},
+      "tags": [
+        "stamp",
+        "stamps"
+      ]
+    },
+    {
+      "id": "corner-pink",
+      "label": "Pink photo corners",
+      "kind": "corner",
+      "group": "photo-corners",
+      "variant": "blush",
+      "text": "",
+      "defaultScale": 1.0,
+      "defaultRotation": 0,
+      "style": {},
+      "tags": [
+        "corner",
+        "photo-corners"
+      ]
+    },
+    {
+      "id": "corner-lavender",
+      "label": "Lavender photo corners",
+      "kind": "corner",
+      "group": "photo-corners",
+      "variant": "lavender",
+      "text": "",
+      "defaultScale": 1.0,
+      "defaultRotation": 0,
+      "style": {},
+      "tags": [
+        "corner",
+        "photo-corners"
+      ]
+    },
+    {
+      "id": "frame-film",
+      "label": "Film frame",
+      "kind": "frame",
+      "group": "frames",
+      "variant": "film",
+      "text": "",
+      "defaultScale": 1.0,
+      "defaultRotation": 0,
+      "style": {},
+      "tags": [
+        "frame",
+        "frames"
+      ]
+    },
+    {
+      "id": "frame-polaroid",
+      "label": "Polaroid frame",
+      "kind": "frame",
+      "group": "frames",
+      "variant": "polaroid",
+      "text": "",
+      "defaultScale": 1.0,
+      "defaultRotation": 0,
+      "style": {},
+      "tags": [
+        "frame",
+        "frames"
+      ]
+    },
+    {
+      "id": "frame-dashed",
+      "label": "Dashed frame",
+      "kind": "frame",
+      "group": "frames",
+      "variant": "dashed",
+      "text": "",
+      "defaultScale": 1.0,
+      "defaultRotation": 0,
+      "style": {},
+      "tags": [
+        "frame",
+        "frames"
+      ]
+    }
+  ],
+  "paperCategories": [
+    {
+      "id": "soft",
+      "label": "Soft",
+      "order": 10
+    },
+    {
+      "id": "notebook",
+      "label": "Notebook",
+      "order": 20
+    },
+    {
+      "id": "pattern",
+      "label": "Pattern",
+      "order": 30
+    },
+    {
+      "id": "nature",
+      "label": "Nature",
+      "order": 40
+    },
+    {
+      "id": "vintage",
+      "label": "Vintage",
+      "order": 50
+    },
+    {
+      "id": "night",
+      "label": "Night",
+      "order": 60
+    }
+  ],
+  "papers": [
+    {
+      "id": "blush",
+      "name": "Blush",
+      "category": "soft",
+      "backgroundColor": "#fff4f7",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.65),rgba(255,234,241,.55))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "cream",
+      "name": "Cream",
+      "category": "soft",
+      "backgroundColor": "#fffaf0",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.65),rgba(250,239,214,.38))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "lavender",
+      "name": "Lavender",
+      "category": "soft",
+      "backgroundColor": "#faf6ff",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.62),rgba(232,220,247,.42))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "peach",
+      "name": "Peach",
+      "category": "soft",
+      "backgroundColor": "#fff5ef",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.65),rgba(250,220,204,.42))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "mint",
+      "name": "Mint",
+      "category": "soft",
+      "backgroundColor": "#f4fbf7",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.68),rgba(215,237,224,.42))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "sky",
+      "name": "Sky",
+      "category": "soft",
+      "backgroundColor": "#f4f9fd",
+      "backgroundImage": "linear-gradient(180deg,rgba(255,255,255,.7),rgba(211,231,246,.45))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "pink-lined",
+      "name": "Pink Notebook",
+      "category": "notebook",
+      "backgroundColor": "#fffafd",
+      "backgroundImage": "repeating-linear-gradient(to bottom,transparent 0,transparent 27px,rgba(226,169,187,.24) 28px,rgba(226,169,187,.24) 29px)",
+      "backgroundSize": "100% 29px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "blue-lined",
+      "name": "Blue Notebook",
+      "category": "notebook",
+      "backgroundColor": "#fffdfb",
+      "backgroundImage": "linear-gradient(90deg,transparent 0,transparent 40px,rgba(232,150,170,.25) 40px,rgba(232,150,170,.25) 42px,transparent 42px),repeating-linear-gradient(to bottom,transparent 0,transparent 27px,rgba(158,197,225,.28) 28px,rgba(158,197,225,.28) 29px)",
+      "backgroundSize": "100% 100%,100% 29px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "pink-grid",
+      "name": "Pink Grid",
+      "category": "notebook",
+      "backgroundColor": "#fffafd",
+      "backgroundImage": "linear-gradient(rgba(222,171,188,.2) 1px,transparent 1px),linear-gradient(90deg,rgba(222,171,188,.2) 1px,transparent 1px)",
+      "backgroundSize": "22px 22px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "lavender-grid",
+      "name": "Lavender Grid",
+      "category": "notebook",
+      "backgroundColor": "#fcf9ff",
+      "backgroundImage": "linear-gradient(rgba(184,162,210,.19) 1px,transparent 1px),linear-gradient(90deg,rgba(184,162,210,.19) 1px,transparent 1px)",
+      "backgroundSize": "22px 22px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "dot-grid",
+      "name": "Dot Grid",
+      "category": "notebook",
+      "backgroundColor": "#fffdfb",
+      "backgroundImage": "radial-gradient(circle,rgba(155,130,141,.28) 1px,transparent 1.2px)",
+      "backgroundSize": "18px 18px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "letter",
+      "name": "Letter Paper",
+      "category": "notebook",
+      "backgroundColor": "#fffdf7",
+      "backgroundImage": "repeating-linear-gradient(to bottom,transparent 0,transparent 31px,rgba(177,190,207,.24) 32px,rgba(177,190,207,.24) 33px)",
+      "backgroundSize": "100% 33px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "pink-gingham",
+      "name": "Pink Gingham",
+      "category": "pattern",
+      "backgroundColor": "#fff7fa",
+      "backgroundImage": "linear-gradient(90deg,rgba(234,177,196,.14) 50%,transparent 50%),linear-gradient(rgba(234,177,196,.14) 50%,transparent 50%)",
+      "backgroundSize": "28px 28px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "lavender-gingham",
+      "name": "Lavender Gingham",
+      "category": "pattern",
+      "backgroundColor": "#faf7ff",
+      "backgroundImage": "linear-gradient(90deg,rgba(188,168,218,.15) 50%,transparent 50%),linear-gradient(rgba(188,168,218,.15) 50%,transparent 50%)",
+      "backgroundSize": "28px 28px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "pink-dots",
+      "name": "Pink Polka Dots",
+      "category": "pattern",
+      "backgroundColor": "#fff7fa",
+      "backgroundImage": "radial-gradient(circle,#efc8d5 2px,transparent 2.5px)",
+      "backgroundSize": "24px 24px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "tiny-hearts",
+      "name": "Tiny Hearts",
+      "category": "pattern",
+      "backgroundColor": "#fff8fb",
+      "backgroundImage": "radial-gradient(circle at 40% 40%,rgba(231,160,184,.28) 2px,transparent 2.4px),radial-gradient(circle at 60% 40%,rgba(231,160,184,.28) 2px,transparent 2.4px),linear-gradient(45deg,transparent 47%,rgba(231,160,184,.16) 48%,rgba(231,160,184,.16) 52%,transparent 53%)",
+      "backgroundSize": "34px 34px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "tiny-stars",
+      "name": "Tiny Stars",
+      "category": "pattern",
+      "backgroundColor": "#fbf9ff",
+      "backgroundImage": "radial-gradient(circle,rgba(178,157,211,.3) 1.5px,transparent 2px),radial-gradient(circle,rgba(226,181,198,.28) 1px,transparent 1.5px)",
+      "backgroundSize": "31px 31px,43px 43px",
+      "backgroundPosition": "0 0,13px 17px",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "confetti",
+      "name": "Pastel Confetti",
+      "category": "pattern",
+      "backgroundColor": "#fffafc",
+      "backgroundImage": "radial-gradient(circle,rgba(234,174,193,.26) 2px,transparent 2.5px),radial-gradient(circle,rgba(186,166,218,.23) 1.8px,transparent 2.3px),radial-gradient(circle,rgba(182,215,199,.22) 1.6px,transparent 2px)",
+      "backgroundSize": "36px 36px,43px 43px,49px 49px",
+      "backgroundPosition": "0 0,12px 18px,23px 7px",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "sakura-mist",
+      "name": "Sakura Mist",
+      "category": "nature",
+      "backgroundColor": "#fff6f9",
+      "backgroundImage": "radial-gradient(ellipse at 30% 30%,rgba(239,178,197,.22) 0 4px,transparent 4.5px),radial-gradient(ellipse at 70% 60%,rgba(239,178,197,.18) 0 3px,transparent 3.5px)",
+      "backgroundSize": "55px 55px,67px 67px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "daisy-field",
+      "name": "Daisy Field",
+      "category": "nature",
+      "backgroundColor": "#fffdf7",
+      "backgroundImage": "radial-gradient(circle,#f1d78a 0 2px,transparent 2.5px),radial-gradient(circle,rgba(255,255,255,.95) 0 5px,transparent 5.5px)",
+      "backgroundSize": "44px 44px,44px 44px",
+      "backgroundPosition": "0 0,2px 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "leafy",
+      "name": "Leafy",
+      "category": "nature",
+      "backgroundColor": "#f8fcf8",
+      "backgroundImage": "radial-gradient(ellipse at 30% 50%,rgba(142,190,157,.2) 0 5px,transparent 5.5px),radial-gradient(ellipse at 70% 50%,rgba(142,190,157,.16) 0 4px,transparent 4.5px)",
+      "backgroundSize": "52px 38px",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "rainy-day",
+      "name": "Rainy Day",
+      "category": "nature",
+      "backgroundColor": "#f7faff",
+      "backgroundImage": "repeating-linear-gradient(115deg,transparent 0 13px,rgba(161,191,215,.14) 14px 15px,transparent 16px 28px)",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#5a4650",
+      "accent": "#d889a4"
+    },
+    {
+      "id": "kraft",
+      "name": "Kraft",
+      "category": "vintage",
+      "backgroundColor": "#d9c39f",
+      "backgroundImage": "linear-gradient(135deg,rgba(255,255,255,.08),rgba(92,68,44,.05))",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#58483c",
+      "accent": "#a86d68"
+    },
+    {
+      "id": "vintage-cream",
+      "name": "Vintage Cream",
+      "category": "vintage",
+      "backgroundColor": "#f4ead2",
+      "backgroundImage": "radial-gradient(circle at 20% 15%,rgba(129,92,55,.05) 0 1px,transparent 1.5px),radial-gradient(circle at 70% 80%,rgba(129,92,55,.04) 0 1px,transparent 1.5px)",
+      "backgroundSize": "17px 17px,23px 23px",
+      "backgroundPosition": "0 0",
+      "ink": "#5e4d3d",
+      "accent": "#a87a6a"
+    },
+    {
+      "id": "old-letter",
+      "name": "Old Letter",
+      "category": "vintage",
+      "backgroundColor": "#efe1c6",
+      "backgroundImage": "repeating-linear-gradient(to bottom,transparent 0,transparent 30px,rgba(117,92,69,.11) 31px,rgba(117,92,69,.11) 32px)",
+      "backgroundSize": "100% 32px",
+      "backgroundPosition": "0 0",
+      "ink": "#5b493a",
+      "accent": "#9f7163"
+    },
+    {
+      "id": "newsprint",
+      "name": "Newsprint",
+      "category": "vintage",
+      "backgroundColor": "#eee9df",
+      "backgroundImage": "repeating-linear-gradient(90deg,rgba(87,75,66,.035) 0 1px,transparent 1px 6px)",
+      "backgroundSize": "6px 100%",
+      "backgroundPosition": "0 0",
+      "ink": "#514943",
+      "accent": "#8c6f68"
+    },
+    {
+      "id": "twilight",
+      "name": "Twilight",
+      "category": "night",
+      "backgroundColor": "#ddd9ef",
+      "backgroundImage": "linear-gradient(180deg,#d7d3ec 0%,#eee4ef 55%,#f8edf1 100%)",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#514d69",
+      "accent": "#a478a0"
+    },
+    {
+      "id": "night-sky",
+      "name": "Night Sky",
+      "category": "night",
+      "backgroundColor": "#292942",
+      "backgroundImage": "radial-gradient(circle,#fff 0 1px,transparent 1.4px),radial-gradient(circle,rgba(255,255,255,.55) 0 1px,transparent 1.4px),linear-gradient(180deg,#292942,#4a4364)",
+      "backgroundSize": "34px 34px,49px 49px,100% 100%",
+      "backgroundPosition": "0 0,17px 11px,0 0",
+      "ink": "#fff8fb",
+      "accent": "#e7bad1"
+    },
+    {
+      "id": "moonlight",
+      "name": "Moonlight",
+      "category": "night",
+      "backgroundColor": "#46445d",
+      "backgroundImage": "radial-gradient(circle at 78% 18%,rgba(255,244,207,.72) 0 28px,rgba(255,244,207,.12) 29px,transparent 48px),linear-gradient(180deg,#403e58,#676078)",
+      "backgroundSize": "auto",
+      "backgroundPosition": "0 0",
+      "ink": "#fff9fb",
+      "accent": "#e4c7df"
+    }
+  ]
+}

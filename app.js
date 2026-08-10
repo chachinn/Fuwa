@@ -1,13 +1,16 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 12;
+const DATABASE_VERSION = 13;
 const MAX_PHOTOS_PER_ENTRY = 8;
+const MAX_SCRAPBOOK_PAGES = 50;
+const MAX_SCRAPBOOK_PHOTOS_PER_PAGE = 12;
+const SCRAPBOOK_BOOK_MIGRATION_KEY = "scrapbook-books-v1";
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos", "settings"];
-const LOCAL_ONLY_STORES = new Set(["media", "journalCanvases", "stickerAssets", "scrapbookPhotos", "settings"]);
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos", "scrapbookBooks", "settings"];
+const LOCAL_ONLY_STORES = new Set(["media", "journalCanvases", "stickerAssets", "scrapbookPhotos", "scrapbookBooks", "settings"]);
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -47,6 +50,9 @@ let editorMedia = [];
 let removedMediaIds = new Set();
 let activeJournalCanvasId = null;
 let activeJournalCanvasEntryId = null;
+let activeScrapbookBookId = null;
+let activeScrapbookBook = null;
+let scrapbookPageSwitching = false;
 let journalCanvasReturnView = "scrapbook";
 let journalCanvasSaveTimer = null;
 let journalCanvasState = null;
@@ -390,6 +396,14 @@ const diaryRepository = {
       if (!canvasStore.indexNames.contains("entryId")) {
         canvasStore.createIndex("entryId", "entryId", { unique: true });
       }
+      if (!canvasStore.indexNames.contains("bookId")) {
+        canvasStore.createIndex("bookId", "bookId", { unique: false });
+      }
+
+      const scrapbookBookStore = request.transaction.objectStore("scrapbookBooks");
+      if (!scrapbookBookStore.indexNames.contains("entryId")) {
+        scrapbookBookStore.createIndex("entryId", "entryId", { unique: true });
+      }
 
       const scrapbookPhotoStore = request.transaction.objectStore("scrapbookPhotos");
       if (!scrapbookPhotoStore.indexNames.contains("scrapbookId")) {
@@ -457,12 +471,127 @@ const diaryRepository = {
     await transactionDone(transaction);
   },
 
+  async getScrapbookBookByEntry(entryId) {
+    if (!entryId) return null;
+    const transaction = this.db.transaction("scrapbookBooks", "readonly");
+    const store = transaction.objectStore("scrapbookBooks");
+    if (!store.indexNames.contains("entryId")) return null;
+    return requestResult(store.index("entryId").get(entryId));
+  },
+
+  async getScrapbookPagesForBook(bookId) {
+    if (!bookId) return [];
+    const transaction = this.db.transaction("journalCanvases", "readonly");
+    const store = transaction.objectStore("journalCanvases");
+    if (store.indexNames.contains("bookId")) {
+      return requestResult(store.index("bookId").getAll(bookId));
+    }
+    const all = await requestResult(store.getAll());
+    return all.filter(record => record.bookId === bookId);
+  },
+
+  async migrateLegacyScrapbookBooks() {
+    if (await this.getSetting(SCRAPBOOK_BOOK_MIGRATION_KEY)) return;
+
+    const [pages, existingBooks] = await Promise.all([
+      this.getAll("journalCanvases"),
+      this.getAll("scrapbookBooks")
+    ]);
+    const booksById = new Map(existingBooks.map(book => [book.id, structuredClone(book)]));
+    const now = Date.now();
+
+    pages.forEach((page, index) => {
+      const bookId = page.bookId || `book_${page.id}`;
+      const normalizedPage = page.bookId ? page : { ...page, bookId };
+      if (!page.bookId) pages[index] = normalizedPage;
+
+      let book = booksById.get(bookId);
+      if (!book) {
+        book = {
+          id: bookId,
+          title: page.title || "Scrapbook",
+          pages: [],
+          createdAt: page.createdAt || now,
+          updatedAt: page.updatedAt || page.createdAt || now
+        };
+        if (page.entryId) book.entryId = page.entryId;
+        booksById.set(bookId, book);
+      }
+
+      if (!Array.isArray(book.pages)) book.pages = [];
+      if (!book.pages.some(meta => meta.id === page.id)) {
+        book.pages.push({
+          id: page.id,
+          title: page.title || `Page ${book.pages.length + 1}`,
+          date: page.date || isoToday(),
+          background: page.background || "blush",
+          createdAt: page.createdAt || now,
+          updatedAt: page.updatedAt || page.createdAt || now
+        });
+      }
+      book.updatedAt = Math.max(Number(book.updatedAt || 0), Number(page.updatedAt || page.createdAt || 0));
+    });
+
+    for (const book of booksById.values()) {
+      book.pages = (book.pages || [])
+        .filter(meta => meta?.id)
+        .sort((a, b) => Number(a.order ?? a.createdAt ?? 0) - Number(b.order ?? b.createdAt ?? 0))
+        .map((meta, order) => ({ ...meta, order }));
+    }
+
+    const transaction = this.db.transaction(["journalCanvases", "scrapbookBooks", "settings"], "readwrite");
+    const canvasStore = transaction.objectStore("journalCanvases");
+    pages.forEach(page => canvasStore.put(page));
+    const bookStore = transaction.objectStore("scrapbookBooks");
+    booksById.forEach(book => bookStore.put(book));
+    transaction.objectStore("settings").put({ key: SCRAPBOOK_BOOK_MIGRATION_KEY, migratedAt: now });
+    await transactionDone(transaction);
+  },
+
+  async saveScrapbookPageAndBook(page, book, photoRecords = []) {
+    const stores = ["journalCanvases", "scrapbookBooks"];
+    if (photoRecords?.length) stores.push("scrapbookPhotos");
+    const transaction = this.db.transaction(stores, "readwrite");
+    transaction.objectStore("journalCanvases").put(page);
+    transaction.objectStore("scrapbookBooks").put(book);
+    if (photoRecords?.length) {
+      const photoStore = transaction.objectStore("scrapbookPhotos");
+      photoRecords.forEach(record => photoStore.put(record));
+    }
+    await transactionDone(transaction);
+  },
+
   async deleteScrapbookPage(scrapbookId) {
     const photos = await this.getScrapbookPhotos(scrapbookId);
     const transaction = this.db.transaction(["journalCanvases", "scrapbookPhotos"], "readwrite");
     transaction.objectStore("journalCanvases").delete(scrapbookId);
     const photoStore = transaction.objectStore("scrapbookPhotos");
     photos.forEach(record => photoStore.delete(record.id));
+    await transactionDone(transaction);
+  },
+
+  async deleteScrapbookPageAndUpdateBook(scrapbookId, book) {
+    const photos = await this.getScrapbookPhotos(scrapbookId);
+    const transaction = this.db.transaction(["journalCanvases", "scrapbookPhotos", "scrapbookBooks"], "readwrite");
+    transaction.objectStore("journalCanvases").delete(scrapbookId);
+    const photoStore = transaction.objectStore("scrapbookPhotos");
+    photos.forEach(record => photoStore.delete(record.id));
+    transaction.objectStore("scrapbookBooks").put(book);
+    await transactionDone(transaction);
+  },
+
+  async deleteScrapbookBook(bookId) {
+    const book = await this.get("scrapbookBooks", bookId);
+    const pageIds = Array.isArray(book?.pages) ? book.pages.map(page => page.id).filter(Boolean) : [];
+    const fallbackPages = pageIds.length ? [] : await this.getScrapbookPagesForBook(bookId);
+    if (!pageIds.length) fallbackPages.forEach(page => pageIds.push(page.id));
+    const photoGroups = await Promise.all(pageIds.map(pageId => this.getScrapbookPhotos(pageId)));
+    const transaction = this.db.transaction(["scrapbookBooks", "journalCanvases", "scrapbookPhotos"], "readwrite");
+    transaction.objectStore("scrapbookBooks").delete(bookId);
+    const canvasStore = transaction.objectStore("journalCanvases");
+    pageIds.forEach(pageId => canvasStore.delete(pageId));
+    const photoStore = transaction.objectStore("scrapbookPhotos");
+    photoGroups.flat().forEach(record => photoStore.delete(record.id));
     await transactionDone(transaction);
   },
 
@@ -487,27 +616,33 @@ const diaryRepository = {
   },
 
   async deleteEntryWithMedia(entryId) {
-    const [mediaRecords, bookmarkRecords, linkedCanvas] = await Promise.all([
+    const [mediaRecords, bookmarkRecords, linkedBook, legacyLinkedCanvas] = await Promise.all([
       this.getMediaForEntry(entryId),
       this.getBookmarksForEntry(entryId),
+      this.getScrapbookBookByEntry(entryId),
       this.get("journalCanvases", entryId)
     ]);
 
-    // Scrapbook pages are independent now. If an older page was linked to this
-    // entry, preserve the page and copy only the photos it actually uses into
-    // scrapbook-local storage before the entry media is removed.
+    const mediaById = new Map(mediaRecords.map(record => [record.id, record]));
     const migratedScrapbookPhotos = [];
-    let preservedCanvas = null;
-    if (linkedCanvas) {
-      const mediaById = new Map(mediaRecords.map(record => [record.id, record]));
-      const migratedItems = (linkedCanvas.items || []).map(item => {
+    const preservedPages = [];
+
+    let pagesToPreserve = [];
+    if (linkedBook?.pages?.length) {
+      pagesToPreserve = (await Promise.all(linkedBook.pages.map(meta => this.get("journalCanvases", meta.id)))).filter(Boolean);
+    } else if (legacyLinkedCanvas) {
+      pagesToPreserve = [legacyLinkedCanvas];
+    }
+
+    for (const page of pagesToPreserve) {
+      const migratedItems = (page.items || []).map(item => {
         if (item.type !== "photo" || (item.mediaSource && item.mediaSource !== "entry")) return item;
         const source = mediaById.get(item.mediaId);
         if (!source?.blob) return item;
         const newId = uid("scrapphoto");
         migratedScrapbookPhotos.push({
           id: newId,
-          scrapbookId: linkedCanvas.id,
+          scrapbookId: page.id,
           blob: source.blob,
           type: source.type || source.blob.type || "image/jpeg",
           width: source.width || 0,
@@ -517,18 +652,33 @@ const diaryRepository = {
         });
         return { ...item, mediaId: newId, mediaSource: "scrapbook" };
       });
-      const { entryId: _removedEntryId, ...rest } = linkedCanvas;
-      preservedCanvas = {
+      const { entryId: _removedEntryId, ...rest } = page;
+      preservedPages.push({
         ...rest,
-        title: linkedCanvas.title || "Scrapbook page",
         items: migratedItems,
+        updatedAt: Date.now()
+      });
+    }
+
+    let preservedBook = null;
+    if (linkedBook) {
+      const { entryId: _removedBookEntryId, ...rest } = linkedBook;
+      preservedBook = {
+        ...rest,
+        pages: (linkedBook.pages || []).map(meta => {
+          const page = preservedPages.find(item => item.id === meta.id);
+          return page ? { ...meta, title: page.title || meta.title, background: page.background || meta.background, updatedAt: page.updatedAt } : meta;
+        }),
         updatedAt: Date.now()
       };
     }
 
-    const transaction = this.db.transaction(["entries", "media", "bookmarks", "journalCanvases", "scrapbookPhotos"], "readwrite");
+    const stores = ["entries", "media", "bookmarks", "journalCanvases", "scrapbookPhotos", "scrapbookBooks"];
+    const transaction = this.db.transaction(stores, "readwrite");
     transaction.objectStore("entries").delete(entryId);
-    if (preservedCanvas) transaction.objectStore("journalCanvases").put(preservedCanvas);
+    const canvasStore = transaction.objectStore("journalCanvases");
+    preservedPages.forEach(page => canvasStore.put(page));
+    if (preservedBook) transaction.objectStore("scrapbookBooks").put(preservedBook);
     const scrapbookPhotoStore = transaction.objectStore("scrapbookPhotos");
     migratedScrapbookPhotos.forEach(record => scrapbookPhotoStore.put(record));
     const mediaStore = transaction.objectStore("media");
@@ -562,7 +712,7 @@ const diaryRepository = {
 
   async replaceContent(data, mediaRecords = [], localScrapbookData = null) {
     const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"];
-    if (localScrapbookData) stores.push("journalCanvases", "stickerAssets", "scrapbookPhotos");
+    if (localScrapbookData) stores.push("journalCanvases", "stickerAssets", "scrapbookPhotos", "scrapbookBooks");
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -601,6 +751,9 @@ const diaryRepository = {
       const scrapbookPhotoStore = transaction.objectStore("scrapbookPhotos");
       scrapbookPhotoStore.clear();
       (localScrapbookData.scrapbookPhotos || []).forEach(record => scrapbookPhotoStore.put(record));
+      const scrapbookBookStore = transaction.objectStore("scrapbookBooks");
+      scrapbookBookStore.clear();
+      (localScrapbookData.scrapbookBooks || []).forEach(record => scrapbookBookStore.put(record));
     }
 
     await transactionDone(transaction);
@@ -623,7 +776,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "scrapbookPhotos", "scrapbookBooks"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -4915,27 +5068,129 @@ async function openEditor(entryId = null, dateOverride = null) {
 }
 
 
-const FUWA_BUILTIN_STICKERS = [
-  "🌸","🌷","🌼","🎀","☁️","✨","⭐","🌙","💗","💌","🍓","🍰",
-  "☕","🧸","🐰","🐱","🫧","🌿","🍀","🕯️","📖","📎","✈️","🎧"
-];
+const FUWA_SCRAPBOOK_FALLBACK_LIBRARY = Object.freeze({
+  stickerCategories: [{ id: "favorites", label: "Favorites", icon: "🎀", order: 10 }],
+  stickers: [
+    "🌸","🌷","🌼","🎀","☁️","✨","⭐","🌙","💗","💌","🍓","🍰",
+    "☕","🧸","🐰","🐱","🫧","🌿","🍀","🕯️","📖","📎","✈️","🎧"
+  ].map((emoji, index) => ({ id: `fallback-${index + 1}`, emoji, label: "Sticker", category: "favorites", tags: [] })),
+  journalBitGroups: [
+    { id: "washi", label: "Washi", icon: "🎀", order: 10 },
+    { id: "paper-scraps", label: "Scraps", icon: "📄", order: 20 },
+    { id: "labels", label: "Labels", icon: "🏷️", order: 30 }
+  ],
+  journalBits: [
+    { id: "washi-blush", kind: "washi", group: "washi", variant: "blush", label: "Blush tape", defaultScale: 1.15, defaultRotation: 0, style: { base: "#efb2c6", pattern: "solid" } },
+    { id: "washi-lavender", kind: "washi", group: "washi", variant: "lavender", label: "Lavender tape", defaultScale: 1.15, defaultRotation: -3, style: { base: "#d8c8ea", pattern: "solid" } },
+    { id: "washi-daisy", kind: "washi", group: "washi", variant: "daisy", label: "Daisy tape", defaultScale: 1.15, defaultRotation: 2, style: { base: "#f4cad8", pattern: "daisy" } },
+    { id: "scrap-rose", kind: "scrap", group: "paper-scraps", variant: "rose", label: "Rose paper", defaultScale: 1.05, defaultRotation: -2, style: { base: "#f3c7d3", pattern: "torn" } },
+    { id: "scrap-cream", kind: "scrap", group: "paper-scraps", variant: "cream", label: "Cream paper", defaultScale: 1.05, defaultRotation: 2, style: { base: "#f7ead0", pattern: "torn" } },
+    { id: "label-today", kind: "label", group: "labels", variant: "blush", text: "TODAY", label: "Today label", defaultScale: .9, defaultRotation: 0, style: { palette: "blush" } },
+    { id: "label-memory", kind: "label", group: "labels", variant: "lavender", text: "MEMORY", label: "Memory label", defaultScale: .9, defaultRotation: 0, style: { palette: "lavender" } }
+  ],
+  paperCategories: [{ id: "soft", label: "Soft", order: 10 }, { id: "notebook", label: "Notebook", order: 20 }],
+  papers: [
+    { id: "blush", name: "Blush", category: "soft", backgroundColor: "#fff4f7", backgroundImage: "linear-gradient(180deg,rgba(255,255,255,.65),rgba(255,234,241,.55))", backgroundSize: "auto", backgroundPosition: "0 0" },
+    { id: "cream", name: "Cream", category: "soft", backgroundColor: "#fffaf0", backgroundImage: "linear-gradient(180deg,rgba(255,255,255,.65),rgba(250,239,214,.38))", backgroundSize: "auto", backgroundPosition: "0 0" },
+    { id: "lavender", name: "Lavender", category: "soft", backgroundColor: "#faf6ff", backgroundImage: "linear-gradient(180deg,rgba(255,255,255,.62),rgba(232,220,247,.42))", backgroundSize: "auto", backgroundPosition: "0 0" },
+    { id: "grid", name: "Grid", category: "notebook", backgroundColor: "#fffafc", backgroundImage: "linear-gradient(rgba(220,193,207,.24) 1px,transparent 1px),linear-gradient(90deg,rgba(220,193,207,.24) 1px,transparent 1px)", backgroundSize: "22px 22px", backgroundPosition: "0 0" }
+  ]
+});
 
-const FUWA_JOURNAL_DECOR = [
-  { id: "washi-blush", kind: "washi", variant: "blush", label: "Blush tape" },
-  { id: "washi-lavender", kind: "washi", variant: "lavender", label: "Lavender tape" },
-  { id: "washi-daisy", kind: "washi", variant: "daisy", label: "Daisy tape" },
-  { id: "washi-grid", kind: "washi", variant: "grid", label: "Grid tape" },
-  { id: "scrap-rose", kind: "scrap", variant: "rose", label: "Rose paper" },
-  { id: "scrap-cream", kind: "scrap", variant: "cream", label: "Cream paper" },
-  { id: "scrap-lavender", kind: "scrap", variant: "lavender", label: "Lavender paper" },
-  { id: "scrap-note", kind: "scrap", variant: "note", label: "Note paper" },
-  { id: "label-today", kind: "label", variant: "blush", text: "TODAY", label: "Today label" },
-  { id: "label-memory", kind: "label", variant: "lavender", text: "MEMORY", label: "Memory label" },
-  { id: "label-love", kind: "label", variant: "cream", text: "♡ LITTLE THING", label: "Little thing label" },
-  { id: "label-date", kind: "label", variant: "rose", text: "DATE", label: "Date label" }
-];
+const FUWA_SCRAPBOOK_LIBRARY =
+  window.FUWA_SCRAPBOOK_LIBRARY &&
+  Array.isArray(window.FUWA_SCRAPBOOK_LIBRARY.stickers) &&
+  Array.isArray(window.FUWA_SCRAPBOOK_LIBRARY.journalBits) &&
+  Array.isArray(window.FUWA_SCRAPBOOK_LIBRARY.papers)
+    ? window.FUWA_SCRAPBOOK_LIBRARY
+    : FUWA_SCRAPBOOK_FALLBACK_LIBRARY;
 
+let activeStickerCategory = FUWA_SCRAPBOOK_LIBRARY.stickerCategories?.[0]?.id || "favorites";
+let activeJournalBitGroup = FUWA_SCRAPBOOK_LIBRARY.journalBitGroups?.[0]?.id || "washi";
+let activePaperCategory = FUWA_SCRAPBOOK_LIBRARY.paperCategories?.[0]?.id || "soft";
 let journalPaletteLoaded = { mine: false, photos: false };
+
+function orderedScrapbookGroups(groups = []) {
+  return [...groups].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function scrapbookPaperById(id) {
+  return FUWA_SCRAPBOOK_LIBRARY.papers.find(paper => paper.id === id)
+    || FUWA_SCRAPBOOK_FALLBACK_LIBRARY.papers.find(paper => paper.id === id)
+    || FUWA_SCRAPBOOK_LIBRARY.papers[0]
+    || FUWA_SCRAPBOOK_FALLBACK_LIBRARY.papers[0];
+}
+
+function applyJournalPaperToElement(element, paperId) {
+  if (!element) return;
+  const paper = scrapbookPaperById(paperId);
+  if (!paper) return;
+  element.dataset.paper = paperId || paper.id;
+  element.style.backgroundColor = paper.backgroundColor || "";
+  element.style.backgroundImage = paper.backgroundImage || "none";
+  element.style.backgroundSize = paper.backgroundSize || "auto";
+  element.style.backgroundPosition = paper.backgroundPosition || "0 0";
+  element.style.backgroundRepeat = paper.backgroundRepeat || "repeat";
+}
+
+function safeDecorToken(value, fallback = "plain") {
+  const token = String(value || "").toLowerCase();
+  return /^[a-z0-9-]+$/.test(token) ? token : fallback;
+}
+
+function safeDecorBase(value) {
+  const color = String(value || "").trim();
+  return /^(#[0-9a-f]{3,8}|rgba?\([0-9.,%\s]+\)|hsla?\([0-9.,%\s]+\))$/i.test(color) ? color : "#f2c8d5";
+}
+
+function journalDecorDefinition(item) {
+  const found = item?.decorId
+    ? FUWA_SCRAPBOOK_LIBRARY.journalBits.find(bit => bit.id === item.decorId)
+    : null;
+  if (found) return found;
+
+  const legacyBase = {
+    blush: "#efb2c6",
+    lavender: "#d8c8ea",
+    rose: "#f3c7d3",
+    cream: "#f7ead0",
+    daisy: "#f4cad8",
+    grid: "#f3dce5",
+    note: "#fffaf0"
+  };
+  const variant = safeDecorToken(item?.variant || "blush", "blush");
+  return {
+    id: item?.decorId || "",
+    kind: safeDecorToken(item?.decorKind || "label", "label"),
+    variant,
+    text: item?.text || "",
+    label: "Journal decoration",
+    style: {
+      base: legacyBase[variant] || "#f2c8d5",
+      pattern: ["daisy", "grid"].includes(variant) ? variant : "solid",
+      palette: ["blush", "lavender", "rose", "cream"].includes(variant) ? variant : ""
+    }
+  };
+}
+
+function journalDecorVisualMeta(definition) {
+  const kind = safeDecorToken(definition?.kind || "label", "label");
+  const pattern = safeDecorToken(definition?.style?.pattern || "plain", "plain");
+  const palette = safeDecorToken(definition?.style?.palette || definition?.variant || "blush", "blush");
+  const base = safeDecorBase(definition?.style?.base || "");
+  const text = String(definition?.text || "");
+  return { kind, pattern, palette, base, text };
+}
+
+function journalDecorVisualClass(definition) {
+  const meta = journalDecorVisualMeta(definition);
+  return `decor-visual decor-${meta.kind} decor-pattern-${meta.pattern} decor-palette-${meta.palette}`;
+}
+
+function journalDecorVisualStyle(definition) {
+  const rawBase = String(definition?.style?.base || "").trim();
+  return rawBase ? `--decor-base:${safeDecorBase(rawBase)};` : "";
+}
 
 function queueJournalCanvasSave() {
   if (!journalCanvasState || !activeJournalCanvasId) return;
@@ -4946,7 +5201,7 @@ function queueJournalCanvasSave() {
   }, 700);
 }
 
-function defaultJournalCanvas({ id = uid("scrapbook"), entryId = null, title = "Untitled page", date = isoToday() } = {}) {
+function defaultJournalCanvas({ id = uid("scrapbook"), entryId = null, bookId = null, title = "Untitled page", date = isoToday() } = {}) {
   const record = {
     id,
     title: title || "Untitled page",
@@ -4956,6 +5211,7 @@ function defaultJournalCanvas({ id = uid("scrapbook"), entryId = null, title = "
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
+  if (bookId) record.bookId = bookId;
   // Omit entryId entirely for standalone pages so the legacy unique IndexedDB
   // index never treats multiple standalone pages as the same linked page.
   if (entryId) record.entryId = entryId;
@@ -5014,12 +5270,10 @@ function journalCanvasItemMarkup(item) {
     return `<button type="button" class="journal-canvas-item photo-item photo-style-${photoStyle}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Entry photo"><img src="${src}" alt="Entry photo"></button>`;
   }
   if (item.type === "decor") {
-    const allowedKinds = ["washi", "scrap", "label"];
-    const allowedVariants = ["blush", "lavender", "daisy", "grid", "rose", "cream", "note"];
-    const kind = allowedKinds.includes(item.decorKind) ? item.decorKind : "label";
-    const variant = allowedVariants.includes(item.variant) ? item.variant : "blush";
-    const text = kind === "label" ? escapeHtml(item.text || "NOTE") : "";
-    return `<button type="button" class="journal-canvas-item decor-item decor-${kind} decor-${variant}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Journal decoration">${text ? `<span>${text}</span>` : ""}</button>`;
+    const definition = journalDecorDefinition(item);
+    const meta = journalDecorVisualMeta(definition);
+    const text = escapeHtml(meta.text || item.text || "");
+    return `<button type="button" class="journal-canvas-item decor-item ${journalDecorVisualClass(definition)}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}${journalDecorVisualStyle(definition)}" aria-label="${escapeHtml(definition.label || "Journal decoration")}">${text ? `<span>${text}</span>` : ""}</button>`;
   }
   return `<button type="button" class="journal-canvas-item text-item ${journalTextClassNames(item)}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}">${escapeHtml(item.text || "Little note")}</button>`;
 }
@@ -5089,7 +5343,7 @@ function bindJournalCanvasItems() {
 function renderJournalCanvas() {
   const canvas = $("journalCanvasPaper");
   if (!canvas || !journalCanvasState) return;
-  canvas.dataset.paper = journalCanvasState.background || "blush";
+  applyJournalPaperToElement(canvas, journalCanvasState.background || "blush");
   canvas.innerHTML = journalCanvasState.items.map(journalCanvasItemMarkup).join("");
   bindJournalCanvasItems();
   renderJournalCanvasControls();
@@ -5177,34 +5431,134 @@ function addJournalCanvasItem(item) {
   queueJournalCanvasSave();
 }
 
+function renderStickerCategoryBar() {
+  const host = $("stickerCategoryBar");
+  if (!host) return;
+  const groups = orderedScrapbookGroups(FUWA_SCRAPBOOK_LIBRARY.stickerCategories || []);
+  if (!groups.some(group => group.id === activeStickerCategory)) activeStickerCategory = groups[0]?.id || "";
+  host.innerHTML = groups.map(group => `
+    <button type="button" class="${group.id === activeStickerCategory ? "active" : ""}" data-sticker-category="${escapeHtml(group.id)}">
+      <span>${escapeHtml(group.icon || "•")}</span>${escapeHtml(group.label || group.id)}
+    </button>`).join("");
+  host.querySelectorAll("[data-sticker-category]").forEach(button => {
+    button.addEventListener("click", () => {
+      activeStickerCategory = button.dataset.stickerCategory;
+      renderBuiltinStickerPalette();
+    });
+  });
+}
+
 function renderBuiltinStickerPalette() {
   const host = $("builtinStickerPalette");
   if (!host) return;
-  host.innerHTML = FUWA_BUILTIN_STICKERS.map(sticker => `<button type="button" class="sticker-palette-button" data-add-builtin-sticker="${escapeHtml(sticker)}">${escapeHtml(sticker)}</button>`).join("");
+  renderStickerCategoryBar();
+  const stickers = FUWA_SCRAPBOOK_LIBRARY.stickers.filter(sticker => sticker.category === activeStickerCategory);
+  host.innerHTML = stickers.map(sticker => `
+    <button type="button" class="sticker-palette-button" data-add-builtin-sticker="${escapeHtml(sticker.id)}" title="${escapeHtml(sticker.label || "Sticker")}" aria-label="${escapeHtml(sticker.label || "Sticker")}">
+      ${escapeHtml(sticker.emoji || "✨")}
+    </button>`).join("");
   host.querySelectorAll("[data-add-builtin-sticker]").forEach(button => {
-    button.addEventListener("click", () => addJournalCanvasItem({ type: "builtin", content: button.dataset.addBuiltinSticker }));
+    button.addEventListener("click", () => {
+      const sticker = FUWA_SCRAPBOOK_LIBRARY.stickers.find(item => item.id === button.dataset.addBuiltinSticker);
+      if (!sticker) return;
+      addJournalCanvasItem({
+        type: "builtin",
+        builtInStickerId: sticker.id,
+        content: sticker.emoji || "✨"
+      });
+    });
+  });
+}
+
+function renderJournalBitGroupBar() {
+  const host = $("journalBitGroupBar");
+  if (!host) return;
+  const groups = orderedScrapbookGroups(FUWA_SCRAPBOOK_LIBRARY.journalBitGroups || []);
+  if (!groups.some(group => group.id === activeJournalBitGroup)) activeJournalBitGroup = groups[0]?.id || "";
+  host.innerHTML = groups.map(group => `
+    <button type="button" class="${group.id === activeJournalBitGroup ? "active" : ""}" data-journal-bit-group="${escapeHtml(group.id)}">
+      <span>${escapeHtml(group.icon || "•")}</span>${escapeHtml(group.label || group.id)}
+    </button>`).join("");
+  host.querySelectorAll("[data-journal-bit-group]").forEach(button => {
+    button.addEventListener("click", () => {
+      activeJournalBitGroup = button.dataset.journalBitGroup;
+      renderJournalDecorPalette();
+    });
   });
 }
 
 function renderJournalDecorPalette() {
   const host = $("journalDecorPalette");
   if (!host) return;
-  host.innerHTML = FUWA_JOURNAL_DECOR.map(item => `
-    <button type="button" class="journal-decor-palette-item ${escapeHtml(`preview-${item.kind}`)} ${escapeHtml(`preview-${item.variant}`)}" data-add-journal-decor="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.label)}">
-      ${item.kind === "label" ? `<span>${escapeHtml(item.text || "NOTE")}</span>` : ""}
-    </button>`).join("");
+  renderJournalBitGroupBar();
+  const bits = FUWA_SCRAPBOOK_LIBRARY.journalBits.filter(item => item.group === activeJournalBitGroup);
+  host.innerHTML = bits.map(item => {
+    const meta = journalDecorVisualMeta(item);
+    const text = escapeHtml(meta.text || "");
+    return `
+      <button type="button" class="journal-decor-palette-item" data-add-journal-decor="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.label || "Journal decoration")}">
+        <span class="journal-decor-preview ${journalDecorVisualClass(item)}" style="${journalDecorVisualStyle(item)}">${text ? `<b>${text}</b>` : ""}</span>
+        <small>${escapeHtml(item.label || "Journal Bit")}</small>
+      </button>`;
+  }).join("");
   host.querySelectorAll("[data-add-journal-decor]").forEach(button => {
     button.addEventListener("click", () => {
-      const decor = FUWA_JOURNAL_DECOR.find(item => item.id === button.dataset.addJournalDecor);
+      const decor = FUWA_SCRAPBOOK_LIBRARY.journalBits.find(item => item.id === button.dataset.addJournalDecor);
       if (!decor) return;
       addJournalCanvasItem({
         type: "decor",
+        decorId: decor.id,
         decorKind: decor.kind,
-        variant: decor.variant,
+        variant: decor.variant || "",
         text: decor.text || "",
-        scale: decor.kind === "washi" ? 1.15 : decor.kind === "scrap" ? 1.05 : .9
+        scale: Number.isFinite(Number(decor.defaultScale)) ? Number(decor.defaultScale) : 1,
+        rotation: Number.isFinite(Number(decor.defaultRotation)) ? Number(decor.defaultRotation) : 0
       });
     });
+  });
+}
+
+function renderPaperCategoryBar() {
+  const host = $("paperCategoryBar");
+  if (!host) return;
+  const groups = orderedScrapbookGroups(FUWA_SCRAPBOOK_LIBRARY.paperCategories || []);
+  if (!groups.some(group => group.id === activePaperCategory)) activePaperCategory = groups[0]?.id || "";
+  host.innerHTML = groups.map(group => `
+    <button type="button" class="${group.id === activePaperCategory ? "active" : ""}" data-paper-category="${escapeHtml(group.id)}">
+      ${escapeHtml(group.label || group.id)}
+    </button>`).join("");
+  host.querySelectorAll("[data-paper-category]").forEach(button => {
+    button.addEventListener("click", () => {
+      activePaperCategory = button.dataset.paperCategory;
+      renderJournalPaperPalette({ preserveCategory: true });
+    });
+  });
+}
+
+function renderJournalPaperPalette({ preserveCategory = false } = {}) {
+  const host = $("journalPaperOptions");
+  if (!host) return;
+  const currentPaper = scrapbookPaperById(journalCanvasState?.background || "blush");
+  if (!preserveCategory && currentPaper?.category) activePaperCategory = currentPaper.category;
+  renderPaperCategoryBar();
+  let papers = FUWA_SCRAPBOOK_LIBRARY.papers.filter(paper => paper.category === activePaperCategory);
+  if (
+    currentPaper &&
+    currentPaper.category === activePaperCategory &&
+    !papers.some(paper => paper.id === currentPaper.id)
+  ) {
+    papers = [currentPaper, ...papers];
+  }
+  host.innerHTML = papers.map(paper => `
+    <button type="button" class="${journalCanvasState?.background === paper.id ? "active" : ""}" data-journal-paper="${escapeHtml(paper.id)}">
+      <span class="paper-swatch" data-paper-preview="${escapeHtml(paper.id)}"></span>
+      <span>${escapeHtml(paper.name || paper.id)}</span>
+    </button>`).join("");
+  host.querySelectorAll("[data-paper-preview]").forEach(preview => {
+    applyJournalPaperToElement(preview, preview.dataset.paperPreview);
+  });
+  host.querySelectorAll("[data-journal-paper]").forEach(button => {
+    button.addEventListener("click", () => setJournalPaper(button.dataset.journalPaper));
   });
 }
 
@@ -5229,7 +5583,7 @@ async function renderMyStickerPalette() {
 
 async function removeStickerBackgroundLocally(blob) {
   const image = await imageFromBlob(blob);
-  const maxDimension = 1200;
+  const maxDimension = 1000;
   const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
   const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -5259,6 +5613,9 @@ async function removeStickerBackgroundLocally(blob) {
   const clearDistance = 34;
   const featherDistance = 82;
   for (let i = 0; i < pixels.length; i += 4) {
+    if (i > 0 && i % 400000 === 0) {
+      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
     if (pixels[i + 3] === 0) continue;
     const dr = pixels[i] - background[0];
     const dg = pixels[i + 1] - background[1];
@@ -5284,6 +5641,7 @@ async function importCustomSticker(event) {
   if (!file.type.startsWith("image/")) return toast("Choose an image for your sticker.");
   if (file.size > 6 * 1024 * 1024) return toast("Keep sticker images under 6 MB.");
   const removeBackground = $("removeStickerBackground")?.checked === true;
+  const targetPageId = activeJournalCanvasId;
 
   try {
     if (removeBackground) {
@@ -5305,8 +5663,12 @@ async function importCustomSticker(event) {
     const url = URL.createObjectURL(record.blob);
     journalCanvasAssetUrls.set(record.id, url);
     await renderMyStickerPalette();
-    addJournalCanvasItem({ type: "custom", assetId: record.id });
-    toast(removeBackground ? "Sticker saved with its background removed 🎀" : "Sticker added to My Stickers 🎀");
+    if (targetPageId && activeJournalCanvasId === targetPageId && journalCanvasState) {
+      addJournalCanvasItem({ type: "custom", assetId: record.id });
+      toast(removeBackground ? "Sticker saved with its background removed 🎀" : "Sticker added to My Stickers 🎀");
+    } else {
+      toast("Sticker saved to My Stickers on this device 🎀");
+    }
   } catch (error) {
     console.error("Could not save custom sticker.", error);
     toast(removeBackground ? "Fuwa couldn't remove that background. Try a simpler image or import it normally." : "Fuwa couldn't save that sticker on this device.");
@@ -5332,12 +5694,15 @@ async function deleteCustomSticker(assetId) {
 async function renderJournalPhotoPalette() {
   const host = $("journalPhotoPalette");
   if (!host || !activeJournalCanvasId) return;
+  const expectedPageId = activeJournalCanvasId;
+  const expectedEntryId = activeJournalCanvasEntryId;
   host.innerHTML = `<p class="journal-palette-empty">Loading photos…</p>`;
 
   const [entryMedia, scrapbookMedia] = await Promise.all([
-    activeJournalCanvasEntryId ? diaryRepository.getMediaForEntry(activeJournalCanvasEntryId) : Promise.resolve([]),
-    diaryRepository.getScrapbookPhotos(activeJournalCanvasId)
+    expectedEntryId ? diaryRepository.getMediaForEntry(expectedEntryId) : Promise.resolve([]),
+    diaryRepository.getScrapbookPhotos(expectedPageId)
   ]);
+  if (activeJournalCanvasId !== expectedPageId) return;
 
   entryMedia.forEach(record => {
     const key = `entry:${record.id}`;
@@ -5364,6 +5729,7 @@ async function renderJournalPhotoPalette() {
 
 async function deleteScrapbookPhoto(photoId) {
   if (!photoId || !activeJournalCanvasId) return;
+  const targetPageId = activeJournalCanvasId;
   const inUse = (journalCanvasState?.items || []).some(item => item.type === "photo" && item.mediaSource === "scrapbook" && item.mediaId === photoId);
   if (!confirm(inUse ? "Delete this photo? It will also be removed from the scrapbook page." : "Delete this page-only photo from this device?")) return;
   try {
@@ -5372,14 +5738,16 @@ async function deleteScrapbookPhoto(photoId) {
     const url = journalCanvasMediaUrls.get(key);
     if (url) URL.revokeObjectURL(url);
     journalCanvasMediaUrls.delete(key);
-    if (journalCanvasState) {
+    if (journalCanvasState && activeJournalCanvasId === targetPageId) {
       journalCanvasState.items = journalCanvasState.items.filter(item => !(item.type === "photo" && item.mediaSource === "scrapbook" && item.mediaId === photoId));
       if (!journalCanvasState.items.some(item => item.id === selectedJournalCanvasItemId)) selectedJournalCanvasItemId = null;
       renderJournalCanvas();
       queueJournalCanvasSave();
     }
-    journalPaletteLoaded.photos = false;
-    await renderJournalPhotoPalette();
+    if (activeJournalCanvasId === targetPageId) {
+      journalPaletteLoaded.photos = false;
+      await renderJournalPhotoPalette();
+    }
     toast("Scrapbook photo removed.");
   } catch (error) {
     console.error("Could not delete scrapbook photo.", error);
@@ -5391,9 +5759,10 @@ async function importScrapbookPhotos(event) {
   const files = [...(event.target.files || [])].filter(file => file.type.startsWith("image/"));
   event.target.value = "";
   if (!files.length || !activeJournalCanvasId || !journalCanvasState) return;
-  const existing = await diaryRepository.getScrapbookPhotos(activeJournalCanvasId);
-  const room = Math.max(0, 12 - existing.length);
-  if (!room) return toast("Keep up to 12 page-only photos in one scrapbook page.");
+  const targetPageId = activeJournalCanvasId;
+  const existing = await diaryRepository.getScrapbookPhotos(targetPageId);
+  const room = Math.max(0, MAX_SCRAPBOOK_PHOTOS_PER_PAGE - existing.length);
+  if (!room) return toast(`Keep up to ${MAX_SCRAPBOOK_PHOTOS_PER_PAGE} page-only photos in one scrapbook page.`);
   const selected = files.slice(0, room);
   if (files.length > room) toast(`Fuwa will add the first ${room} photos to keep this page light.`);
 
@@ -5404,7 +5773,7 @@ async function importScrapbookPhotos(event) {
       const compressed = await compressPhoto(file);
       records.push({
         id: uid("scrapphoto"),
-        scrapbookId: activeJournalCanvasId,
+        scrapbookId: targetPageId,
         blob: compressed.blob,
         type: compressed.type,
         width: compressed.width,
@@ -5415,6 +5784,10 @@ async function importScrapbookPhotos(event) {
       await new Promise(resolve => requestAnimationFrame(() => resolve()));
     }
     await diaryRepository.saveScrapbookPhotos(records);
+    if (activeJournalCanvasId !== targetPageId || !journalCanvasState) {
+      toast(`${records.length} photo${records.length === 1 ? "" : "s"} saved to that scrapbook page 📷`);
+      return;
+    }
     const maxZ = journalCanvasState.items.reduce((max, current) => Math.max(max, Number(current.z || 0)), 0);
     records.forEach((record, index) => {
       const key = `scrapbook:${record.id}`;
@@ -5456,32 +5829,142 @@ function switchJournalPalette(tab) {
 function scrapbookTitleForRecord(record) {
   if (record?.title?.trim()) return record.title.trim();
   const linkedEntry = record?.entryId ? state.entries.find(entry => entry.id === record.entryId) : null;
-  return linkedEntry?.title || "Scrapbook page";
+  return linkedEntry?.title || "Scrapbook";
 }
 
-async function openScrapbookCanvas(record, { returnView = "scrapbook" } = {}) {
-  if (!record?.id) return;
+function scrapbookPageMeta(record, order = 0) {
+  return {
+    id: record.id,
+    title: record.title || `Page ${order + 1}`,
+    date: record.date || isoToday(),
+    background: record.background || "blush",
+    itemCount: Array.isArray(record.items) ? record.items.length : Number(record.itemCount || 0),
+    createdAt: record.createdAt || Date.now(),
+    updatedAt: record.updatedAt || record.createdAt || Date.now(),
+    order
+  };
+}
+
+function normalizeScrapbookBook(book) {
+  const normalized = {
+    ...book,
+    title: book?.title?.trim() || "Untitled scrapbook",
+    pages: Array.isArray(book?.pages) ? book.pages.filter(page => page?.id) : [],
+    createdAt: book?.createdAt || Date.now(),
+    updatedAt: book?.updatedAt || book?.createdAt || Date.now()
+  };
+  normalized.pages = normalized.pages
+    .slice()
+    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
+    .map((page, order) => ({ ...page, order }));
+  return normalized;
+}
+
+function currentScrapbookPageIndex() {
+  if (!activeScrapbookBook || !activeJournalCanvasId) return -1;
+  return activeScrapbookBook.pages.findIndex(page => page.id === activeJournalCanvasId);
+}
+
+function updateActiveBookPageMeta(record = journalCanvasState) {
+  if (!activeScrapbookBook || !record?.id) return;
+  const index = activeScrapbookBook.pages.findIndex(page => page.id === record.id);
+  const meta = scrapbookPageMeta(record, index >= 0 ? index : activeScrapbookBook.pages.length);
+  if (index >= 0) activeScrapbookBook.pages[index] = meta;
+  else activeScrapbookBook.pages.push(meta);
+  activeScrapbookBook.pages = activeScrapbookBook.pages.map((page, order) => ({ ...page, order }));
+}
+
+async function ensureScrapbookBookForPage(record) {
+  if (!record?.id) throw new Error("invalid-scrapbook-page");
+  let book = record.bookId ? await diaryRepository.get("scrapbookBooks", record.bookId) : null;
+  const bookId = record.bookId || `book_${record.id}`;
+  const page = record.bookId ? record : { ...record, bookId };
+
+  if (!book) {
+    book = {
+      id: bookId,
+      title: scrapbookTitleForRecord(record),
+      pages: [scrapbookPageMeta(page, 0)],
+      createdAt: record.createdAt || Date.now(),
+      updatedAt: record.updatedAt || record.createdAt || Date.now()
+    };
+    if (record.entryId) book.entryId = record.entryId;
+  } else {
+    book = normalizeScrapbookBook(book);
+    if (!book.pages.some(meta => meta.id === page.id)) {
+      book.pages.push(scrapbookPageMeta(page, book.pages.length));
+    }
+    if (!book.entryId && record.entryId) book.entryId = record.entryId;
+  }
+
+  await diaryRepository.saveScrapbookPageAndBook(page, book);
+  return { book: normalizeScrapbookBook(book), page };
+}
+
+function renderScrapbookPageNavigator() {
+  const book = activeScrapbookBook ? normalizeScrapbookBook(activeScrapbookBook) : null;
+  const strip = $("scrapbookPageStrip");
+  if (!book || !strip) return;
+  activeScrapbookBook = book;
+
+  const index = currentScrapbookPageIndex();
+  const count = book.pages.length;
+  const current = index >= 0 ? index : 0;
+
+  if ($("scrapbookPagePosition")) $("scrapbookPagePosition").textContent = `Page ${current + 1} of ${count}`;
+  if ($("scrapbookPrevPage")) $("scrapbookPrevPage").disabled = current <= 0 || scrapbookPageSwitching;
+  if ($("scrapbookNextPage")) $("scrapbookNextPage").disabled = current >= count - 1 || scrapbookPageSwitching;
+  if ($("scrapbookMovePageLeft")) $("scrapbookMovePageLeft").disabled = current <= 0 || scrapbookPageSwitching;
+  if ($("scrapbookMovePageRight")) $("scrapbookMovePageRight").disabled = current >= count - 1 || scrapbookPageSwitching;
+  if ($("scrapbookDeletePage")) $("scrapbookDeletePage").disabled = count <= 1 || scrapbookPageSwitching;
+  if ($("scrapbookAddPage")) $("scrapbookAddPage").disabled = count >= MAX_SCRAPBOOK_PAGES || scrapbookPageSwitching;
+  if ($("scrapbookDuplicatePage")) $("scrapbookDuplicatePage").disabled = count >= MAX_SCRAPBOOK_PAGES || scrapbookPageSwitching;
+
+  strip.innerHTML = book.pages.map((page, pageIndex) => `
+    <button type="button" class="scrapbook-page-thumb${page.id === activeJournalCanvasId ? " active" : ""}" data-open-book-page="${escapeHtml(page.id)}" aria-label="Open page ${pageIndex + 1}">
+      <span class="scrapbook-page-thumb-paper" data-paper="${escapeHtml(page.background || "blush")}"><b>${pageIndex + 1}</b></span>
+      <small>${escapeHtml(page.title || `Page ${pageIndex + 1}`)}</small>
+    </button>`).join("");
+
+  strip.querySelectorAll(".scrapbook-page-thumb-paper").forEach(preview => {
+    applyJournalPaperToElement(preview, preview.dataset.paper || "blush");
+  });
+  strip.querySelectorAll("[data-open-book-page]").forEach(button => {
+    button.addEventListener("click", () => switchScrapbookPage(button.dataset.openBookPage));
+  });
+}
+
+function updateScrapbookCanvasHeader() {
+  if (!activeScrapbookBook || !journalCanvasState) return;
+  const index = currentScrapbookPageIndex();
+  const linked = activeScrapbookBook.entryId && state.entries.some(entry => entry.id === activeScrapbookBook.entryId);
+  if ($("journalBookTitleInput")) $("journalBookTitleInput").value = activeScrapbookBook.title || "Untitled scrapbook";
+  if ($("journalCanvasTitleInput")) $("journalCanvasTitleInput").value = journalCanvasState.title || `Page ${Math.max(1, index + 1)}`;
+  if ($("journalCanvasEyebrow")) $("journalCanvasEyebrow").textContent = linked ? "Scrapbook linked to a journal memory" : "Your standalone scrapbook";
+  if ($("journalPhotoPaletteNote")) $("journalPhotoPaletteNote").textContent = linked ? "Use linked-entry photos or add photos just for this scrapbook page." : "Import photos just for this scrapbook page.";
+}
+
+async function activateScrapbookPage(record, { navigateView = false } = {}) {
+  if (!record?.id || !activeScrapbookBook) return;
   activeJournalCanvasId = record.id;
-  const linkedEntry = record.entryId ? state.entries.find(entry => entry.id === record.entryId) : null;
-  activeJournalCanvasEntryId = linkedEntry?.id || null;
-  journalCanvasReturnView = returnView;
+  activeJournalCanvasEntryId = activeScrapbookBook.entryId && state.entries.some(entry => entry.id === activeScrapbookBook.entryId) ? activeScrapbookBook.entryId : null;
   selectedJournalCanvasItemId = null;
   journalPaletteLoaded = { mine: false, photos: false };
-  journalCanvasState = { ...record, title: scrapbookTitleForRecord(record) };
-  if (record.entryId && !linkedEntry) delete journalCanvasState.entryId;
+  journalCanvasState = { ...record, bookId: activeScrapbookBook.id };
 
   renderBuiltinStickerPalette();
   renderJournalDecorPalette();
-  if ($("journalCanvasTitleInput")) $("journalCanvasTitleInput").value = journalCanvasState.title || "Untitled page";
-  if ($("journalCanvasEyebrow")) $("journalCanvasEyebrow").textContent = activeJournalCanvasEntryId ? "Linked to a journal memory" : "Your standalone scrapbook page";
-  if ($("journalPhotoPaletteNote")) $("journalPhotoPaletteNote").textContent = activeJournalCanvasEntryId ? "Use linked-entry photos or add photos just for this scrapbook page." : "Import photos just for this scrapbook page.";
+  renderJournalPaperPalette();
+  updateScrapbookCanvasHeader();
+  renderScrapbookPageNavigator();
   if ($("myStickerPalette")) $("myStickerPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load My Stickers.</p>`;
   if ($("journalPhotoPalette")) $("journalPhotoPalette").innerHTML = `<p class="journal-palette-empty">Open this tab to load photos.</p>`;
   switchJournalPalette("stickers");
   renderJournalCanvas();
-  navigate("journalCanvas");
 
-  // Load only assets already used by this page. Full libraries remain lazy.
+  if (navigateView) navigate("journalCanvas");
+  else window.scrollTo({ top: 0, behavior: "smooth" });
+
   try {
     const expectedId = record.id;
     await loadJournalCanvasReferencedUrls();
@@ -5491,42 +5974,101 @@ async function openScrapbookCanvas(record, { returnView = "scrapbook" } = {}) {
   }
 }
 
+async function openScrapbookCanvas(record, { returnView = "scrapbook", book = null } = {}) {
+  if (!record?.id) return;
+  let resolvedBook = book;
+  let resolvedPage = record;
+  if (!resolvedBook) {
+    const ensured = await ensureScrapbookBookForPage(record);
+    resolvedBook = ensured.book;
+    resolvedPage = ensured.page;
+  }
+
+  activeScrapbookBook = normalizeScrapbookBook(resolvedBook);
+  activeScrapbookBookId = activeScrapbookBook.id;
+  journalCanvasReturnView = returnView;
+  await activateScrapbookPage(resolvedPage, { navigateView: true });
+}
+
+async function openScrapbookBook(bookId, { pageId = null, returnView = "scrapbook" } = {}) {
+  try {
+    let book = await diaryRepository.get("scrapbookBooks", bookId);
+    if (!book) return toast("That scrapbook could not be found.");
+    book = normalizeScrapbookBook(book);
+    if (!book.pages.length) return toast("That scrapbook has no pages.");
+    const targetMeta = book.pages.find(page => page.id === pageId) || book.pages[0];
+    const page = await diaryRepository.get("journalCanvases", targetMeta.id);
+    if (!page) return toast("That scrapbook page could not be found.");
+    await openScrapbookCanvas(page, { returnView, book });
+  } catch (error) {
+    console.error("Could not open scrapbook.", error);
+    toast("Fuwa couldn't open that scrapbook.");
+  }
+}
+
 async function openJournalCanvas() {
   const entryId = $("entryId")?.value;
   if (!entryId) {
     toast("Save this entry first, then add it to your scrapbook 🎀");
     return;
   }
+
   try {
     const entry = state.entries.find(item => item.id === entryId);
-    let record = await diaryRepository.get("journalCanvases", entryId);
-    if (!record) {
-      record = defaultJournalCanvas({
+    let book = await diaryRepository.getScrapbookBookByEntry(entryId);
+
+    if (!book) {
+      const legacyPage = await diaryRepository.get("journalCanvases", entryId);
+      if (legacyPage) {
+        const ensured = await ensureScrapbookBookForPage(legacyPage);
+        book = ensured.book;
+      }
+    }
+
+    if (!book) {
+      const bookId = uid("scrapbookbook");
+      const page = defaultJournalCanvas({
         id: entryId,
         entryId,
-        title: entry?.title || "Scrapbook page",
+        bookId,
+        title: entry?.title || "Page 1",
         date: entry?.date || isoToday()
       });
-      await diaryRepository.save("journalCanvases", record);
-    } else if (!record.title) {
-      record = { ...record, title: entry?.title || "Scrapbook page", date: record.date || entry?.date || isoToday() };
+      book = {
+        id: bookId,
+        entryId,
+        title: entry?.title || "Scrapbook",
+        pages: [scrapbookPageMeta(page, 0)],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await diaryRepository.saveScrapbookPageAndBook(page, book);
     }
-    await openScrapbookCanvas(record, { returnView: "editor" });
+
+    await openScrapbookBook(book.id, { returnView: "editor" });
   } catch (error) {
-    console.error("Could not open linked scrapbook page.", error);
-    toast("Fuwa couldn't open that scrapbook page.");
+    console.error("Could not open linked scrapbook.", error);
+    toast("Fuwa couldn't open that scrapbook.");
   }
 }
 
-
 async function createStandaloneScrapbookPage() {
-  const record = defaultJournalCanvas({ title: "Untitled page", date: isoToday() });
+  if (scrapbookPageSwitching) return;
+  const bookId = uid("scrapbookbook");
+  const page = defaultJournalCanvas({ bookId, title: "Page 1", date: isoToday() });
+  const book = {
+    id: bookId,
+    title: "Untitled scrapbook",
+    pages: [scrapbookPageMeta(page, 0)],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
   try {
-    await diaryRepository.save("journalCanvases", record);
-    await openScrapbookCanvas(record, { returnView: "scrapbook" });
+    await diaryRepository.saveScrapbookPageAndBook(page, book);
+    await openScrapbookCanvas(page, { returnView: "scrapbook", book });
   } catch (error) {
-    console.error("Could not create scrapbook page.", error);
-    toast("Fuwa couldn't create that scrapbook page.");
+    console.error("Could not create scrapbook.", error);
+    toast("Fuwa couldn't create that scrapbook.");
   }
 }
 
@@ -5534,57 +6076,244 @@ async function openScrapbookPageById(id) {
   try {
     const record = await diaryRepository.get("journalCanvases", id);
     if (!record) return toast("That scrapbook page could not be found.");
-    await openScrapbookCanvas(record, { returnView: "scrapbook" });
+    const ensured = await ensureScrapbookBookForPage(record);
+    await openScrapbookCanvas(ensured.page, { returnView: "scrapbook", book: ensured.book });
   } catch (error) {
     console.error("Could not open scrapbook page.", error);
     toast("Fuwa couldn't open that scrapbook page.");
   }
 }
 
-
 async function renderScrapbookLibrary() {
   const grid = $("scrapbookLibraryGrid");
   if (!grid) return;
+
   try {
-    const pages = await diaryRepository.getAll("journalCanvases");
+    await diaryRepository.migrateLegacyScrapbookBooks();
+    const books = (await diaryRepository.getAll("scrapbookBooks")).map(normalizeScrapbookBook);
     const sort = $("scrapbookSort")?.value || "newest";
-    pages.sort((a, b) => sort === "oldest" ? Number(a.createdAt || 0) - Number(b.createdAt || 0) : Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
-    $("scrapbookPageCount").textContent = `${pages.length} page${pages.length === 1 ? "" : "s"}`;
-    $("scrapbookEmptyState")?.classList.toggle("hidden", pages.length > 0);
-    grid.innerHTML = pages.map(page => {
-      const linkedEntry = page.entryId ? state.entries.find(entry => entry.id === page.entryId) : null;
-      const title = scrapbookTitleForRecord(page);
-      const date = page.date || linkedEntry?.date || "";
-      const itemCount = Array.isArray(page.items) ? page.items.length : 0;
-      return `<article class="scrapbook-library-card" data-scrapbook-card="${escapeHtml(page.id)}">
-        <button type="button" class="scrapbook-card-open" data-open-scrapbook="${escapeHtml(page.id)}">
-          <span class="scrapbook-card-paper" data-paper="${escapeHtml(page.background || "blush")}"><i>🎀</i><b>${itemCount}</b></span>
-          <span class="scrapbook-card-copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(date || "No date")}${linkedEntry ? " · Linked memory" : " · Standalone"}</small></span>
+    books.sort((a, b) => sort === "oldest"
+      ? Number(a.createdAt || 0) - Number(b.createdAt || 0)
+      : Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
+
+    if ($("scrapbookPageCount")) $("scrapbookPageCount").textContent = `${books.length} scrapbook${books.length === 1 ? "" : "s"}`;
+    $("scrapbookEmptyState")?.classList.toggle("hidden", books.length > 0);
+
+    grid.innerHTML = books.map(book => {
+      const cover = book.pages[0] || {};
+      const linkedEntry = book.entryId ? state.entries.find(entry => entry.id === book.entryId) : null;
+      const pageCount = book.pages.length;
+      const date = cover.date || linkedEntry?.date || "";
+      return `<article class="scrapbook-library-card" data-scrapbook-card="${escapeHtml(book.id)}">
+        <button type="button" class="scrapbook-card-open" data-open-scrapbook-book="${escapeHtml(book.id)}">
+          <span class="scrapbook-card-paper" data-paper="${escapeHtml(cover.background || "blush")}"><i>🎀</i><b>${pageCount}p</b></span>
+          <span class="scrapbook-card-copy"><strong>${escapeHtml(book.title || "Untitled scrapbook")}</strong><small>${escapeHtml(date || "No date")} · ${pageCount} page${pageCount === 1 ? "" : "s"}${linkedEntry ? " · Linked memory" : ""}</small></span>
         </button>
-        <button type="button" class="scrapbook-card-delete" data-delete-scrapbook="${escapeHtml(page.id)}" aria-label="Delete scrapbook page">×</button>
+        <button type="button" class="scrapbook-card-delete" data-delete-scrapbook-book="${escapeHtml(book.id)}" aria-label="Delete scrapbook">×</button>
       </article>`;
     }).join("");
-    grid.querySelectorAll("[data-open-scrapbook]").forEach(button => button.addEventListener("click", () => openScrapbookPageById(button.dataset.openScrapbook)));
-    grid.querySelectorAll("[data-delete-scrapbook]").forEach(button => button.addEventListener("click", async () => {
-      const id = button.dataset.deleteScrapbook;
-      if (!confirm("Delete this scrapbook page? Its page-only photos will also be removed from this device.")) return;
-      try {
-        await diaryRepository.deleteScrapbookPage(id);
-        await renderScrapbookLibrary();
-        toast("Scrapbook page deleted.");
-      } catch (error) {
-        console.error("Could not delete scrapbook page.", error);
-        toast("Fuwa couldn't delete that scrapbook page.");
-      }
-    }));
+
+    grid.querySelectorAll("[data-open-scrapbook-book]").forEach(button => {
+      button.addEventListener("click", () => openScrapbookBook(button.dataset.openScrapbookBook));
+    });
+    grid.querySelectorAll("[data-delete-scrapbook-book]").forEach(button => {
+      button.addEventListener("click", async () => {
+        const id = button.dataset.deleteScrapbookBook;
+        const book = books.find(item => item.id === id);
+        const pages = book?.pages?.length || 0;
+        if (!confirm(`Delete this scrapbook and its ${pages} page${pages === 1 ? "" : "s"}? Page-only photos will also be removed from this device.`)) return;
+        try {
+          await diaryRepository.deleteScrapbookBook(id);
+          await renderScrapbookLibrary();
+          toast("Scrapbook deleted.");
+        } catch (error) {
+          console.error("Could not delete scrapbook.", error);
+          toast("Fuwa couldn't delete that scrapbook.");
+        }
+      });
+    });
   } catch (error) {
     console.error("Could not load scrapbook library.", error);
-    $("scrapbookPageCount").textContent = "Scrapbook unavailable";
+    if ($("scrapbookPageCount")) $("scrapbookPageCount").textContent = "Scrapbook unavailable";
     $("scrapbookEmptyState")?.classList.add("hidden");
-    grid.innerHTML = `<div class="scrapbook-load-error">Fuwa couldn't load your scrapbook pages. Your local data was not changed. Try reopening Scrapbook.</div>`;
+    grid.innerHTML = `<div class="scrapbook-load-error">Fuwa couldn't load your scrapbook. Your local data was not changed. Try reopening Scrapbook.</div>`;
   }
 }
 
+async function switchScrapbookPage(pageId) {
+  if (!pageId || pageId === activeJournalCanvasId || scrapbookPageSwitching || !activeScrapbookBook) return;
+  scrapbookPageSwitching = true;
+  renderScrapbookPageNavigator();
+  try {
+    await saveJournalCanvas({ quiet: true });
+    const page = await diaryRepository.get("journalCanvases", pageId);
+    if (!page) throw new Error("scrapbook-page-missing");
+    cleanupJournalCanvasUrls();
+    await activateScrapbookPage(page, { navigateView: false });
+  } catch (error) {
+    console.error("Could not switch scrapbook pages.", error);
+    toast("Fuwa couldn't switch pages, so your current page stayed open.");
+  } finally {
+    scrapbookPageSwitching = false;
+    renderScrapbookPageNavigator();
+  }
+}
+
+async function addScrapbookPage() {
+  if (!activeScrapbookBook || scrapbookPageSwitching) return;
+  if (activeScrapbookBook.pages.length >= MAX_SCRAPBOOK_PAGES) {
+    toast(`Keep up to ${MAX_SCRAPBOOK_PAGES} pages in one scrapbook.`);
+    return;
+  }
+
+  scrapbookPageSwitching = true;
+  try {
+    await saveJournalCanvas({ quiet: true });
+    const order = activeScrapbookBook.pages.length;
+    const page = defaultJournalCanvas({
+      bookId: activeScrapbookBook.id,
+      title: `Page ${order + 1}`,
+      date: isoToday()
+    });
+    const nextBook = structuredClone(activeScrapbookBook);
+    nextBook.pages.push(scrapbookPageMeta(page, order));
+    nextBook.updatedAt = Date.now();
+    await diaryRepository.saveScrapbookPageAndBook(page, nextBook);
+    activeScrapbookBook = normalizeScrapbookBook(nextBook);
+    cleanupJournalCanvasUrls();
+    await activateScrapbookPage(page, { navigateView: false });
+    toast(`Page ${order + 1} added 🎀`);
+  } catch (error) {
+    console.error("Could not add scrapbook page.", error);
+    toast("Fuwa couldn't add that page.");
+  } finally {
+    scrapbookPageSwitching = false;
+    renderScrapbookPageNavigator();
+  }
+}
+
+async function duplicateScrapbookPage() {
+  if (!activeScrapbookBook || !journalCanvasState || scrapbookPageSwitching) return;
+  if (activeScrapbookBook.pages.length >= MAX_SCRAPBOOK_PAGES) {
+    toast(`Keep up to ${MAX_SCRAPBOOK_PAGES} pages in one scrapbook.`);
+    return;
+  }
+
+  scrapbookPageSwitching = true;
+  try {
+    await saveJournalCanvas({ quiet: true });
+    const source = structuredClone(journalCanvasState);
+    const newPageId = uid("scrapbook");
+    const localPhotos = await diaryRepository.getScrapbookPhotos(source.id);
+    const photoIdMap = new Map();
+    const copiedPhotos = localPhotos.map(record => {
+      const id = uid("scrapphoto");
+      photoIdMap.set(record.id, id);
+      return { ...record, id, scrapbookId: newPageId, createdAt: Date.now() };
+    });
+
+    const order = activeScrapbookBook.pages.length;
+    const duplicate = {
+      ...source,
+      id: newPageId,
+      bookId: activeScrapbookBook.id,
+      title: `${source.title || `Page ${order}`} copy`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      items: (source.items || []).map(item => ({
+        ...item,
+        id: uid("canvas"),
+        mediaId: item.type === "photo" && item.mediaSource === "scrapbook" && photoIdMap.has(item.mediaId)
+          ? photoIdMap.get(item.mediaId)
+          : item.mediaId
+      }))
+    };
+    delete duplicate.entryId;
+
+    const nextBook = structuredClone(activeScrapbookBook);
+    nextBook.pages.push(scrapbookPageMeta(duplicate, order));
+    nextBook.updatedAt = Date.now();
+    await diaryRepository.saveScrapbookPageAndBook(duplicate, nextBook, copiedPhotos);
+    activeScrapbookBook = normalizeScrapbookBook(nextBook);
+    cleanupJournalCanvasUrls();
+    await activateScrapbookPage(duplicate, { navigateView: false });
+    toast("Page duplicated 🎀");
+  } catch (error) {
+    console.error("Could not duplicate scrapbook page.", error);
+    toast("Fuwa couldn't duplicate that page.");
+  } finally {
+    scrapbookPageSwitching = false;
+    renderScrapbookPageNavigator();
+  }
+}
+
+async function moveCurrentScrapbookPage(direction) {
+  if (!activeScrapbookBook || scrapbookPageSwitching) return;
+  const index = currentScrapbookPageIndex();
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= activeScrapbookBook.pages.length) return;
+
+  try {
+    await saveJournalCanvas({ quiet: true });
+    const pages = activeScrapbookBook.pages.slice();
+    [pages[index], pages[target]] = [pages[target], pages[index]];
+    const nextBook = {
+      ...structuredClone(activeScrapbookBook),
+      pages: pages.map((page, order) => ({ ...page, order })),
+      updatedAt: Date.now()
+    };
+    await diaryRepository.save("scrapbookBooks", structuredClone(nextBook));
+    activeScrapbookBook = normalizeScrapbookBook(nextBook);
+    renderScrapbookPageNavigator();
+    toast("Page order updated.");
+  } catch (error) {
+    console.error("Could not reorder scrapbook pages.", error);
+    toast("Fuwa couldn't reorder those pages.");
+  }
+}
+
+async function deleteCurrentScrapbookPage() {
+  if (!activeScrapbookBook || !journalCanvasState || scrapbookPageSwitching) return;
+  clearTimeout(journalCanvasSaveTimer);
+  journalCanvasSaveTimer = null;
+  if (activeScrapbookBook.pages.length <= 1) {
+    toast("A scrapbook needs at least one page. Delete the scrapbook from the library instead.");
+    return;
+  }
+  if (!confirm("Delete this scrapbook page? Its page-only photos will also be removed from this device.")) return;
+
+  scrapbookPageSwitching = true;
+  try {
+    const index = currentScrapbookPageIndex();
+    const remaining = activeScrapbookBook.pages.filter(page => page.id !== activeJournalCanvasId);
+    const nextMeta = remaining[Math.min(index, remaining.length - 1)];
+    const nextBook = {
+      ...structuredClone(activeScrapbookBook),
+      pages: remaining.map((page, order) => ({ ...page, order })),
+      updatedAt: Date.now()
+    };
+    await diaryRepository.deleteScrapbookPageAndUpdateBook(activeJournalCanvasId, nextBook);
+    activeScrapbookBook = normalizeScrapbookBook(nextBook);
+    const nextPage = await diaryRepository.get("journalCanvases", nextMeta.id);
+    if (!nextPage) throw new Error("next-scrapbook-page-missing");
+    cleanupJournalCanvasUrls();
+    await activateScrapbookPage(nextPage, { navigateView: false });
+    toast("Page deleted.");
+  } catch (error) {
+    console.error("Could not delete scrapbook page.", error);
+    toast("Fuwa couldn't delete that page.");
+  } finally {
+    scrapbookPageSwitching = false;
+    renderScrapbookPageNavigator();
+  }
+}
+
+async function goToAdjacentScrapbookPage(direction) {
+  if (!activeScrapbookBook) return;
+  const index = currentScrapbookPageIndex();
+  const target = activeScrapbookBook.pages[index + direction];
+  if (target) await switchScrapbookPage(target.id);
+}
 
 async function closeJournalCanvas() {
   clearTimeout(journalCanvasSaveTimer);
@@ -5603,29 +6332,36 @@ async function closeJournalCanvas() {
   const returnView = journalCanvasReturnView;
   activeJournalCanvasId = null;
   activeJournalCanvasEntryId = null;
+  activeScrapbookBookId = null;
+  activeScrapbookBook = null;
   journalCanvasReturnView = "scrapbook";
   if (returnView === "editor" && entryId) openEditor(entryId);
   else navigate("scrapbook");
 }
 
 async function saveJournalCanvas(options = {}) {
-  if (!journalCanvasState || !activeJournalCanvasId) return;
+  if (!journalCanvasState || !activeJournalCanvasId || !activeScrapbookBook) return;
   const quiet = options?.quiet === true;
   clearTimeout(journalCanvasSaveTimer);
   journalCanvasSaveTimer = null;
   try {
-    const title = $("journalCanvasTitleInput")?.value.trim() || journalCanvasState.title || "Untitled page";
-    journalCanvasState.title = title;
+    const pageTitle = $("journalCanvasTitleInput")?.value.trim() || journalCanvasState.title || "Untitled page";
+    const bookTitle = $("journalBookTitleInput")?.value.trim() || activeScrapbookBook.title || "Untitled scrapbook";
+    journalCanvasState.title = pageTitle;
+    journalCanvasState.bookId = activeScrapbookBook.id;
     journalCanvasState.updatedAt = Date.now();
-    await diaryRepository.save("journalCanvases", structuredClone(journalCanvasState));
-    if (!quiet) toast("Scrapbook page saved locally 🎀");
+    activeScrapbookBook.title = bookTitle;
+    activeScrapbookBook.updatedAt = journalCanvasState.updatedAt;
+    updateActiveBookPageMeta(journalCanvasState);
+    await diaryRepository.saveScrapbookPageAndBook(structuredClone(journalCanvasState), structuredClone(activeScrapbookBook));
+    renderScrapbookPageNavigator();
+    if (!quiet) toast("Scrapbook saved locally 🎀");
   } catch (error) {
-    console.error("Could not save scrapbook page.", error);
-    if (!quiet) toast("Fuwa couldn't save this scrapbook page.");
+    console.error("Could not save scrapbook.", error);
+    if (!quiet) toast("Fuwa couldn't save this scrapbook.");
     throw error;
   }
 }
-
 
 function updateSelectedJournalItem(patch) {
   const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
@@ -5771,10 +6507,17 @@ function addJournalText() {
 }
 
 function setJournalPaper(name) {
-  if (!journalCanvasState) return;
+  if (!journalCanvasState || !scrapbookPaperById(name)) return;
   journalCanvasState.background = name;
-  document.querySelectorAll("[data-journal-paper]").forEach(button => button.classList.toggle("active", button.dataset.journalPaper === name));
-  renderJournalCanvas();
+  applyJournalPaperToElement($("journalCanvasPaper"), name);
+  document.querySelectorAll("[data-journal-paper]").forEach(button => {
+    button.classList.toggle("active", button.dataset.journalPaper === name);
+  });
+  if (activeScrapbookBook?.pages) {
+    const pageMeta = activeScrapbookBook.pages.find(page => page.id === activeJournalCanvasId);
+    if (pageMeta) pageMeta.background = name;
+  }
+  renderScrapbookPageNavigator();
   queueJournalCanvasSave();
 }
 
@@ -6023,11 +6766,12 @@ window.fuwaCreateCloudBackupPayload = createCloudBackupPayload;
 
 async function createFullLocalBackupPayload() {
   const currentData = await diaryRepository.readCurrentData();
-  const [mediaRecords, journalCanvases, stickerRecords, scrapbookPhotoRecords] = await Promise.all([
+  const [mediaRecords, journalCanvases, stickerRecords, scrapbookPhotoRecords, scrapbookBooks] = await Promise.all([
     diaryRepository.readAllMedia(),
     diaryRepository.getAll("journalCanvases"),
     diaryRepository.getAll("stickerAssets"),
-    diaryRepository.getAll("scrapbookPhotos")
+    diaryRepository.getAll("scrapbookPhotos"),
+    diaryRepository.getAll("scrapbookBooks")
   ]);
   const media = [];
   const stickerAssets = [];
@@ -6084,6 +6828,7 @@ async function createFullLocalBackupPayload() {
       journalCanvases,
       stickerAssets,
       scrapbookPhotos,
+      scrapbookBooks,
       selectedMood: state.selectedMood,
       theme: state.theme,
       wallpaperEnabled: state.wallpaperEnabled,
@@ -6313,9 +7058,11 @@ function importBackup(file) {
       const canvasBackup = validateScrapbookBackupArray(incoming.journalCanvases, "journalCanvases");
       const stickerBackup = validateScrapbookBackupArray(incoming.stickerAssets, "stickerAssets", { withDataUrl: true });
       const scrapbookPhotoBackup = validateScrapbookBackupArray(incoming.scrapbookPhotos, "scrapbookPhotos", { withDataUrl: true });
-      const hasScrapbookBackup = canvasBackup !== null || stickerBackup !== null || scrapbookPhotoBackup !== null;
+      const scrapbookBookBackup = validateScrapbookBackupArray(incoming.scrapbookBooks, "scrapbookBooks");
+      const hasScrapbookBackup = canvasBackup !== null || stickerBackup !== null || scrapbookPhotoBackup !== null || scrapbookBookBackup !== null;
       const localScrapbookData = hasScrapbookBackup ? {
         journalCanvases: canvasBackup || [],
+        scrapbookBooks: scrapbookBookBackup || [],
         stickerAssets: (stickerBackup || []).map(record => ({
           id: record.id,
           name: record.name || "My sticker",
@@ -6338,6 +7085,7 @@ function importBackup(file) {
       } : null;
 
       await diaryRepository.replaceContent(incoming, mediaRecords, localScrapbookData);
+      if (localScrapbookData) await diaryRepository.removeSetting(SCRAPBOOK_BOOK_MIGRATION_KEY);
       state = {
         ...structuredClone(defaultState),
         entries: incoming.entries,
@@ -7255,11 +8003,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("newScrapbookPageButton")?.addEventListener("click", createStandaloneScrapbookPage);
   $("scrapbookEmptyCreateButton")?.addEventListener("click", createStandaloneScrapbookPage);
   $("scrapbookSort")?.addEventListener("change", renderScrapbookLibrary);
+  $("journalBookTitleInput")?.addEventListener("input", event => {
+    if (!activeScrapbookBook) return;
+    activeScrapbookBook.title = event.target.value;
+    queueJournalCanvasSave();
+  });
   $("journalCanvasTitleInput")?.addEventListener("input", event => {
     if (!journalCanvasState) return;
     journalCanvasState.title = event.target.value;
     queueJournalCanvasSave();
   });
+  $("scrapbookPrevPage")?.addEventListener("click", () => goToAdjacentScrapbookPage(-1));
+  $("scrapbookNextPage")?.addEventListener("click", () => goToAdjacentScrapbookPage(1));
+  $("scrapbookAddPage")?.addEventListener("click", addScrapbookPage);
+  $("scrapbookDuplicatePage")?.addEventListener("click", duplicateScrapbookPage);
+  $("scrapbookMovePageLeft")?.addEventListener("click", () => moveCurrentScrapbookPage(-1));
+  $("scrapbookMovePageRight")?.addEventListener("click", () => moveCurrentScrapbookPage(1));
+  $("scrapbookDeletePage")?.addEventListener("click", deleteCurrentScrapbookPage);
   $("addJournalTextButton")?.addEventListener("click", addJournalText);
   document.querySelectorAll("[data-journal-palette-tab]").forEach(button => button.addEventListener("click", () => switchJournalPalette(button.dataset.journalPaletteTab)));
   document.querySelectorAll("[data-journal-paper]").forEach(button => button.addEventListener("click", () => setJournalPaper(button.dataset.journalPaper)));
