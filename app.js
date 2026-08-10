@@ -59,6 +59,9 @@ let journalCanvasState = null;
 let selectedJournalCanvasItemId = null;
 let journalCanvasAssetUrls = new Map();
 let journalCanvasMediaUrls = new Map();
+let pendingStickerImportFile = null;
+let pendingStickerImportPreviewUrl = "";
+let stickerImportProcessing = false;
 let activePhotoViewerId = null;
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let editingThreadId = null;
@@ -5316,7 +5319,9 @@ function journalDecorDefinition(item) {
 
 function journalDecorVisualMeta(definition) {
   const kind = safeDecorToken(definition?.kind || "label", "label");
-  const pattern = safeDecorToken(definition?.style?.pattern || "plain", "plain");
+  const variant = safeDecorToken(definition?.variant || "", "");
+  const inferredPattern = kind === "frame" && ["film","polaroid","dashed"].includes(variant) ? variant : "plain";
+  const pattern = safeDecorToken(definition?.style?.pattern || inferredPattern, inferredPattern);
   const palette = safeDecorToken(definition?.style?.palette || definition?.variant || "blush", "blush");
   const base = safeDecorBase(definition?.style?.base || "");
   const text = String(definition?.text || "");
@@ -5331,6 +5336,68 @@ function journalDecorVisualClass(definition) {
 function journalDecorVisualStyle(definition) {
   const rawBase = String(definition?.style?.base || "").trim();
   return rawBase ? `--decor-base:${safeDecorBase(rawBase)};` : "";
+}
+
+const FUWA_ORIGINAL_STICKER_ART = Object.freeze({
+  bow: `<path class="fuwa-svg-fill" d="M31 50C12 31 9 19 18 14c10-6 24 6 32 22C58 20 72 8 82 14c9 5 6 17-13 36 19 19 22 31 13 36-10 6-24-6-32-22-8 16-22 28-32 22-9-5-6-17 13-36Z"/><circle class="fuwa-svg-core" cx="50" cy="50" r="10"/>`,
+  heart: `<path class="fuwa-svg-soft" d="M50 84C39 75 17 60 13 39 9 19 34 9 50 28c16-19 41-9 37 11-4 21-26 36-37 45Z"/><path class="fuwa-svg-line" d="M50 80C38 70 21 57 18 40c-2-12 12-19 22-12 4 3 7 7 10 12 3-5 6-9 10-12 10-7 24 0 22 12-3 17-20 30-32 40Z"/>`,
+  cloud: `<path class="fuwa-svg-soft" d="M25 69h50c12 0 18-8 18-17 0-10-8-18-19-18-3-13-14-22-28-22-16 0-29 12-30 28C6 42 3 50 6 58c3 7 10 11 19 11Z"/><path class="fuwa-svg-line" d="M22 68h55c10 0 16-7 16-16 0-10-8-18-19-18-3-13-14-22-28-22-16 0-29 12-30 28C7 42 3 50 6 58c3 7 8 10 16 10Z"/>`,
+  sakura: `<g class="fuwa-svg-soft"><ellipse cx="50" cy="24" rx="12" ry="19"/><ellipse cx="50" cy="24" rx="12" ry="19" transform="rotate(72 50 50)"/><ellipse cx="50" cy="24" rx="12" ry="19" transform="rotate(144 50 50)"/><ellipse cx="50" cy="24" rx="12" ry="19" transform="rotate(216 50 50)"/><ellipse cx="50" cy="24" rx="12" ry="19" transform="rotate(288 50 50)"/></g><circle class="fuwa-svg-core" cx="50" cy="50" r="8"/><circle class="fuwa-svg-paper" cx="50" cy="50" r="3"/>`,
+  daisy: `<g class="fuwa-svg-paper fuwa-svg-stroke"><ellipse cx="50" cy="22" rx="9" ry="18"/><ellipse cx="50" cy="22" rx="9" ry="18" transform="rotate(45 50 50)"/><ellipse cx="50" cy="22" rx="9" ry="18" transform="rotate(90 50 50)"/><ellipse cx="50" cy="22" rx="9" ry="18" transform="rotate(135 50 50)"/></g><circle class="fuwa-svg-core" cx="50" cy="50" r="11"/>`,
+  sparkles: `<path class="fuwa-svg-fill" d="M50 7 57 35 84 42 57 49 50 78 43 49 16 42 43 35Z"/><path class="fuwa-svg-soft" d="M76 61 80 74 93 78 80 82 76 95 72 82 59 78 72 74ZM21 13l4 12 12 4-12 4-4 12-4-12-12-4 12-4Z"/>`,
+  ribbon: `<path class="fuwa-svg-soft" d="M20 18h60v18H20z"/><path class="fuwa-svg-fill" d="m50 36 18 50-18-13-18 13Z"/><path class="fuwa-svg-line" d="M20 18h60v18H20zm30 18 18 50-18-13-18 13Z"/>`,
+  envelope: `<rect class="fuwa-svg-paper fuwa-svg-stroke" x="12" y="25" width="76" height="52" rx="8"/><path class="fuwa-svg-line" d="m16 31 34 27 34-27"/><path class="fuwa-svg-fill" d="M50 65c-8-6-15-11-15-18 0-8 10-11 15-4 5-7 15-4 15 4 0 7-7 12-15 18Z"/>`,
+  cat: `<path class="fuwa-svg-soft fuwa-svg-stroke" d="M22 35 18 14l20 12a39 39 0 0 1 24 0l20-12-4 21c8 8 11 19 8 30-4 17-19 25-36 25S18 82 14 65c-3-11 0-22 8-30Z"/><circle class="fuwa-svg-core" cx="37" cy="52" r="3"/><circle class="fuwa-svg-core" cx="63" cy="52" r="3"/><path class="fuwa-svg-line" d="m46 62 4 3 4-3m-4 3v5m-8-4-15 3m15-8-16-2m32 7 15 3m-15-8 16-2"/>`,
+  bunny: `<ellipse class="fuwa-svg-soft fuwa-svg-stroke" cx="35" cy="24" rx="12" ry="25" transform="rotate(-8 35 24)"/><ellipse class="fuwa-svg-soft fuwa-svg-stroke" cx="65" cy="24" rx="12" ry="25" transform="rotate(8 65 24)"/><circle class="fuwa-svg-soft fuwa-svg-stroke" cx="50" cy="59" r="34"/><circle class="fuwa-svg-core" cx="38" cy="56" r="3"/><circle class="fuwa-svg-core" cx="62" cy="56" r="3"/><path class="fuwa-svg-line" d="m46 67 4 3 4-3m-4 3v5"/>`,
+  strawberry: `<path class="fuwa-svg-fill fuwa-svg-stroke" d="M50 88C28 77 17 55 23 36c5-15 18-20 27-9 9-11 22-6 27 9 6 19-5 41-27 52Z"/><path class="fuwa-svg-leaf" d="m50 28-10-15 12 6 10-7-3 15 13 4-15 5Z"/><g class="fuwa-svg-paper"><circle cx="38" cy="46" r="2"/><circle cx="57" cy="43" r="2"/><circle cx="48" cy="58" r="2"/><circle cx="62" cy="62" r="2"/><circle cx="39" cy="69" r="2"/></g>`,
+  cup: `<path class="fuwa-svg-paper fuwa-svg-stroke" d="M20 34h54v34c0 12-10 20-27 20S20 80 20 68Z"/><path class="fuwa-svg-line" d="M74 42h8c11 0 13 20 0 22h-8"/><path class="fuwa-svg-fill" d="M47 67c-7-5-12-9-12-15 0-7 8-9 12-3 4-6 12-4 12 3 0 6-5 10-12 15Z"/><path class="fuwa-svg-line" d="M32 23c-5-7 6-9 1-17m15 17c-5-7 6-9 1-17m15 17c-5-7 6-9 1-17"/>`,
+  camera: `<rect class="fuwa-svg-soft fuwa-svg-stroke" x="12" y="30" width="76" height="52" rx="9"/><path class="fuwa-svg-fill" d="m31 30 7-12h24l7 12"/><circle class="fuwa-svg-paper fuwa-svg-stroke" cx="50" cy="56" r="16"/><circle class="fuwa-svg-core" cx="50" cy="56" r="7"/><path class="fuwa-svg-fill" d="M78 47c-5-4-10-1-10 4 0 5 5 9 10 13 5-4 10-8 10-13 0-5-5-8-10-4Z"/>`,
+  plane: `<path class="fuwa-svg-fill" d="m88 17-31 34 14 8-7 7-15-4-13 15 7 4 18-12 8 15 7-7-5-20 24-33c5-7 1-13-7-7Z"/><path class="fuwa-svg-line" d="M10 82c17-5 24-13 31-23"/>`,
+  ticket: `<path class="fuwa-svg-paper fuwa-svg-stroke" d="M13 28h74v15c-8 1-8 13 0 14v15H13V57c8-1 8-13 0-14Z"/><path class="fuwa-svg-line" d="M62 31v38" stroke-dasharray="4 5"/><path class="fuwa-svg-fill" d="M38 61c-7-5-12-9-12-15 0-7 8-9 12-3 4-6 12-4 12 3 0 6-5 10-12 15Z"/>`,
+  book: `<path class="fuwa-svg-paper fuwa-svg-stroke" d="M12 22c15-5 28-2 38 7v55c-10-9-23-12-38-7Zm76 0c-15-5-28-2-38 7v55c10-9 23-12 38-7Z"/><path class="fuwa-svg-fill" d="M50 61c-7-5-12-9-12-15 0-7 8-9 12-3 4-6 12-4 12 3 0 6-5 10-12 15Z"/>`,
+  moon: `<path class="fuwa-svg-soft fuwa-svg-stroke" d="M62 12c-24 8-29 43-7 58 11 8 25 7 35 0-8 16-23 24-39 20C28 85 16 61 24 39 30 23 45 13 62 12Z"/><path class="fuwa-svg-fill" d="m73 22 3 10 10 3-10 3-3 10-3-10-10-3 10-3Zm12 33 2 7 7 2-7 2-2 7-2-7-7-2 7-2Z"/>`,
+  flowerstamp: `<rect class="fuwa-svg-paper fuwa-svg-stroke" x="17" y="17" width="66" height="66" rx="5" stroke-dasharray="4 4"/><g class="fuwa-svg-soft"><ellipse cx="50" cy="38" rx="8" ry="14"/><ellipse cx="50" cy="38" rx="8" ry="14" transform="rotate(72 50 52)"/><ellipse cx="50" cy="38" rx="8" ry="14" transform="rotate(144 50 52)"/><ellipse cx="50" cy="38" rx="8" ry="14" transform="rotate(216 50 52)"/><ellipse cx="50" cy="38" rx="8" ry="14" transform="rotate(288 50 52)"/></g><circle class="fuwa-svg-core" cx="50" cy="52" r="6"/>`
+});
+
+function forceTextPresentation(value) {
+  const text = String(value || "").replace(/\uFE0F/g, "").replace(/\uFE0E/g, "");
+  return text ? `${text}\uFE0E` : "";
+}
+
+function builtInStickerDefinition(item) {
+  if (!item) return null;
+  if (item.builtInStickerId) {
+    const found = FUWA_SCRAPBOOK_LIBRARY.stickers.find(sticker => sticker.id === item.builtInStickerId);
+    if (found) return found;
+  }
+  if (item.stickerType === "fuwa-art" && item.stickerArt) {
+    return {
+      id: item.builtInStickerId || "",
+      type: "fuwa-art",
+      art: item.stickerArt,
+      palette: item.stickerPalette || "pink",
+      label: "Fuwa Original"
+    };
+  }
+  return null;
+}
+
+function fuwaOriginalStickerMarkup(sticker) {
+  const art = FUWA_ORIGINAL_STICKER_ART[sticker?.art];
+  if (!art) return "";
+  const palette = ["pink","lavender","cream","mint","sky"].includes(sticker?.palette) ? sticker.palette : "pink";
+  return `<span class="fuwa-original-sticker palette-${palette}"><svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">${art}</svg></span>`;
+}
+
+function builtInStickerVisualMarkup(sticker, fallback = "✨") {
+  if (sticker?.type === "fuwa-art") {
+    const art = fuwaOriginalStickerMarkup(sticker);
+    if (art) return art;
+  }
+  const raw = sticker?.emoji || fallback || "✨";
+  const isSymbol = sticker?.category === "symbols";
+  const glyph = isSymbol ? forceTextPresentation(raw) : raw;
+  return `<span class="${isSymbol ? "symbol-sticker-glyph" : "emoji-sticker-glyph"}">${escapeHtml(glyph)}</span>`;
 }
 
 function queueJournalCanvasSave() {
@@ -5399,7 +5466,10 @@ function journalCanvasItemMarkup(item) {
   const style = `left:${Math.max(0, Math.min(1, Number(item.x ?? .5))) * 100}%;top:${Math.max(0, Math.min(1, Number(item.y ?? .5))) * 100}%;transform:translate(-50%,-50%) rotate(${Number(item.rotation || 0)}deg) scale(${Number(item.scale || 1)});z-index:${Number(item.z || 1)};`;
   const selected = item.id === selectedJournalCanvasItemId ? " selected" : "";
   if (item.type === "builtin") {
-    return `<button type="button" class="journal-canvas-item sticker-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Sticker">${escapeHtml(item.content || "✨")}</button>`;
+    const sticker = builtInStickerDefinition(item);
+    const symbolClass = sticker?.category === "symbols" ? " symbol-sticker-item" : "";
+    const originalClass = sticker?.type === "fuwa-art" ? " fuwa-original-item" : "";
+    return `<button type="button" class="journal-canvas-item sticker-item${symbolClass}${originalClass}${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="${escapeHtml(sticker?.label || "Sticker")}">${builtInStickerVisualMarkup(sticker, item.content || "✨")}</button>`;
   }
   if (item.type === "custom") {
     const src = journalCanvasAssetUrls.get(item.assetId) || "";
@@ -5594,10 +5664,14 @@ function renderBuiltinStickerPalette() {
   if (!host) return;
   renderStickerCategoryBar();
   const stickers = FUWA_SCRAPBOOK_LIBRARY.stickers.filter(sticker => sticker.category === activeStickerCategory);
-  host.innerHTML = stickers.map(sticker => `
-    <button type="button" class="sticker-palette-button" data-add-builtin-sticker="${escapeHtml(sticker.id)}" title="${escapeHtml(sticker.label || "Sticker")}" aria-label="${escapeHtml(sticker.label || "Sticker")}">
-      ${escapeHtml(sticker.emoji || "✨")}
-    </button>`).join("");
+  host.innerHTML = stickers.map(sticker => {
+    const symbolClass = sticker.category === "symbols" ? " symbol-sticker-button" : "";
+    const originalClass = sticker.type === "fuwa-art" ? " fuwa-original-button" : "";
+    return `
+      <button type="button" class="sticker-palette-button${symbolClass}${originalClass}" data-add-builtin-sticker="${escapeHtml(sticker.id)}" title="${escapeHtml(sticker.label || "Sticker")}" aria-label="${escapeHtml(sticker.label || "Sticker")}">
+        ${builtInStickerVisualMarkup(sticker)}
+      </button>`;
+  }).join("");
   host.querySelectorAll("[data-add-builtin-sticker]").forEach(button => {
     button.addEventListener("click", () => {
       const sticker = FUWA_SCRAPBOOK_LIBRARY.stickers.find(item => item.id === button.dataset.addBuiltinSticker);
@@ -5605,7 +5679,10 @@ function renderBuiltinStickerPalette() {
       addJournalCanvasItem({
         type: "builtin",
         builtInStickerId: sticker.id,
-        content: sticker.emoji || "✨"
+        content: sticker.emoji || "",
+        stickerType: sticker.type || "unicode",
+        stickerArt: sticker.art || "",
+        stickerPalette: sticker.palette || ""
       });
     });
   });
@@ -5775,18 +5852,57 @@ async function removeStickerBackgroundLocally(blob) {
   });
 }
 
+function cleanupPendingStickerImport() {
+  if (pendingStickerImportPreviewUrl) URL.revokeObjectURL(pendingStickerImportPreviewUrl);
+  pendingStickerImportPreviewUrl = "";
+  pendingStickerImportFile = null;
+  if ($("stickerImportPreview")) $("stickerImportPreview").removeAttribute("src");
+  if ($("stickerImportRemoveBackground")) $("stickerImportRemoveBackground").checked = false;
+}
+
+function closeStickerImportSheet(options = {}) {
+  if (stickerImportProcessing && options?.force !== true) return;
+  $("stickerImportSheet")?.classList.add("hidden");
+  cleanupPendingStickerImport();
+}
+
+function openStickerImportSheet(file) {
+  cleanupPendingStickerImport();
+  pendingStickerImportFile = file;
+  pendingStickerImportPreviewUrl = URL.createObjectURL(file);
+  if ($("stickerImportPreview")) $("stickerImportPreview").src = pendingStickerImportPreviewUrl;
+  if ($("stickerImportRemoveBackground")) $("stickerImportRemoveBackground").checked = false;
+  $("stickerImportSheet")?.classList.remove("hidden");
+}
+
 async function importCustomSticker(event) {
   const file = event.target.files?.[0];
   event.target.value = "";
   if (!file) return;
   if (!file.type.startsWith("image/")) return toast("Choose an image for your sticker.");
   if (file.size > 6 * 1024 * 1024) return toast("Keep sticker images under 6 MB.");
-  const removeBackground = $("removeStickerBackground")?.checked === true;
+  openStickerImportSheet(file);
+}
+
+async function savePreparedCustomSticker() {
+  const file = pendingStickerImportFile;
+  if (!file) return;
+  const removeBackground = $("stickerImportRemoveBackground")?.checked === true;
   const targetPageId = activeJournalCanvasId;
+  const saveButton = $("stickerImportSave");
+  const cancelButton = $("stickerImportCancel");
+  const closeButton = $("stickerImportClose");
 
   try {
+    stickerImportProcessing = true;
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = removeBackground ? "Removing…" : "Saving…";
+    }
+    if (cancelButton) cancelButton.disabled = true;
+    if (closeButton) closeButton.disabled = true;
     if (removeBackground) {
-      toast("Removing the background on this device…");
+      toast("Removing this photo's background on your device…");
       await new Promise(resolve => requestAnimationFrame(() => resolve()));
     }
     const processedBlob = removeBackground ? await removeStickerBackgroundLocally(file) : file;
@@ -5801,18 +5917,32 @@ async function importCustomSticker(event) {
       updatedAt: Date.now()
     };
     await diaryRepository.save("stickerAssets", record);
-    const url = URL.createObjectURL(record.blob);
-    journalCanvasAssetUrls.set(record.id, url);
+
+    const existingUrl = journalCanvasAssetUrls.get(record.id);
+    if (existingUrl) URL.revokeObjectURL(existingUrl);
+    journalCanvasAssetUrls.set(record.id, URL.createObjectURL(record.blob));
+
+    stickerImportProcessing = false;
+    closeStickerImportSheet({ force: true });
     await renderMyStickerPalette();
+
     if (targetPageId && activeJournalCanvasId === targetPageId && journalCanvasState) {
       addJournalCanvasItem({ type: "custom", assetId: record.id });
-      toast(removeBackground ? "Sticker saved with its background removed 🎀" : "Sticker added to My Stickers 🎀");
+      toast(removeBackground ? "Sticker added with this photo's background removed 🎀" : "Sticker added to My Stickers 🎀");
     } else {
       toast("Sticker saved to My Stickers on this device 🎀");
     }
   } catch (error) {
     console.error("Could not save custom sticker.", error);
-    toast(removeBackground ? "Fuwa couldn't remove that background. Try a simpler image or import it normally." : "Fuwa couldn't save that sticker on this device.");
+    toast(removeBackground ? "Fuwa couldn't remove this background. Try a simpler photo or add it without background removal." : "Fuwa couldn't save that sticker on this device.");
+  } finally {
+    stickerImportProcessing = false;
+    if (saveButton) {
+      saveButton.disabled = false;
+      saveButton.textContent = "Add Sticker";
+    }
+    if (cancelButton) cancelButton.disabled = false;
+    if (closeButton) closeButton.disabled = false;
   }
 }
 
@@ -6457,6 +6587,7 @@ async function goToAdjacentScrapbookPage(direction) {
 }
 
 async function closeJournalCanvas() {
+  closeStickerImportSheet();
   clearTimeout(journalCanvasSaveTimer);
   journalCanvasSaveTimer = null;
   try {
@@ -8139,6 +8270,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("journalCanvasPaper")?.addEventListener("click", () => { selectedJournalCanvasItemId = null; renderJournalCanvas(); });
   $("importStickerButton")?.addEventListener("click", () => $("customStickerInput")?.click());
   $("customStickerInput")?.addEventListener("change", importCustomSticker);
+  $("stickerImportClose")?.addEventListener("click", closeStickerImportSheet);
+  $("stickerImportCancel")?.addEventListener("click", closeStickerImportSheet);
+  $("stickerImportSave")?.addEventListener("click", savePreparedCustomSticker);
+  $("stickerImportSheet")?.addEventListener("click", event => {
+    if (event.target === $("stickerImportSheet")) closeStickerImportSheet();
+  });
   $("importScrapbookPhotoButton")?.addEventListener("click", () => $("scrapbookPhotosInput")?.click());
   $("scrapbookPhotosInput")?.addEventListener("change", importScrapbookPhotos);
   $("newScrapbookPageButton")?.addEventListener("click", createStandaloneScrapbookPage);

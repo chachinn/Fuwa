@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "libraryVersion": "2026.08.10",
-  "notes": "Fuwa scrapbook built-in library. Sticker characters use Unicode emoji/symbols; journal bits and papers are original CSS/data recipes. No external image assets are bundled.",
+  "schemaVersion": 2,
+  "libraryVersion": "2026.08.10-v2",
+  "notes": "Fuwa scrapbook built-in library. Emoji/symbol stickers use Unicode; Fuwa Originals are original inline vector recipes rendered locally by the app; journal bits and papers are original CSS/data recipes. No external image assets are bundled.",
   "referenceSources": [
     {
       "name": "Unicode Emoji 17.0 / CLDR",
@@ -76,6 +76,12 @@
       "label": "Symbols",
       "icon": "✨",
       "order": 100
+    },
+    {
+      "id": "fuwa-originals",
+      "label": "Fuwa Originals",
+      "icon": "♡",
+      "order": 5
     }
   ],
   "stickers": [
@@ -2525,6 +2531,240 @@
       "category": "symbols",
       "tags": [
         "cloud"
+      ]
+    },
+    {
+      "id": "fuwa-bow",
+      "type": "fuwa-art",
+      "art": "bow",
+      "palette": "pink",
+      "label": "Fuwa bow",
+      "category": "fuwa-originals",
+      "tags": [
+        "bow",
+        "ribbon",
+        "pink",
+        "cute"
+      ]
+    },
+    {
+      "id": "fuwa-heart",
+      "type": "fuwa-art",
+      "art": "heart",
+      "palette": "pink",
+      "label": "Soft heart",
+      "category": "fuwa-originals",
+      "tags": [
+        "heart",
+        "love",
+        "pink"
+      ]
+    },
+    {
+      "id": "fuwa-cloud",
+      "type": "fuwa-art",
+      "art": "cloud",
+      "palette": "pink",
+      "label": "Fuwa cloud",
+      "category": "fuwa-originals",
+      "tags": [
+        "cloud",
+        "soft",
+        "fuwa"
+      ]
+    },
+    {
+      "id": "fuwa-sakura",
+      "type": "fuwa-art",
+      "art": "sakura",
+      "palette": "pink",
+      "label": "Sakura outline",
+      "category": "fuwa-originals",
+      "tags": [
+        "sakura",
+        "flower",
+        "japan"
+      ]
+    },
+    {
+      "id": "fuwa-daisy",
+      "type": "fuwa-art",
+      "art": "daisy",
+      "palette": "cream",
+      "label": "Little daisy",
+      "category": "fuwa-originals",
+      "tags": [
+        "daisy",
+        "flower"
+      ]
+    },
+    {
+      "id": "fuwa-sparkles",
+      "type": "fuwa-art",
+      "art": "sparkles",
+      "palette": "lavender",
+      "label": "Sparkle cluster",
+      "category": "fuwa-originals",
+      "tags": [
+        "sparkle",
+        "star",
+        "magic"
+      ]
+    },
+    {
+      "id": "fuwa-ribbon",
+      "type": "fuwa-art",
+      "art": "ribbon",
+      "palette": "lavender",
+      "label": "Soft ribbon",
+      "category": "fuwa-originals",
+      "tags": [
+        "ribbon",
+        "bow"
+      ]
+    },
+    {
+      "id": "fuwa-envelope",
+      "type": "fuwa-art",
+      "art": "envelope",
+      "palette": "pink",
+      "label": "Heart envelope",
+      "category": "fuwa-originals",
+      "tags": [
+        "letter",
+        "heart",
+        "mail"
+      ]
+    },
+    {
+      "id": "fuwa-cat",
+      "type": "fuwa-art",
+      "art": "cat",
+      "palette": "cream",
+      "label": "Little cat",
+      "category": "fuwa-originals",
+      "tags": [
+        "cat",
+        "animal",
+        "cute"
+      ]
+    },
+    {
+      "id": "fuwa-bunny",
+      "type": "fuwa-art",
+      "art": "bunny",
+      "palette": "lavender",
+      "label": "Little bunny",
+      "category": "fuwa-originals",
+      "tags": [
+        "bunny",
+        "rabbit",
+        "animal"
+      ]
+    },
+    {
+      "id": "fuwa-strawberry",
+      "type": "fuwa-art",
+      "art": "strawberry",
+      "palette": "pink",
+      "label": "Strawberry sketch",
+      "category": "fuwa-originals",
+      "tags": [
+        "strawberry",
+        "food",
+        "fruit"
+      ]
+    },
+    {
+      "id": "fuwa-cup",
+      "type": "fuwa-art",
+      "art": "cup",
+      "palette": "cream",
+      "label": "Heart cup",
+      "category": "fuwa-originals",
+      "tags": [
+        "cup",
+        "coffee",
+        "tea",
+        "cozy"
+      ]
+    },
+    {
+      "id": "fuwa-camera",
+      "type": "fuwa-art",
+      "art": "camera",
+      "palette": "pink",
+      "label": "Memory camera",
+      "category": "fuwa-originals",
+      "tags": [
+        "camera",
+        "photo",
+        "memory"
+      ]
+    },
+    {
+      "id": "fuwa-plane",
+      "type": "fuwa-art",
+      "art": "plane",
+      "palette": "lavender",
+      "label": "Little trip",
+      "category": "fuwa-originals",
+      "tags": [
+        "plane",
+        "travel",
+        "trip"
+      ]
+    },
+    {
+      "id": "fuwa-ticket",
+      "type": "fuwa-art",
+      "art": "ticket",
+      "palette": "cream",
+      "label": "Memory ticket",
+      "category": "fuwa-originals",
+      "tags": [
+        "ticket",
+        "memory",
+        "travel"
+      ]
+    },
+    {
+      "id": "fuwa-book",
+      "type": "fuwa-art",
+      "art": "book",
+      "palette": "pink",
+      "label": "Heart book",
+      "category": "fuwa-originals",
+      "tags": [
+        "book",
+        "reading",
+        "journal"
+      ]
+    },
+    {
+      "id": "fuwa-moon",
+      "type": "fuwa-art",
+      "art": "moon",
+      "palette": "lavender",
+      "label": "Moon and stars",
+      "category": "fuwa-originals",
+      "tags": [
+        "moon",
+        "night",
+        "stars"
+      ]
+    },
+    {
+      "id": "fuwa-flower-stamp",
+      "type": "fuwa-art",
+      "art": "flowerstamp",
+      "palette": "pink",
+      "label": "Flower stamp",
+      "category": "fuwa-originals",
+      "tags": [
+        "flower",
+        "stamp",
+        "scrapbook"
       ]
     }
   ],

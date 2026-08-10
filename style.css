@@ -7465,7 +7465,7 @@ button,
 .preview-daisy::before{background:radial-gradient(circle at 7px 8px,#fff 0 2px,#eab8c8 2.4px 4px,transparent 4.5px),#f5d5df!important;background-size:15px 15px!important}
 .preview-grid::before{background:linear-gradient(90deg,rgba(173,142,154,.22) 1px,transparent 1px),linear-gradient(rgba(173,142,154,.22) 1px,transparent 1px),#f7e8ee!important;background-size:7px 7px!important}
 
-.journal-canvas-item.decor-item{border:0;background:transparent;padding:0;box-shadow:none}
+.journal-canvas-item.decor-item{border:0;padding:0;box-shadow:none}
 .journal-canvas-item.decor-washi{width:142px;height:24px;border-radius:2px;opacity:.9}
 .journal-canvas-item.decor-washi::before{content:"";position:absolute;inset:0;border-radius:inherit}
 .journal-canvas-item.decor-washi.decor-blush::before{background:#efb2c6}
@@ -8282,4 +8282,303 @@ button,
 @media(max-width:380px){
   .drawer-gentle-start-note{padding:11px}
   .journal-preset-row button{padding-inline:10px}
+}
+
+
+/* =========================================================
+   FUWA V70 — SCRAPBOOK QUALITY FIXES
+   Pink symbols, original vector stickers, reliable Journal Bits,
+   and per-image sticker background removal.
+   ========================================================= */
+
+/* Symbols use text presentation so iOS does not turn them into blue emoji glyphs. */
+.sticker-palette-button.symbol-sticker-button,
+.journal-canvas-item.symbol-sticker-item{
+  color:#df7fa5;
+  font-family:Georgia,"Times New Roman","Arial Unicode MS",serif;
+}
+.symbol-sticker-glyph{
+  display:inline-grid;
+  place-items:center;
+  width:100%;
+  height:100%;
+  color:inherit;
+  font-family:inherit;
+  font-weight:700;
+  line-height:1;
+}
+.sticker-palette-button.symbol-sticker-button .symbol-sticker-glyph{
+  font-size:28px;
+}
+.journal-canvas-item.symbol-sticker-item{
+  filter:drop-shadow(0 4px 5px rgba(174,91,124,.12));
+}
+.journal-canvas-item.symbol-sticker-item .symbol-sticker-glyph{
+  font-size:56px;
+}
+
+/* Fuwa Originals: tiny local vector stickers, not emoji/image assets. */
+.fuwa-original-sticker{
+  --fuwa-main:#df86aa;
+  --fuwa-soft:#f6c9d9;
+  --fuwa-paper:#fff9fb;
+  --fuwa-core:#b96184;
+  --fuwa-leaf:#a8cdb8;
+  display:inline-grid;
+  place-items:center;
+  width:100%;
+  height:100%;
+  color:var(--fuwa-main);
+}
+.fuwa-original-sticker.palette-lavender{
+  --fuwa-main:#a78dcc;
+  --fuwa-soft:#ded2ef;
+  --fuwa-core:#7e68a8;
+}
+.fuwa-original-sticker.palette-cream{
+  --fuwa-main:#c59a5f;
+  --fuwa-soft:#f3e1b9;
+  --fuwa-core:#9b7244;
+}
+.fuwa-original-sticker.palette-mint{
+  --fuwa-main:#7fb29a;
+  --fuwa-soft:#d7eadf;
+  --fuwa-core:#5f907a;
+}
+.fuwa-original-sticker.palette-sky{
+  --fuwa-main:#78a9ca;
+  --fuwa-soft:#d8e9f4;
+  --fuwa-core:#527f9e;
+}
+.fuwa-original-sticker svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.fuwa-svg-fill{fill:var(--fuwa-main)}
+.fuwa-svg-soft{fill:var(--fuwa-soft)}
+.fuwa-svg-paper{fill:var(--fuwa-paper)}
+.fuwa-svg-core{fill:var(--fuwa-core)}
+.fuwa-svg-leaf{fill:var(--fuwa-leaf)}
+.fuwa-svg-line{
+  fill:none;
+  stroke:var(--fuwa-core);
+  stroke-width:3.2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.fuwa-svg-stroke{
+  stroke:var(--fuwa-core);
+  stroke-width:3;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.sticker-palette-button.fuwa-original-button{
+  padding:9px;
+  background:linear-gradient(145deg,#fffafd,#fff6fa);
+}
+.sticker-palette-button.fuwa-original-button .fuwa-original-sticker{
+  width:44px;
+  height:44px;
+  margin:auto;
+}
+.journal-canvas-item.fuwa-original-item{
+  width:68px;
+  height:68px;
+  font-size:0;
+  filter:drop-shadow(0 5px 5px rgba(112,72,89,.10));
+}
+.journal-canvas-item.fuwa-original-item .fuwa-original-sticker{
+  width:68px;
+  height:68px;
+}
+
+/* Reliable Journal Bits.
+   The old generic rule made every decor item transparent. V70 removes that
+   conflict and gives every supported kind a visible base/fallback. */
+.journal-canvas-item.decor-item.decor-visual:not(.decor-corner):not(.decor-frame){
+  background:var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-solid,
+.journal-canvas-item.decor-item.decor-pattern-plain{
+  background:var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-stripe{
+  background:repeating-linear-gradient(135deg,transparent 0 7px,rgba(255,255,255,.48) 7px 12px),var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-grid{
+  background:
+    linear-gradient(rgba(119,91,102,.18) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(119,91,102,.18) 1px,transparent 1px),
+    var(--decor-base);
+  background-size:9px 9px;
+}
+.journal-canvas-item.decor-item.decor-pattern-dots{
+  background:radial-gradient(circle,rgba(255,255,255,.82) 0 2px,transparent 2.4px),var(--decor-base);
+  background-size:13px 13px;
+}
+.journal-canvas-item.decor-item.decor-pattern-daisy{
+  background:radial-gradient(circle at 7px 7px,#fff 0 2px,#e6a0b7 2.4px 4px,transparent 4.5px),var(--decor-base);
+  background-size:15px 15px;
+}
+.journal-canvas-item.decor-item.decor-pattern-gingham{
+  background:
+    linear-gradient(90deg,rgba(255,255,255,.45) 50%,transparent 50%),
+    linear-gradient(rgba(255,255,255,.45) 50%,transparent 50%),
+    var(--decor-base);
+  background-size:12px 12px;
+}
+.journal-canvas-item.decor-item.decor-pattern-rainbow{
+  background:linear-gradient(90deg,#f3bdca,#f5d5ae,#efe5a9,#cfe4c8,#cddff2,#d9caed);
+}
+.journal-canvas-item.decor-item.decor-pattern-lined,
+.journal-canvas-item.decor-item.decor-pattern-notebook,
+.journal-canvas-item.decor-item.decor-pattern-receipt{
+  background:repeating-linear-gradient(to bottom,transparent 0 17px,rgba(124,101,110,.18) 18px 19px),var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-memo{
+  background:
+    linear-gradient(90deg,rgba(223,126,154,.22) 0 2px,transparent 2px) 17px 0/100% 100% no-repeat,
+    repeating-linear-gradient(to bottom,transparent 0 17px,rgba(124,101,110,.16) 18px 19px),
+    var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-postcard{
+  background:linear-gradient(90deg,transparent 49%,rgba(120,94,103,.18) 49% 51%,transparent 51%),var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-pattern-paper{
+  background:
+    radial-gradient(circle at 20% 30%,rgba(92,70,55,.08) 0 1px,transparent 1.4px),
+    radial-gradient(circle at 70% 75%,rgba(92,70,55,.07) 0 1px,transparent 1.4px),
+    var(--decor-base);
+  background-size:15px 17px,19px 21px,auto;
+}
+.journal-canvas-item.decor-item.decor-pattern-vellum{
+  background:rgba(255,248,250,.74);
+}
+.journal-canvas-item.decor-item.decor-pattern-torn{
+  background:var(--decor-base);
+}
+.journal-canvas-item.decor-item.decor-frame.decor-pattern-film{
+  background:repeating-linear-gradient(90deg,transparent 0 12px,#fff 12px 17px) top/100% 6px no-repeat,
+             repeating-linear-gradient(90deg,transparent 0 12px,#fff 12px 17px) bottom/100% 6px no-repeat!important;
+}
+.journal-canvas-item.decor-item.decor-frame.decor-pattern-polaroid{
+  border-width:8px 8px 22px;
+  border-color:#fff;
+  box-shadow:0 6px 14px rgba(78,55,63,.13);
+}
+.journal-canvas-item.decor-item.decor-frame.decor-pattern-dashed{
+  border-style:dashed;
+}
+/* Ensure pseudo-pattern overlays never eat taps/dragging. */
+.journal-canvas-item.decor-item::before,
+.journal-canvas-item.decor-item::after{
+  pointer-events:none;
+}
+
+/* Per-image sticker preparation sheet */
+.sticker-import-note{
+  margin:0 0 11px;
+  padding:10px 11px;
+  border:1px solid rgba(232,211,220,.8);
+  border-radius:13px;
+  background:rgba(255,250,252,.72);
+}
+.sticker-import-note em{
+  color:#a25e7b;
+  font-style:normal;
+  font-weight:800;
+}
+.sticker-import-sheet{
+  position:fixed;
+  inset:0;
+  z-index:1200;
+  display:grid;
+  place-items:end center;
+  padding:18px;
+  background:rgba(70,51,59,.28);
+  backdrop-filter:blur(7px);
+}
+.sticker-import-sheet.hidden{display:none!important}
+.sticker-import-card{
+  width:min(100%,440px);
+  max-height:min(78vh,680px);
+  overflow:auto;
+  padding:16px;
+  border:1px solid rgba(235,212,221,.95);
+  border-radius:24px;
+  background:#fffafc;
+  box-shadow:0 22px 55px rgba(72,47,57,.20);
+}
+.sticker-import-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.sticker-import-head h3{
+  margin:2px 0 0;
+  color:#5d4852;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:21px;
+}
+.sticker-import-head>button{
+  width:34px;
+  height:34px;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:#fff;
+  color:#a86b82;
+  font-size:20px;
+}
+.sticker-import-preview{
+  display:grid;
+  place-items:center;
+  min-height:210px;
+  margin:14px 0;
+  padding:12px;
+  border:1px dashed #e4bfce;
+  border-radius:18px;
+  background:
+    linear-gradient(45deg,#fff 25%,#faf2f6 25% 50%,#fff 50% 75%,#faf2f6 75%) 0 0/18px 18px;
+}
+.sticker-import-preview img{
+  display:block;
+  max-width:100%;
+  max-height:290px;
+  object-fit:contain;
+}
+.sticker-import-option{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  padding:12px;
+  border:1px solid rgba(231,206,217,.9);
+  border-radius:15px;
+  background:#fff;
+}
+.sticker-import-option input{
+  flex:0 0 auto;
+  width:20px;
+  height:20px;
+  margin-top:1px;
+  accent-color:#d985a8;
+}
+.sticker-import-option span{display:grid;gap:3px}
+.sticker-import-option strong{color:#6c555f;font-size:10px}
+.sticker-import-option small{color:#9b8890;font-size:8.5px;line-height:1.45}
+.sticker-import-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:13px;
+}
+.sticker-import-actions button{min-height:42px}
+#stickerImportSave:disabled{opacity:.62}
+
+@media(max-width:380px){
+  .builtin-sticker-palette{grid-template-columns:repeat(5,1fr)}
+  .sticker-import-sheet{padding:10px}
+  .sticker-import-card{border-radius:20px}
 }

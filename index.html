@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v69-v1-release-polish -->
+  <!-- FUWA_BUILD: v70-scrapbook-quality-fixes -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1432,7 +1432,7 @@
               </div>
               <button type="button" class="journal-import-sticker" id="importStickerButton">＋ Import Sticker</button>
             </div>
-            <label class="sticker-background-toggle"><input id="removeStickerBackground" type="checkbox" /><span><strong>Remove background</strong><small>Best for stickers on a plain or light background. Processing stays on this device.</small></span></label>
+            <p class="journal-palette-note sticker-import-note">Choose a photo first. Fuwa will ask whether <em>that photo</em> should have its background removed before saving it as a sticker.</p>
             <input id="customStickerInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
             <div class="my-sticker-palette" id="myStickerPalette"></div>
           </div>
@@ -1456,6 +1456,24 @@
 
           <button type="button" class="journal-add-text-button" id="addJournalTextButton">＋ Add a little text</button>
           <p class="journal-local-note">🎀 Scrapbook pages, scrapbook photos, and imported stickers stay on this device and are not included in Fuwa Cloud backup.</p>
+        </div>
+
+        <div class="sticker-import-sheet hidden" id="stickerImportSheet" role="dialog" aria-modal="true" aria-labelledby="stickerImportTitle">
+          <div class="sticker-import-card">
+            <div class="sticker-import-head">
+              <div><p class="eyebrow">My Stickers</p><h3 id="stickerImportTitle">Prepare this sticker</h3></div>
+              <button type="button" id="stickerImportClose" aria-label="Close sticker import">×</button>
+            </div>
+            <div class="sticker-import-preview"><img id="stickerImportPreview" alt="Sticker preview" /></div>
+            <label class="sticker-import-option">
+              <input id="stickerImportRemoveBackground" type="checkbox" />
+              <span><strong>Remove background for this photo</strong><small>Best for a plain or light background. Processing happens only on this device.</small></span>
+            </label>
+            <div class="sticker-import-actions">
+              <button type="button" class="secondary-btn" id="stickerImportCancel">Cancel</button>
+              <button type="button" class="primary-btn compact" id="stickerImportSave">Add Sticker</button>
+            </div>
+          </div>
         </div>
       </section>
 
