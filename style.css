@@ -7109,3 +7109,141 @@ body.privacy-locked{overscroll-behavior:none}
   #tutorialTitle{font-size:24px}
   .tutorial-stage{padding-left:17px;padding-right:17px}
 }
+
+/* =========================================================
+   FUWA V58 — CONTEXTUAL FIRST-TIME FEATURE GUIDES
+   ========================================================= */
+.feature-tutorial{
+  position:fixed;
+  z-index:7650;
+  inset:0;
+  display:grid;
+  place-items:end center;
+  padding:18px 14px calc(18px + env(safe-area-inset-bottom,0px));
+  background:rgba(67,50,58,.30);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+}
+.feature-tutorial-card{
+  position:relative;
+  width:min(100%,430px);
+  max-height:min(78vh,650px);
+  overflow:auto;
+  box-sizing:border-box;
+  padding:25px 20px 18px;
+  border:1px solid rgba(231,190,205,.78);
+  border-radius:28px;
+  background:
+    radial-gradient(circle at 90% 5%,rgba(226,216,245,.58),transparent 29%),
+    linear-gradient(160deg,#fffdfd,#fff7fa 58%,#fbf7ff);
+  box-shadow:0 24px 70px rgba(68,44,54,.20);
+  text-align:left;
+}
+.feature-tutorial-close{
+  position:absolute;
+  top:11px;
+  right:12px;
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border:0;
+  border-radius:50%;
+  background:rgba(247,235,241,.85);
+  color:#a77287;
+  font-size:20px;
+}
+.feature-tutorial-icon{
+  width:56px;
+  height:56px;
+  display:grid;
+  place-items:center;
+  margin-bottom:13px;
+  border:1px solid rgba(229,184,202,.62);
+  border-radius:18px;
+  background:linear-gradient(145deg,#fff1f6,#f1edff);
+  box-shadow:0 8px 20px rgba(163,111,136,.10);
+  font-size:27px;
+}
+.feature-tutorial-eyebrow{
+  margin-bottom:5px;
+  color:#b58498;
+  font-size:7.5px!important;
+}
+#featureTutorialTitle{
+  max-width:340px;
+  margin:0;
+  padding-right:24px;
+  font-family:Georgia,"Times New Roman",serif;
+  color:#55414b;
+  font-size:22px;
+  line-height:1.14;
+}
+.feature-tutorial-copy{
+  margin:10px 0 14px;
+  color:#806c76;
+  font-size:9.5px;
+  line-height:1.55;
+}
+.feature-tutorial-how{
+  display:grid;
+  gap:7px;
+  margin:4px 0 16px;
+}
+.feature-tutorial-tip{
+  display:grid;
+  grid-template-columns:25px 1fr;
+  gap:8px;
+  align-items:start;
+  padding:9px 10px;
+  border:1px solid rgba(235,210,220,.80);
+  border-radius:13px;
+  background:rgba(255,255,255,.66);
+}
+.feature-tutorial-tip>span{
+  width:25px;
+  height:25px;
+  display:grid;
+  place-items:center;
+  border-radius:9px;
+  background:#fff0f5;
+  color:#b76886;
+  font-size:7px;
+  font-weight:900;
+}
+.feature-tutorial-tip p{
+  margin:2px 0 0;
+  color:#6f5c65;
+  font-size:8.3px;
+  line-height:1.42;
+}
+.feature-tutorial-actions{
+  display:grid;
+  grid-template-columns:.9fr 1.3fr;
+  gap:8px;
+}
+.feature-tutorial-actions button{
+  min-height:43px;
+  border-radius:14px;
+  font:inherit;
+  font-size:8.5px;
+  font-weight:900;
+}
+.feature-tutorial-secondary{
+  border:1px solid var(--line);
+  background:#fff;
+  color:#8b727d;
+}
+.feature-tutorial-primary{
+  border:0;
+  background:linear-gradient(135deg,#ed9ab8,#df7da4);
+  color:#fff;
+  box-shadow:0 8px 18px rgba(210,109,150,.18);
+}
+@media(min-width:600px){
+  .feature-tutorial{place-items:center}
+}
+@media(max-width:370px){
+  .feature-tutorial-card{padding:22px 16px 16px}
+  #featureTutorialTitle{font-size:20px}
+}

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v55-first-use-tutorial -->
+  <!-- FUWA_BUILD: v58-contextual-feature-tutorials -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1753,6 +1753,24 @@
     </form>
   </div>
 
+
+  <div class="feature-tutorial hidden" id="featureTutorial" role="dialog" aria-modal="true" aria-labelledby="featureTutorialTitle">
+    <div class="feature-tutorial-card">
+      <button type="button" class="feature-tutorial-close" id="featureTutorialClose" aria-label="Close feature guide">×</button>
+
+      <div class="feature-tutorial-icon" id="featureTutorialIcon" aria-hidden="true">☁️</div>
+      <p class="eyebrow feature-tutorial-eyebrow" id="featureTutorialEyebrow">A LITTLE GUIDE</p>
+      <h2 id="featureTutorialTitle">Welcome here</h2>
+      <p class="feature-tutorial-copy" id="featureTutorialCopy"></p>
+
+      <div class="feature-tutorial-how" id="featureTutorialHow"></div>
+
+      <div class="feature-tutorial-actions">
+        <button type="button" class="feature-tutorial-secondary" id="featureTutorialLater">Show me later</button>
+        <button type="button" class="feature-tutorial-primary" id="featureTutorialGotIt">Got it ♡</button>
+      </div>
+    </div>
+  </div>
 
   <div class="fuwa-tutorial hidden" id="fuwaTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
     <div class="fuwa-tutorial-card">

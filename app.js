@@ -3970,6 +3970,7 @@ function navigate(view) {
   if (view === "home" || view === "moodjar") startMoodJarPhysics();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
+  maybeShowFeatureTutorial(view);
 }
 
 const themeNames = {
@@ -4074,6 +4075,7 @@ function openAppearance() {
   $("appearanceModal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
   renderAppearanceControls();
+  maybeShowFeatureTutorial("appearance");
 }
 
 function closeAppearance() {
@@ -5384,6 +5386,369 @@ const FUWA_TUTORIAL_SEEN_KEY = "fuwaTutorialSeenV1";
 let tutorialStepIndex = 0;
 let tutorialOpenedAutomatically = false;
 
+
+const FUWA_FEATURE_TUTORIAL_VERSION = "v1";
+const FUWA_FEATURE_TUTORIAL_PREFIX = `fuwaFeatureTutorial:${FUWA_FEATURE_TUTORIAL_VERSION}:`;
+
+const FUWA_FEATURE_TUTORIALS = {
+  home: {
+    icon: "☁️",
+    eyebrow: "YOUR GARDEN GATE",
+    title: "Home is your gentle daily starting point",
+    copy: "Use Home for the things you may want most often: a mood check-in, recent memories, Tiny Joys, Random Thoughts, and little pieces of your day.",
+    how: [
+      "Tap a mood cloud when you want a quick emotional check-in.",
+      "Use Little Things for Tiny Joys and passing Random Thoughts.",
+      "Open ☰ for the deeper corners of Fuwa."
+    ]
+  },
+  entries: {
+    icon: "📖",
+    eyebrow: "YOUR JOURNAL",
+    title: "Entries hold the fuller stories",
+    copy: "This is where your proper journal entries live. Old entries stay here, so Home never has to become crowded.",
+    how: [
+      "Tap an entry to open it.",
+      "Use search to find an older memory.",
+      "Tap + in the bottom navigation when you want to write something new."
+    ]
+  },
+  editor: {
+    icon: "✎",
+    eyebrow: "WRITE FREELY",
+    title: "This is your full journal page",
+    copy: "Write as much or as little as you want. Fuwa keeps the entry in your local diary first.",
+    how: [
+      "Add a title only if you want one.",
+      "Choose a mood, tags, and photos when they help.",
+      "Tap Save when the memory feels finished."
+    ]
+  },
+  letters: {
+    icon: "💌",
+    eyebrow: "WORDS FOR LATER",
+    title: "Letters Through Time keeps messages for Future You",
+    copy: "Write a letter now and choose when it should become available. It can be for yourself or simply a message you want to meet again later.",
+    how: [
+      "Create a letter and choose its open date.",
+      "Locked letters stay tucked away until their time comes.",
+      "Your existing letters remain listed here."
+    ]
+  },
+  me: {
+    icon: "♡",
+    eyebrow: "YOUR FUWA",
+    title: "Me is where Fuwa becomes yours",
+    copy: "Your account, backup tools, privacy controls, reminders, stats, and device-specific settings live here.",
+    how: [
+      "Local users can keep journaling without an account.",
+      "Use cloud backup only when you choose to sign in.",
+      "Appearance and privacy settings stay device-focused."
+    ]
+  },
+  life: {
+    icon: "✦",
+    eyebrow: "YOUR EVERYDAY NOTEBOOK",
+    title: "Daily Life Pages is your page-by-page check-in",
+    copy: "Instead of filling one giant form, move through your little notebook one page at a time. Answer only what feels useful that day.",
+    how: [
+      "Use Next, Back, or Skip as you move through today's pages.",
+      "Trackers build from the answers you save.",
+      "Moments and Collections keep other little pieces of your life."
+    ]
+  },
+  moodjar: {
+    icon: "🫙",
+    eyebrow: "YOUR LITTLE WEATHER",
+    title: "Mood Jar keeps one tiny feeling from each day",
+    copy: "Your daily moods collect here like little objects in a jar. The jar is meant to feel playful, not like a streak you have to maintain.",
+    how: [
+      "Choose a mood whenever you want to check in.",
+      "Missing days are completely okay.",
+      "Tilt or move your phone and the jar pieces can react naturally."
+    ]
+  },
+  threads: {
+    icon: "🧵",
+    eyebrow: "STORIES THAT RETURN",
+    title: "Memory Threads connects related moments across time",
+    copy: "Use a thread when different journal entries belong to the same continuing story: a hobby, relationship, goal, trip, project, or season of life.",
+    how: [
+      "Create a thread and give it a name.",
+      "Attach related memories to it over time.",
+      "Open a thread to see that story as one timeline."
+    ]
+  },
+  threadDetail: {
+    icon: "🧵",
+    eyebrow: "ONE STORY, MANY DAYS",
+    title: "A Thread timeline gathers connected memories",
+    copy: "This page shows the memories you have connected to one Memory Thread, even when they were written far apart.",
+    how: [
+      "Read the story in chronological context.",
+      "Add more related entries as the story continues.",
+      "The original journal entries stay unchanged."
+    ]
+  },
+  bookmarks: {
+    icon: "🔖",
+    eyebrow: "FOR FUTURE YOU",
+    title: "Bookmarks save a thought you want to meet again",
+    copy: "A Fuwa Bookmark is lighter than a full journal entry. Keep a sentence, idea, reminder, or thought that deserves another visit later.",
+    how: [
+      "Save a short thought rather than writing a whole entry.",
+      "Open an old bookmark when it resurfaces.",
+      "Think of these as notes tucked between the pages of your garden."
+    ]
+  },
+  bookmarkDetail: {
+    icon: "🔖",
+    eyebrow: "A NOTE RETURNED",
+    title: "This is one saved Bookmark",
+    copy: "Here you can meet the thought again with the context Fuwa kept for you.",
+    how: [
+      "Read what Past You wanted to preserve.",
+      "Return to all Bookmarks when you're done.",
+      "Keep or remove it whenever it no longer needs saving."
+    ]
+  },
+  memoryDrift: {
+    icon: "🍃",
+    eyebrow: "SOMETHING DRIFTED BACK",
+    title: "Memory Drift resurfaces an older piece of your life",
+    copy: "Fuwa occasionally brings an older memory forward so you can notice what still feels the same — or what has quietly changed.",
+    how: [
+      "Read it without needing to respond.",
+      "Use it as a reflection prompt if you feel like it.",
+      "Your original memory is never rewritten."
+    ]
+  },
+  thenNow: {
+    icon: "🪞",
+    eyebrow: "PAST YOU, PRESENT YOU",
+    title: "Then & Now lets you answer an older version of yourself",
+    copy: "Choose an older memory and reflect on what feels different today without editing what you originally wrote.",
+    how: [
+      "Pick a past memory.",
+      "Write what Present You notices now.",
+      "Fuwa keeps both points in time."
+    ]
+  },
+  monthly: {
+    icon: "📚",
+    eyebrow: "YOUR MONTH, GATHERED",
+    title: "Monthly Story turns scattered days into one chapter",
+    copy: "Fuwa gathers the things you recorded during a month so you can look back without opening every single entry.",
+    how: [
+      "Use the arrows to move between months.",
+      "The story becomes richer as you use Fuwa.",
+      "It is a reflection, not a score."
+    ]
+  },
+  weather: {
+    icon: "🌦️",
+    eyebrow: "NO SCORES, JUST PATTERNS",
+    title: "Emotional Weather shows the shape of a month",
+    copy: "This turns your mood history into a softer visual pattern. It is meant to help you notice, not judge, how your days felt.",
+    how: [
+      "Move between months with the arrows.",
+      "Look for patterns rather than perfect streaks.",
+      "Blank days simply mean nothing was logged."
+    ]
+  },
+  bubbles: {
+    icon: "💭",
+    eyebrow: "ONE SENTENCE IS ENOUGH",
+    title: "Thought Bubbles catches a thought before it disappears",
+    copy: "Use this when something is worth saving but does not need a full entry. Short, strange, serious, funny — all of it counts.",
+    how: [
+      "Write one quick sentence.",
+      "Use Float one back to me to revisit an older thought.",
+      "A Thought Bubble can stay tiny."
+    ]
+  },
+  dreams: {
+    icon: "🌙",
+    eyebrow: "BEFORE IT FADES",
+    title: "Dream Pocket keeps the pieces you remember",
+    copy: "Dreams disappear quickly. Drop in whatever survived the morning, even if it is only one image, feeling, or bizarre detail.",
+    how: [
+      "Tap + to save a dream.",
+      "It does not need to make sense.",
+      "Come back later when you want to reread your dream history."
+    ]
+  },
+  nightly: {
+    icon: "☾",
+    eyebrow: "PUT THE DAY DOWN",
+    title: "Nightly Wind-Down is a soft end-of-day reflection",
+    copy: "Use this corner when you want to close the day gently rather than write a full journal entry.",
+    how: [
+      "Answer only the prompts that help.",
+      "Use it as a nightly ritual or only occasionally.",
+      "Past reflections remain available in the history."
+    ]
+  },
+  sleep: {
+    icon: "😴",
+    eyebrow: "A QUIETER CORNER",
+    title: "Sleep Corner gives you soft sounds with a timer",
+    copy: "Choose a sound, set how long you want it to play, then leave Fuwa beside you while you settle down.",
+    how: [
+      "Choose the sound that feels comfortable.",
+      "Set a timer before you start.",
+      "Fuwa fades the sound gently when the timer ends."
+    ]
+  },
+  comfort: {
+    icon: "🫶",
+    eyebrow: "KEEP SOFT THINGS CLOSE",
+    title: "Comfort Corner is your personal comfort shelf",
+    copy: "Save words, activities, reminders, places, foods, or tiny things that reliably make a difficult moment a little softer.",
+    how: [
+      "Tap + to add something comforting.",
+      "Use I need something soft when you want Fuwa to pick one.",
+      "Build the list around what actually works for you."
+    ]
+  },
+  sanctuary: {
+    icon: "🏡",
+    eyebrow: "YOUR LITTLE ROOM",
+    title: "Fuwa Sanctuary grows quietly with your journal",
+    copy: "This is not a game you have to grind. Your room becomes more lived-in as Fuwa fills with real days and memories.",
+    how: [
+      "Visit whenever you want a cozy visual break.",
+      "New details can appear as your Fuwa history grows.",
+      "There are no streaks, coins, or pressure."
+    ]
+  },
+  unsent: {
+    icon: "✉️",
+    eyebrow: "WORDS THAT NEED NO DESTINATION",
+    title: "Unsent Letters is for things you need to say, not send",
+    copy: "Write to a person, place, version of yourself, or anyone else without needing the letter to go anywhere.",
+    how: [
+      "Tap + to write one.",
+      "Nothing is actually sent.",
+      "Keep it, reread it, or delete it when you're ready."
+    ]
+  },
+  thoughts: {
+    icon: "🌷",
+    eyebrow: "YOUR LITTLE THINGS, KEPT",
+    title: "Little Things is the history behind your Home cards",
+    copy: "Today's Tiny Joys and Random Thoughts stay compact on Home. Previous days live here instead of disappearing.",
+    how: [
+      "Browse Little Things grouped by day.",
+      "Tiny Joys stay positive; Random Thoughts can be anything.",
+      "Older days remain part of your Fuwa history."
+    ]
+  },
+  explore: {
+    icon: "🗺️",
+    eyebrow: "FIND YOUR WAY AROUND",
+    title: "Explore Fuwa is a map of the deeper features",
+    copy: "If you forget where something lives, this page groups Fuwa's reflection, memory, comfort, and letter tools in one place.",
+    how: [
+      "Tap any card to open that feature.",
+      "You can also reach the same features from ☰.",
+      "Home stays intentionally simpler."
+    ]
+  },
+  appearance: {
+    icon: "🎨",
+    eyebrow: "MAKE THE GARDEN YOURS",
+    title: "Appearance changes Fuwa only on this device",
+    copy: "Pick a pastel theme, choose a wallpaper, and adjust how softly it shows through. These choices are intentionally device-specific.",
+    how: [
+      "Themes change Fuwa's overall color mood.",
+      "Custom wallpaper stays local to this device.",
+      "Overlay controls help keep text readable."
+    ]
+  }
+};
+
+let activeFeatureTutorialKey = null;
+let pendingFeatureTutorialKey = null;
+
+function featureTutorialStorageKey(key) {
+  return `${FUWA_FEATURE_TUTORIAL_PREFIX}${key}`;
+}
+
+function featureTutorialWasSeen(key) {
+  try { return localStorage.getItem(featureTutorialStorageKey(key)) === "1"; }
+  catch (_) { return false; }
+}
+
+function markFeatureTutorialSeen(key) {
+  if (!key) return;
+  try { localStorage.setItem(featureTutorialStorageKey(key), "1"); } catch (_) {}
+}
+
+function featureTutorialCanOpen() {
+  return $("featureTutorial")?.classList.contains("hidden") &&
+         $("fuwaTutorial")?.classList.contains("hidden") &&
+         !$("privacyLockScreen")?.classList.contains("active");
+}
+
+function renderFeatureTutorial(key) {
+  const guide = FUWA_FEATURE_TUTORIALS[key];
+  if (!guide) return false;
+
+  activeFeatureTutorialKey = key;
+  if ($("featureTutorialIcon")) $("featureTutorialIcon").textContent = guide.icon;
+  if ($("featureTutorialEyebrow")) $("featureTutorialEyebrow").textContent = guide.eyebrow;
+  if ($("featureTutorialTitle")) $("featureTutorialTitle").textContent = guide.title;
+  if ($("featureTutorialCopy")) $("featureTutorialCopy").textContent = guide.copy;
+
+  const how = $("featureTutorialHow");
+  if (how) {
+    how.innerHTML = guide.how.map((item, index) =>
+      `<div class="feature-tutorial-tip"><span>${index + 1}</span><p>${escapeHtml(item)}</p></div>`
+    ).join("");
+  }
+
+  return true;
+}
+
+function openFeatureTutorial(key, { force = false } = {}) {
+  if (!FUWA_FEATURE_TUTORIALS[key]) return;
+  if (!force && featureTutorialWasSeen(key)) return;
+
+  if (!featureTutorialCanOpen()) {
+    pendingFeatureTutorialKey = key;
+    return;
+  }
+
+  if (!renderFeatureTutorial(key)) return;
+  pendingFeatureTutorialKey = null;
+  $("featureTutorial")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeFeatureTutorial({ markSeen = true } = {}) {
+  if (markSeen) markFeatureTutorialSeen(activeFeatureTutorialKey);
+  $("featureTutorial")?.classList.add("hidden");
+  activeFeatureTutorialKey = null;
+
+  if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open") &&
+      $("fuwaTutorial")?.classList.contains("hidden")) {
+    document.body.style.overflow = "";
+  }
+}
+
+function maybeShowFeatureTutorial(key) {
+  if (!key || featureTutorialWasSeen(key)) return;
+  window.setTimeout(() => openFeatureTutorial(key), 180);
+}
+
+function flushPendingFeatureTutorial() {
+  if (!pendingFeatureTutorialKey) return;
+  const key = pendingFeatureTutorialKey;
+  pendingFeatureTutorialKey = null;
+  maybeShowFeatureTutorial(key);
+}
+
 const FUWA_TUTORIAL_STEPS = [
   {
     icon: "🌷",
@@ -5500,6 +5865,9 @@ function closeFuwaTutorial({ markSeen = true } = {}) {
   if (markSeen) markTutorialSeen();
   tutorialOpenedAutomatically = false;
   if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open")) document.body.style.overflow = "";
+
+  if (pendingFeatureTutorialKey) flushPendingFeatureTutorial();
+  else maybeShowFeatureTutorial(currentView || "home");
 }
 
 function goNextTutorialStep() {
@@ -5567,6 +5935,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("tutorialBackButton")?.addEventListener("click", goBackTutorialStep);
   $("tutorialSkipButton")?.addEventListener("click", () => closeFuwaTutorial({ markSeen: true }));
   $("tutorialCloseButton")?.addEventListener("click", () => closeFuwaTutorial({ markSeen: true }));
+  $("featureTutorialGotIt")?.addEventListener("click", () => closeFeatureTutorial({ markSeen: true }));
+  $("featureTutorialClose")?.addEventListener("click", () => closeFeatureTutorial({ markSeen: true }));
+  $("featureTutorialLater")?.addEventListener("click", () => closeFeatureTutorial({ markSeen: false }));
+  $("featureTutorial")?.addEventListener("click", event => {
+    if (event.target === $("featureTutorial")) closeFeatureTutorial({ markSeen: true });
+  });
 
   document.body.classList.add("fuwa-loading");
   try {
@@ -5585,8 +5959,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.body.classList.remove("fuwa-loading");
     maybeOpenFirstUseTutorial();
 
+    if (tutorialWasSeen()) {
+      maybeShowFeatureTutorial(currentView || "home");
+    }
+
     window.addEventListener("fuwa-auth-ready", () => {
       maybeOpenFirstUseTutorial();
+      if (tutorialWasSeen()) maybeShowFeatureTutorial(currentView || "home");
     }, { once: true });
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
