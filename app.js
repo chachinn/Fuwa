@@ -35,7 +35,7 @@ const defaultState = {
   sleepVolume: 45,
   privacyLockEnabled: false,
   privacyAutoLockMinutes: 5,
-  privacyLockOnReopen: true,
+  privacyLockOnReopen: false,
   biometricEnabled: false
 };
 
@@ -292,9 +292,10 @@ function loadPreferences() {
       sleepSound: typeof saved.sleepSound === "string" ? saved.sleepSound : defaultState.sleepSound,
       sleepMinutes: Number.isFinite(saved.sleepMinutes) ? saved.sleepMinutes : defaultState.sleepMinutes,
       sleepVolume: Number.isFinite(saved.sleepVolume) ? saved.sleepVolume : defaultState.sleepVolume,
-      privacyLockEnabled: typeof saved.privacyLockEnabled === "boolean" ? saved.privacyLockEnabled : defaultState.privacyLockEnabled,
-      privacyAutoLockMinutes: Number.isFinite(saved.privacyAutoLockMinutes) ? saved.privacyAutoLockMinutes : defaultState.privacyAutoLockMinutes,
-      privacyLockOnReopen: typeof saved.privacyLockOnReopen === "boolean" ? saved.privacyLockOnReopen : defaultState.privacyLockOnReopen,
+      // v49: PIN exists independently from locking. Fuwa only locks when the user taps "Lock Fuwa".
+      privacyLockEnabled: false,
+      privacyAutoLockMinutes: defaultState.privacyAutoLockMinutes,
+      privacyLockOnReopen: false,
       biometricEnabled: typeof saved.biometricEnabled === "boolean" ? saved.biometricEnabled : defaultState.biometricEnabled
     };
   } catch (error) {
@@ -313,9 +314,9 @@ function savePreferences() {
       sleepSound: state.sleepSound,
       sleepMinutes: state.sleepMinutes,
       sleepVolume: state.sleepVolume,
-      privacyLockEnabled: state.privacyLockEnabled,
+      privacyLockEnabled: false,
       privacyAutoLockMinutes: state.privacyAutoLockMinutes,
-      privacyLockOnReopen: state.privacyLockOnReopen,
+      privacyLockOnReopen: false,
       biometricEnabled: state.biometricEnabled
     }));
   } catch (error) {
@@ -1372,7 +1373,9 @@ async function handlePrivacyPinSetup(event) {
     $("privacyPinSubmit").disabled = true;
     $("privacyPinSubmit").textContent = "Saving…";
     await savePrivacyCredential(pin);
-    state.privacyLockEnabled = true;
+    // Save the PIN, but do not turn on automatic/reopen locking.
+    state.privacyLockEnabled = false;
+    state.privacyLockOnReopen = false;
     savePreferences();
     const shouldLockNow = privacyLockAfterPinSetup;
     closePrivacyPinSetup();
@@ -1451,7 +1454,7 @@ function shouldPrivacyAutoLock() {
 }
 
 function lockFuwa(reason = "manual") {
-  if (!state.privacyLockEnabled && reason !== "quick-hide") return;
+  if (!["manual", "quick-hide"].includes(reason) && !state.privacyLockEnabled) return;
 
   privacyIsLocked = true;
   $("privacyLockScreen").classList.remove("hidden");
@@ -1606,16 +1609,9 @@ function updatePrivacyActivity() {
 }
 
 function handleVisibilityPrivacy() {
-  if (document.visibilityState === "hidden") {
-    privacyLastActiveAt = Date.now();
-    return;
-  }
-
-  if (!state.privacyLockEnabled || privacyIsLocked) return;
-
-  if (state.privacyLockOnReopen || shouldPrivacyAutoLock()) {
-    lockFuwa("resume");
-  }
+  // v49: opening, refreshing, backgrounding, or returning to Fuwa never locks it.
+  // A lock appears only after the user explicitly chooses "Lock Fuwa".
+  if (document.visibilityState === "hidden") privacyLastActiveAt = Date.now();
 }
 
 function installPrivacyActivityWatch() {
@@ -1627,12 +1623,6 @@ function installPrivacyActivityWatch() {
   window.addEventListener("pagehide", () => {
     privacyLastActiveAt = Date.now();
   });
-
-  setInterval(() => {
-    if (document.visibilityState === "visible" && shouldPrivacyAutoLock()) {
-      lockFuwa("timeout");
-    }
-  }, 15000);
 }
 
 async function lockFuwaFromDrawer() {
@@ -1643,12 +1633,11 @@ async function lockFuwaFromDrawer() {
     return;
   }
 
-  if (!state.privacyLockEnabled) {
-    state.privacyLockEnabled = true;
-    savePreferences();
-    renderPrivacySettings();
-  }
-
+  // Manual lock only. Do not persist automatic locking.
+  state.privacyLockEnabled = false;
+  state.privacyLockOnReopen = false;
+  savePreferences();
+  renderPrivacySettings();
   lockFuwa("manual");
 }
 
@@ -3974,7 +3963,10 @@ function navigate(view) {
     button.classList.toggle("active", button.dataset.nav === view);
   });
 
-  if (view === "life") renderLifePages();
+  renderViewOnDemand(view);
+
+  if (view === "home" || view === "moodjar") startMoodJarPhysics();
+
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -4568,6 +4560,40 @@ function renderStats() {
   if ($("nightlyCount")) $("nightlyCount").textContent = state.nightlyReflections.length;
 }
 
+function renderViewOnDemand(view = currentView) {
+  if (view === "home") {
+    renderMoodPicker();
+    renderHomeMoodJar();
+    renderHomeThreads();
+    renderSleepHome();
+    renderNightlyHome();
+    renderMemoryDriftHome();
+    renderHomeBookmarks();
+    renderCalendar();
+    renderRecentEntries();
+    renderTinyJoys();
+    return;
+  }
+  if (view === "entries") return renderEntries($("entrySearch")?.value || "");
+  if (view === "letters") return renderLetters();
+  if (view === "threads") return renderThreads();
+  if (view === "threadDetail" && activeThreadId) return renderThreadDetail();
+  if (view === "bookmarks") return renderBookmarks();
+  if (view === "bookmarkDetail" && activeBookmarkId) return renderBookmarkDetail();
+  if (view === "moodjar") return renderMoodJarView();
+  if (view === "life") return renderLifePages();
+  if (view === "monthly") return renderMonthlyStory();
+  if (view === "weather") return renderEmotionalWeather();
+  if (view === "thenNow") return renderThenNow();
+  if (view === "comfort") return renderComfort();
+  if (view === "unsent") return renderUnsent();
+  if (view === "bubbles") return renderBubbles();
+  if (view === "dreams") return renderDreams();
+  if (view === "sanctuary") return renderSanctuary();
+  if (view === "nightly") return renderNightlyHistory();
+  if (view === "memoryDrift") return renderMemoryDriftDetail();
+}
+
 function renderAll() {
   $("todayLabel").textContent = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -4575,23 +4601,7 @@ function renderAll() {
     day: "numeric"
   }).format(new Date());
 
-  renderMoodPicker();
-  renderHomeMoodJar();
-  renderMoodJarView();
-  renderHomeThreads();
-  renderThreads();
-  renderSleepHome();
-  renderNightlyHome();
-  renderMemoryDriftHome();
-  renderHomeBookmarks();
-  renderBookmarks();
-  if (activeThreadId) renderThreadDetail();
-  renderCalendar();
-  renderRecentEntries();
-  renderEntries($("entrySearch")?.value || "");
-  renderTinyJoys();
-  renderLetters();
-  renderLifePages();
+  renderViewOnDemand(currentView);
   renderStats();
   applyTheme();
 }
@@ -5224,9 +5234,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     await detectBiometricAvailability();
     installPrivacyActivityWatch();
 
-    if (state.privacyLockEnabled) {
-      lockFuwa("startup");
-    }
     document.body.classList.remove("fuwa-loading");
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
@@ -5292,8 +5299,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("privacyReopenToggle")?.addEventListener("change", event => {
-    state.privacyLockOnReopen = event.target.checked;
+    event.target.checked = false;
+    state.privacyLockOnReopen = false;
     savePreferences();
+    toast("Fuwa locks only when you choose Lock Fuwa.");
   });
 
   $("biometricToggle")?.addEventListener("change", toggleBiometric);
@@ -5520,9 +5529,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) startMoodJarPhysics();
   });
+  let moodJarResizeTimer = 0;
   window.addEventListener("resize", () => {
-    moodJarPhysicsWorlds.clear();
-    startMoodJarPhysics();
+    clearTimeout(moodJarResizeTimer);
+    moodJarResizeTimer = setTimeout(() => {
+      moodJarPhysicsWorlds.clear();
+      if (currentView === "home" || currentView === "moodjar") startMoodJarPhysics();
+    }, 120);
   }, { passive: true });
 
   if ("serviceWorker" in navigator) {

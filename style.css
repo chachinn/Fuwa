@@ -6926,3 +6926,6 @@ body.auth-local #fuwaAuthGate{display:none!important}body.auth-local .app-shell{
 .wallpaper-crop-note{display:none!important}
 .wallpaper-section-v47>.appearance-secondary-btn{display:none!important}
 @media(max-width:370px){.wallpaper-title-v47 p{max-width:205px}.overlay-heading-v47{display:grid}.overlay-heading-v47 span{text-align:left;max-width:none}}
+
+/* FUWA V49 — MANUAL-ONLY LOCK + PERFORMANCE */
+body.privacy-locked{overscroll-behavior:none}

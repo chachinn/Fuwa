@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v48";
+const CACHE_NAME = "fuwa-shell-v49";
 
 const CORE_ASSETS = [
   "./",
@@ -88,11 +88,38 @@ async function cacheFirst(request) {
   return response;
 }
 
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const refresh = fetch(new Request(request, { cache: "no-store" }))
+    .then(async response => {
+      if (response?.ok) await cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    refresh.catch(() => null);
+    return cached;
+  }
+
+  const fresh = await refresh;
+  if (fresh) return fresh;
+
+  if (request.mode === "navigate") {
+    const fallback = await cache.match("./index.html");
+    if (fallback) return fallback;
+  }
+
+  return Response.error();
+}
+
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
   if (isCoreRequest(event.request)) {
-    event.respondWith(networkFirst(event.request));
+    event.respondWith(staleWhileRevalidate(event.request));
     return;
   }
 
