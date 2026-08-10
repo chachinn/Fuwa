@@ -5348,9 +5348,9 @@ async function clearAll() {
 
 
 function installIOSZoomGuard() {
-  const editableSelector = 'input, textarea, select, [contenteditable="true"]';
-
-  // Safari exposes gesture* events for pinch zoom.
+  // Safari exposes gesture* events for pinch zoom. Keep only the gesture guards.
+  // Do not prevent touchend globally: on iPhone/PWA that can suppress the
+  // synthetic click and make ordinary buttons appear randomly unresponsive.
   ["gesturestart", "gesturechange", "gestureend"].forEach(type => {
     document.addEventListener(type, event => {
       event.preventDefault();
@@ -5362,21 +5362,6 @@ function installIOSZoomGuard() {
     if (event.touches && event.touches.length > 1) {
       event.preventDefault();
     }
-  }, { passive: false });
-
-  // Prevent double-tap page zoom on non-editable UI.
-  let lastTouchEnd = 0;
-  document.addEventListener("touchend", event => {
-    if (event.target.closest(editableSelector)) {
-      lastTouchEnd = 0;
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastTouchEnd <= 320) {
-      event.preventDefault();
-    }
-    lastTouchEnd = now;
   }, { passive: false });
 }
 
@@ -5670,6 +5655,7 @@ const FUWA_FEATURE_TUTORIALS = {
 
 let activeFeatureTutorialKey = null;
 let pendingFeatureTutorialKey = null;
+let featureTutorialTimer = null;
 
 function featureTutorialStorageKey(key) {
   return `${FUWA_FEATURE_TUTORIAL_PREFIX}${key}`;
@@ -5749,8 +5735,18 @@ function closeFeatureTutorial({ markSeen = true } = {}) {
 }
 
 function maybeShowFeatureTutorial(key) {
+  if (featureTutorialTimer) {
+    window.clearTimeout(featureTutorialTimer);
+    featureTutorialTimer = null;
+  }
   if (!key || featureTutorialWasSeen(key)) return;
-  window.setTimeout(() => openFeatureTutorial(key), 180);
+
+  featureTutorialTimer = window.setTimeout(() => {
+    featureTutorialTimer = null;
+    // A delayed guide must never open over a view the user has already left.
+    if (currentView !== key && key !== "appearance") return;
+    openFeatureTutorial(key);
+  }, 180);
 }
 
 function flushPendingFeatureTutorial() {
@@ -6005,18 +6001,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("openExploreButton")?.addEventListener("click", () => navigate("explore"));
   $("exploreHomeCard")?.addEventListener("click", () => navigate("explore"));
 
-  document.querySelectorAll("#exploreView [data-nav]").forEach(button => {
-    button.addEventListener("click", () => navigate(button.dataset.nav));
-  });
-
-
   $("menuButton")?.addEventListener("click", toggleFuwaDrawer);
   $("drawerCloseButton")?.addEventListener("click", closeFuwaDrawer);
   $("fuwaDrawerBackdrop")?.addEventListener("click", closeFuwaDrawer);
-
-  document.querySelectorAll("#fuwaDrawer [data-nav]").forEach(button => {
-    button.addEventListener("click", () => navigate(button.dataset.nav));
-  });
 
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;

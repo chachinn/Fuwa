@@ -7265,3 +7265,15 @@ body.privacy-locked{overscroll-behavior:none}
   opacity:1;
   pointer-events:auto;
 }
+
+/* =========================================================
+   FUWA V60 — TAP RELIABILITY / LIGHTWEIGHT INTERACTION GUARD
+   Keeps native click delivery reliable on iPhone without a
+   document-level touchend preventDefault handler.
+   ========================================================= */
+button,
+[role="button"],
+.nav-item,
+.drawer-menu-item {
+  touch-action: manipulation;
+}
