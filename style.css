@@ -8582,3 +8582,102 @@ button,
   .sticker-import-sheet{padding:10px}
   .sticker-import-card{border-radius:20px}
 }
+
+
+/* =========================================================
+   FUWA V71 — SCRAPBOOK BUGFIXES
+   - All sticker categories are reachable without horizontal swiping
+   - Safari palette containment/clipping removed
+   - Journal Bits remain absolutely positioned and draggable
+   - Background-removal preview shows the real processed result
+   ========================================================= */
+
+/* iPhone-safe navigation: no hidden category chips.
+   There are only ~11 sticker categories, so wrapping is cheaper and more
+   reliable than a nested horizontal scroller. Only one category's items
+   are rendered at a time, preserving performance. */
+.scrapbook-category-bar{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  overflow:visible!important;
+  gap:6px;
+  -webkit-overflow-scrolling:auto!important;
+  touch-action:pan-y;
+  margin-bottom:11px;
+}
+.scrapbook-category-bar button{
+  flex:0 0 auto!important;
+  max-width:100%;
+}
+.journal-palette-tabs{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  overflow:visible!important;
+  gap:6px;
+}
+.journal-palette-tabs button{
+  min-width:0!important;
+  width:100%;
+}
+
+/* Safari can behave badly with content-visibility + paint containment inside
+   a long PWA view. Each active category has at most ~30 items, so normal layout
+   is both fast enough and much more reliable. */
+.journal-palette-panel.active{
+  content-visibility:visible!important;
+  contain:none!important;
+  overflow:visible!important;
+}
+.builtin-sticker-palette,
+.journal-decor-palette,
+.journal-paper-options,
+.my-sticker-palette,
+.journal-photo-palette{
+  contain:none!important;
+  overflow:visible!important;
+  max-height:none!important;
+}
+.builtin-sticker-palette{
+  width:100%;
+}
+
+/* Root fix for "Journal Bits stuck at the top".
+   .decor-visual previously set position:relative after the base canvas rule. */
+.journal-canvas-item.decor-item.decor-visual{
+  position:absolute!important;
+  margin:0!important;
+  touch-action:none!important;
+  user-select:none!important;
+  -webkit-user-select:none!important;
+  -webkit-user-drag:none!important;
+}
+.journal-canvas-item.decor-item.decor-visual *{
+  pointer-events:none!important;
+}
+
+/* Transparent preview checkerboard. */
+.sticker-import-preview{
+  background:
+    linear-gradient(45deg,#ffffff 25%,#f2e8ed 25% 50%,#ffffff 50% 75%,#f2e8ed 75%) 0 0/20px 20px!important;
+}
+.sticker-import-status{
+  min-height:18px;
+  margin:8px 2px 0;
+  color:#9a7e89;
+  font-size:8.5px;
+  line-height:1.45;
+  text-align:center;
+}
+.sticker-import-status::before{
+  content:"✦ ";
+  color:#d580a3;
+}
+
+@media(max-width:430px){
+  .builtin-sticker-palette{
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  }
+  .journal-decor-palette{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+}

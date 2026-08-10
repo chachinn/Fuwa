@@ -61,6 +61,9 @@ let journalCanvasAssetUrls = new Map();
 let journalCanvasMediaUrls = new Map();
 let pendingStickerImportFile = null;
 let pendingStickerImportPreviewUrl = "";
+let pendingStickerProcessedBlob = null;
+let pendingStickerProcessedUrl = "";
+let stickerImportPreviewToken = 0;
 let stickerImportProcessing = false;
 let activePhotoViewerId = null;
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -5596,32 +5599,56 @@ function selectJournalCanvasItem(id) {
 
 function beginJournalCanvasDrag(event) {
   if (!journalCanvasState) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+
   event.preventDefault();
+  event.stopPropagation();
+
   const element = event.currentTarget;
   const id = element.dataset.canvasItem;
   const item = journalCanvasState.items.find(x => x.id === id);
   const paper = $("journalCanvasPaper");
   if (!item || !paper) return;
+
   selectedJournalCanvasItemId = id;
+  document.querySelectorAll("[data-canvas-item]").forEach(node => {
+    node.classList.toggle("selected", node.dataset.canvasItem === id);
+  });
+  renderJournalCanvasControls();
+
+  const pointerId = event.pointerId;
   const rect = paper.getBoundingClientRect();
-  element.setPointerCapture?.(event.pointerId);
+  let moved = false;
+
+  try { element.setPointerCapture?.(pointerId); } catch {}
 
   const move = moveEvent => {
-    item.x = Math.max(0.03, Math.min(0.97, (moveEvent.clientX - rect.left) / rect.width));
-    item.y = Math.max(0.03, Math.min(0.97, (moveEvent.clientY - rect.top) / rect.height));
+    if (moveEvent.pointerId !== pointerId) return;
+    moveEvent.preventDefault();
+
+    const nextX = (moveEvent.clientX - rect.left) / Math.max(1, rect.width);
+    const nextY = (moveEvent.clientY - rect.top) / Math.max(1, rect.height);
+
+    item.x = Math.max(0.03, Math.min(0.97, nextX));
+    item.y = Math.max(0.03, Math.min(0.97, nextY));
     element.style.left = `${item.x * 100}%`;
     element.style.top = `${item.y * 100}%`;
+    moved = true;
   };
-  const end = () => {
-    element.removeEventListener("pointermove", move);
-    element.removeEventListener("pointerup", end);
-    element.removeEventListener("pointercancel", end);
+
+  const end = endEvent => {
+    if (endEvent?.pointerId != null && endEvent.pointerId !== pointerId) return;
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", end);
+    try { element.releasePointerCapture?.(pointerId); } catch {}
+    if (moved) queueJournalCanvasSave();
     renderJournalCanvasControls();
-    queueJournalCanvasSave();
   };
-  element.addEventListener("pointermove", move);
-  element.addEventListener("pointerup", end, { once: true });
-  element.addEventListener("pointercancel", end, { once: true });
+
+  window.addEventListener("pointermove", move, { passive: false });
+  window.addEventListener("pointerup", end);
+  window.addEventListener("pointercancel", end);
 }
 
 function addJournalCanvasItem(item) {
@@ -5801,63 +5828,203 @@ async function renderMyStickerPalette() {
 
 async function removeStickerBackgroundLocally(blob) {
   const image = await imageFromBlob(blob);
-  const maxDimension = 1000;
+  const maxDimension = 900;
   const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
   const width = Math.max(1, Math.round(image.naturalWidth * scale));
   const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d", { alpha: true, willReadFrequently: true });
   if (!context) throw new Error("Canvas is unavailable.");
+
   context.clearRect(0, 0, width, height);
   context.drawImage(image, 0, 0, width, height);
 
-  // Estimate the background from edge pixels. This is deliberately local and
-  // lightweight rather than an AI upload. It works best for plain/light backdrops.
-  const sample = context.getImageData(0, 0, width, height);
-  const pixels = sample.data;
-  const edgeColors = [];
-  const step = Math.max(1, Math.floor(Math.min(width, height) / 60));
-  const pushPixel = (x, y) => {
-    const index = (y * width + x) * 4;
-    if (pixels[index + 3] > 20) edgeColors.push([pixels[index], pixels[index + 1], pixels[index + 2]]);
-  };
-  for (let x = 0; x < width; x += step) { pushPixel(x, 0); pushPixel(x, height - 1); }
-  for (let y = 0; y < height; y += step) { pushPixel(0, y); pushPixel(width - 1, y); }
-  if (!edgeColors.length) return blob;
+  const frame = context.getImageData(0, 0, width, height);
+  const pixels = frame.data;
+  const pixelCount = width * height;
 
-  const background = edgeColors.reduce((acc, color) => [acc[0] + color[0], acc[1] + color[1], acc[2] + color[2]], [0, 0, 0]).map(total => total / edgeColors.length);
-  const clearDistance = 34;
-  const featherDistance = 82;
-  for (let i = 0; i < pixels.length; i += 4) {
-    if (i > 0 && i % 400000 === 0) {
-      await new Promise(resolve => requestAnimationFrame(() => resolve()));
+  // Build a small palette from the image edges instead of averaging every
+  // edge into one color. This handles watercolor/gradient backgrounds much
+  // better than v70's single-average-color method.
+  const buckets = new Map();
+  const quantize = value => Math.min(255, Math.round(value / 24) * 24);
+  const addEdgeColor = (x, y) => {
+    const offset = (y * width + x) * 4;
+    if (pixels[offset + 3] < 20) return;
+    const qr = quantize(pixels[offset]);
+    const qg = quantize(pixels[offset + 1]);
+    const qb = quantize(pixels[offset + 2]);
+    const key = `${qr},${qg},${qb}`;
+    const current = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+    current.count += 1;
+    current.r += pixels[offset];
+    current.g += pixels[offset + 1];
+    current.b += pixels[offset + 2];
+    buckets.set(key, current);
+  };
+
+  const edgeStep = Math.max(1, Math.floor(Math.min(width, height) / 120));
+  for (let x = 0; x < width; x += edgeStep) {
+    addEdgeColor(x, 0);
+    addEdgeColor(x, height - 1);
+  }
+  for (let y = 0; y < height; y += edgeStep) {
+    addEdgeColor(0, y);
+    addEdgeColor(width - 1, y);
+  }
+
+  const palette = [...buckets.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 24)
+    .map(bucket => [
+      bucket.r / bucket.count,
+      bucket.g / bucket.count,
+      bucket.b / bucket.count
+    ]);
+
+  if (!palette.length) throw new Error("Fuwa could not detect a background.");
+
+  const distanceToPaletteSq = pixelIndex => {
+    const offset = pixelIndex * 4;
+    const r = pixels[offset];
+    const g = pixels[offset + 1];
+    const b = pixels[offset + 2];
+    let best = Infinity;
+    for (const color of palette) {
+      const dr = r - color[0];
+      const dg = g - color[1];
+      const db = b - color[2];
+      const distance = dr * dr + dg * dg + db * db;
+      if (distance < best) best = distance;
     }
-    if (pixels[i + 3] === 0) continue;
-    const dr = pixels[i] - background[0];
-    const dg = pixels[i + 1] - background[1];
-    const db = pixels[i + 2] - background[2];
-    const distance = Math.sqrt(dr * dr + dg * dg + db * db);
-    if (distance <= clearDistance) {
-      pixels[i + 3] = 0;
-    } else if (distance < featherDistance) {
-      const factor = (distance - clearDistance) / (featherDistance - clearDistance);
-      pixels[i + 3] = Math.round(pixels[i + 3] * factor);
+    return best;
+  };
+
+  const buildConnectedBackgroundMask = async tolerance => {
+    const toleranceSq = tolerance * tolerance;
+    const mask = new Uint8Array(pixelCount);
+    const queue = new Int32Array(pixelCount);
+    let head = 0;
+    let tail = 0;
+
+    const tryAdd = pixelIndex => {
+      if (pixelIndex < 0 || pixelIndex >= pixelCount || mask[pixelIndex]) return;
+      const alpha = pixels[pixelIndex * 4 + 3];
+      if (alpha <= 10) {
+        mask[pixelIndex] = 1;
+        queue[tail++] = pixelIndex;
+        return;
+      }
+      if (distanceToPaletteSq(pixelIndex) <= toleranceSq) {
+        mask[pixelIndex] = 1;
+        queue[tail++] = pixelIndex;
+      }
+    };
+
+    // Start only from image borders so similarly colored areas inside the
+    // subject are not removed unless they are actually connected to background.
+    for (let x = 0; x < width; x++) {
+      tryAdd(x);
+      tryAdd((height - 1) * width + x);
+    }
+    for (let y = 1; y < height - 1; y++) {
+      tryAdd(y * width);
+      tryAdd(y * width + width - 1);
+    }
+
+    while (head < tail) {
+      const pixelIndex = queue[head++];
+      const x = pixelIndex % width;
+      const y = Math.floor(pixelIndex / width);
+
+      if (x > 0) tryAdd(pixelIndex - 1);
+      if (x < width - 1) tryAdd(pixelIndex + 1);
+      if (y > 0) tryAdd(pixelIndex - width);
+      if (y < height - 1) tryAdd(pixelIndex + width);
+
+      if (head % 45000 === 0) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+    }
+
+    return { mask, removed: tail, tolerance };
+  };
+
+  let result = await buildConnectedBackgroundMask(82);
+  let ratio = result.removed / pixelCount;
+
+  // Automatically adapt if the initial pass is too timid or too aggressive.
+  if (ratio < 0.055) {
+    result = await buildConnectedBackgroundMask(108);
+    ratio = result.removed / pixelCount;
+  } else if (ratio > 0.78) {
+    result = await buildConnectedBackgroundMask(62);
+    ratio = result.removed / pixelCount;
+  }
+
+  if (ratio < 0.01) {
+    throw new Error("Fuwa could not confidently separate this background.");
+  }
+
+  const mask = result.mask;
+  const featherToleranceSq = Math.pow(result.tolerance + 38, 2);
+
+  for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
+    const offset = pixelIndex * 4;
+    if (mask[pixelIndex]) {
+      pixels[offset + 3] = 0;
+      continue;
+    }
+
+    // Feather just the foreground pixels touching the removed area.
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    const touchesBackground =
+      (x > 0 && mask[pixelIndex - 1]) ||
+      (x < width - 1 && mask[pixelIndex + 1]) ||
+      (y > 0 && mask[pixelIndex - width]) ||
+      (y < height - 1 && mask[pixelIndex + width]);
+
+    if (touchesBackground) {
+      const distanceSq = distanceToPaletteSq(pixelIndex);
+      if (distanceSq < featherToleranceSq) {
+        const distance = Math.sqrt(distanceSq);
+        const start = result.tolerance;
+        const end = result.tolerance + 38;
+        const factor = Math.max(0.18, Math.min(1, (distance - start) / Math.max(1, end - start)));
+        pixels[offset + 3] = Math.round(pixels[offset + 3] * factor);
+      }
+    }
+
+    if (pixelIndex > 0 && pixelIndex % 120000 === 0) {
+      await new Promise(resolve => requestAnimationFrame(resolve));
     }
   }
-  context.putImageData(sample, 0, 0);
+
+  context.putImageData(frame, 0, 0);
+
   return new Promise((resolve, reject) => {
-    canvas.toBlob(result => result ? resolve(result) : reject(new Error("Background removal failed.")), "image/png");
+    canvas.toBlob(
+      resultBlob => resultBlob ? resolve(resultBlob) : reject(new Error("Background removal failed.")),
+      "image/png"
+    );
   });
 }
 
 function cleanupPendingStickerImport() {
+  stickerImportPreviewToken += 1;
   if (pendingStickerImportPreviewUrl) URL.revokeObjectURL(pendingStickerImportPreviewUrl);
+  if (pendingStickerProcessedUrl) URL.revokeObjectURL(pendingStickerProcessedUrl);
   pendingStickerImportPreviewUrl = "";
+  pendingStickerProcessedUrl = "";
+  pendingStickerProcessedBlob = null;
   pendingStickerImportFile = null;
   if ($("stickerImportPreview")) $("stickerImportPreview").removeAttribute("src");
   if ($("stickerImportRemoveBackground")) $("stickerImportRemoveBackground").checked = false;
+  if ($("stickerImportStatus")) $("stickerImportStatus").textContent = "Previewing the original photo.";
 }
 
 function closeStickerImportSheet(options = {}) {
@@ -5872,7 +6039,53 @@ function openStickerImportSheet(file) {
   pendingStickerImportPreviewUrl = URL.createObjectURL(file);
   if ($("stickerImportPreview")) $("stickerImportPreview").src = pendingStickerImportPreviewUrl;
   if ($("stickerImportRemoveBackground")) $("stickerImportRemoveBackground").checked = false;
+  if ($("stickerImportStatus")) $("stickerImportStatus").textContent = "Previewing the original photo.";
   $("stickerImportSheet")?.classList.remove("hidden");
+}
+
+async function refreshStickerBackgroundPreview() {
+  const file = pendingStickerImportFile;
+  const checkbox = $("stickerImportRemoveBackground");
+  const preview = $("stickerImportPreview");
+  const status = $("stickerImportStatus");
+  const saveButton = $("stickerImportSave");
+  if (!file || !checkbox || !preview) return;
+
+  const token = ++stickerImportPreviewToken;
+
+  if (!checkbox.checked) {
+    pendingStickerProcessedBlob = null;
+    if (pendingStickerProcessedUrl) URL.revokeObjectURL(pendingStickerProcessedUrl);
+    pendingStickerProcessedUrl = "";
+    preview.src = pendingStickerImportPreviewUrl;
+    if (status) status.textContent = "Previewing the original photo.";
+    if (saveButton) saveButton.disabled = false;
+    return;
+  }
+
+  if (status) status.textContent = "Removing the background locally…";
+  if (saveButton) saveButton.disabled = true;
+
+  try {
+    const processed = await removeStickerBackgroundLocally(file);
+    if (token !== stickerImportPreviewToken || !pendingStickerImportFile) return;
+
+    pendingStickerProcessedBlob = processed;
+    if (pendingStickerProcessedUrl) URL.revokeObjectURL(pendingStickerProcessedUrl);
+    pendingStickerProcessedUrl = URL.createObjectURL(processed);
+    preview.src = pendingStickerProcessedUrl;
+    if (status) status.textContent = "Transparent preview ready. The checkerboard shows removed areas.";
+  } catch (error) {
+    console.error("Could not preview background removal.", error);
+    if (token !== stickerImportPreviewToken) return;
+    pendingStickerProcessedBlob = null;
+    checkbox.checked = false;
+    preview.src = pendingStickerImportPreviewUrl;
+    if (status) status.textContent = "This background was too difficult to separate safely. The original photo is shown.";
+    toast("Fuwa couldn't cleanly remove this background.");
+  } finally {
+    if (token === stickerImportPreviewToken && saveButton) saveButton.disabled = false;
+  }
 }
 
 async function importCustomSticker(event) {
@@ -5905,7 +6118,9 @@ async function savePreparedCustomSticker() {
       toast("Removing this photo's background on your device…");
       await new Promise(resolve => requestAnimationFrame(() => resolve()));
     }
-    const processedBlob = removeBackground ? await removeStickerBackgroundLocally(file) : file;
+    const processedBlob = removeBackground
+      ? (pendingStickerProcessedBlob || await removeStickerBackgroundLocally(file))
+      : file;
     if (processedBlob.size > 8 * 1024 * 1024) throw new Error("Processed sticker is too large.");
     const record = {
       id: uid("sticker"),
@@ -8273,6 +8488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("stickerImportClose")?.addEventListener("click", closeStickerImportSheet);
   $("stickerImportCancel")?.addEventListener("click", closeStickerImportSheet);
   $("stickerImportSave")?.addEventListener("click", savePreparedCustomSticker);
+  $("stickerImportRemoveBackground")?.addEventListener("change", refreshStickerBackgroundPreview);
   $("stickerImportSheet")?.addEventListener("click", event => {
     if (event.target === $("stickerImportSheet")) closeStickerImportSheet();
   });
