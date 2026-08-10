@@ -1,12 +1,13 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 10;
+const DATABASE_VERSION = 11;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "journalCanvases", "stickerAssets", "settings"];
+const LOCAL_ONLY_STORES = new Set(["media", "journalCanvases", "stickerAssets", "settings"]);
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -44,6 +45,11 @@ let state = structuredClone(defaultState);
 let currentView = "home";
 let editorMedia = [];
 let removedMediaIds = new Set();
+let activeJournalCanvasEntryId = null;
+let journalCanvasState = null;
+let selectedJournalCanvasItemId = null;
+let journalCanvasAssetUrls = new Map();
+let journalCanvasMediaUrls = new Map();
 let activePhotoViewerId = null;
 let moodJarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let editingThreadId = null;
@@ -376,6 +382,11 @@ const diaryRepository = {
       if (!bookmarkStore.indexNames.contains("revisitDate")) {
         bookmarkStore.createIndex("revisitDate", "revisitDate", { unique: false });
       }
+
+      const canvasStore = request.transaction.objectStore("journalCanvases");
+      if (!canvasStore.indexNames.contains("entryId")) {
+        canvasStore.createIndex("entryId", "entryId", { unique: true });
+      }
     };
     this.db = await requestResult(request);
   },
@@ -392,14 +403,18 @@ const diaryRepository = {
     const transaction = this.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).put(record);
     await transactionDone(transaction);
-    announceLocalDataChange({ action: "save", storeName, recordId: record?.id || null });
+    if (!LOCAL_ONLY_STORES.has(storeName)) {
+      announceLocalDataChange({ action: "save", storeName, recordId: record?.id || null });
+    }
   },
 
   async remove(storeName, id) {
     const transaction = this.db.transaction(storeName, "readwrite");
     transaction.objectStore(storeName).delete(id);
     await transactionDone(transaction);
-    announceLocalDataChange({ action: "remove", storeName, recordId: id });
+    if (!LOCAL_ONLY_STORES.has(storeName)) {
+      announceLocalDataChange({ action: "remove", storeName, recordId: id });
+    }
   },
 
   async getMediaForEntry(entryId) {
@@ -441,8 +456,9 @@ const diaryRepository = {
       this.getMediaForEntry(entryId),
       this.getBookmarksForEntry(entryId)
     ]);
-    const transaction = this.db.transaction(["entries", "media", "bookmarks"], "readwrite");
+    const transaction = this.db.transaction(["entries", "media", "bookmarks", "journalCanvases"], "readwrite");
     transaction.objectStore("entries").delete(entryId);
+    transaction.objectStore("journalCanvases").delete(entryId);
     const mediaStore = transaction.objectStore("media");
     mediaRecords.forEach(record => mediaStore.delete(record.id));
     const bookmarkStore = transaction.objectStore("bookmarks");
@@ -4795,6 +4811,296 @@ async function openEditor(entryId = null, dateOverride = null) {
   setTimeout(() => $("entryTitle").focus(), 80);
 }
 
+
+const FUWA_BUILTIN_STICKERS = [
+  "🌸","🌷","🌼","🎀","☁️","✨","⭐","🌙","💗","💌","🍓","🍰",
+  "☕","🧸","🐰","🐱","🫧","🌿","🍀","🕯️","📖","📎","✈️","🎧"
+];
+
+function defaultJournalCanvas(entryId) {
+  return {
+    id: entryId,
+    entryId,
+    background: "blush",
+    items: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function cleanupJournalCanvasUrls() {
+  for (const url of journalCanvasAssetUrls.values()) URL.revokeObjectURL(url);
+  for (const url of journalCanvasMediaUrls.values()) URL.revokeObjectURL(url);
+  journalCanvasAssetUrls.clear();
+  journalCanvasMediaUrls.clear();
+}
+
+async function loadJournalCanvasAssetUrls() {
+  cleanupJournalCanvasUrls();
+  const [assets, media] = await Promise.all([
+    diaryRepository.getAll("stickerAssets"),
+    activeJournalCanvasEntryId ? diaryRepository.getMediaForEntry(activeJournalCanvasEntryId) : Promise.resolve([])
+  ]);
+  assets.forEach(asset => {
+    if (asset?.blob) journalCanvasAssetUrls.set(asset.id, URL.createObjectURL(asset.blob));
+  });
+  media.forEach(record => {
+    if (record?.blob) journalCanvasMediaUrls.set(record.id, URL.createObjectURL(record.blob));
+  });
+  return { assets, media };
+}
+
+function journalCanvasItemMarkup(item) {
+  const style = `left:${Math.max(0, Math.min(1, Number(item.x ?? .5))) * 100}%;top:${Math.max(0, Math.min(1, Number(item.y ?? .5))) * 100}%;transform:translate(-50%,-50%) rotate(${Number(item.rotation || 0)}deg) scale(${Number(item.scale || 1)});z-index:${Number(item.z || 1)};`;
+  const selected = item.id === selectedJournalCanvasItemId ? " selected" : "";
+  if (item.type === "builtin") {
+    return `<button type="button" class="journal-canvas-item sticker-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Sticker">${escapeHtml(item.content || "✨")}</button>`;
+  }
+  if (item.type === "custom") {
+    const src = journalCanvasAssetUrls.get(item.assetId) || "";
+    return `<button type="button" class="journal-canvas-item image-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Custom sticker"><img src="${src}" alt="Custom sticker"></button>`;
+  }
+  if (item.type === "photo") {
+    const src = journalCanvasMediaUrls.get(item.mediaId) || "";
+    return `<button type="button" class="journal-canvas-item photo-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}" aria-label="Entry photo"><img src="${src}" alt="Entry photo"></button>`;
+  }
+  return `<button type="button" class="journal-canvas-item text-item${selected}" data-canvas-item="${escapeHtml(item.id)}" style="${style}">${escapeHtml(item.text || "Little note")}</button>`;
+}
+
+function bindJournalCanvasItems() {
+  document.querySelectorAll("[data-canvas-item]").forEach(element => {
+    element.addEventListener("click", event => {
+      event.stopPropagation();
+      selectJournalCanvasItem(element.dataset.canvasItem);
+    });
+    element.addEventListener("pointerdown", beginJournalCanvasDrag);
+  });
+}
+
+function renderJournalCanvas() {
+  const canvas = $("journalCanvasPaper");
+  if (!canvas || !journalCanvasState) return;
+  canvas.dataset.paper = journalCanvasState.background || "blush";
+  canvas.innerHTML = journalCanvasState.items.map(journalCanvasItemMarkup).join("");
+  bindJournalCanvasItems();
+  renderJournalCanvasControls();
+}
+
+function renderJournalCanvasControls() {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId) || null;
+  $("journalCanvasItemControls")?.classList.toggle("hidden", !item);
+  if (!item) return;
+  if ($("journalCanvasScale")) $("journalCanvasScale").value = String(Math.round((item.scale || 1) * 100));
+  if ($("journalCanvasRotation")) $("journalCanvasRotation").value = String(Number(item.rotation || 0));
+}
+
+function selectJournalCanvasItem(id) {
+  selectedJournalCanvasItemId = id;
+  renderJournalCanvas();
+}
+
+function beginJournalCanvasDrag(event) {
+  if (!journalCanvasState) return;
+  event.preventDefault();
+  const element = event.currentTarget;
+  const id = element.dataset.canvasItem;
+  const item = journalCanvasState.items.find(x => x.id === id);
+  const paper = $("journalCanvasPaper");
+  if (!item || !paper) return;
+  selectedJournalCanvasItemId = id;
+  const rect = paper.getBoundingClientRect();
+  element.setPointerCapture?.(event.pointerId);
+
+  const move = moveEvent => {
+    item.x = Math.max(0.03, Math.min(0.97, (moveEvent.clientX - rect.left) / rect.width));
+    item.y = Math.max(0.03, Math.min(0.97, (moveEvent.clientY - rect.top) / rect.height));
+    element.style.left = `${item.x * 100}%`;
+    element.style.top = `${item.y * 100}%`;
+  };
+  const end = () => {
+    element.removeEventListener("pointermove", move);
+    element.removeEventListener("pointerup", end);
+    element.removeEventListener("pointercancel", end);
+    renderJournalCanvasControls();
+  };
+  element.addEventListener("pointermove", move);
+  element.addEventListener("pointerup", end, { once: true });
+  element.addEventListener("pointercancel", end, { once: true });
+}
+
+function addJournalCanvasItem(item) {
+  if (!journalCanvasState) return;
+  const maxZ = journalCanvasState.items.reduce((max, current) => Math.max(max, Number(current.z || 0)), 0);
+  const record = {
+    id: uid("canvas"),
+    x: .5,
+    y: .46,
+    scale: 1,
+    rotation: 0,
+    z: maxZ + 1,
+    ...item
+  };
+  journalCanvasState.items.push(record);
+  selectedJournalCanvasItemId = record.id;
+  renderJournalCanvas();
+}
+
+function renderBuiltinStickerPalette() {
+  const host = $("builtinStickerPalette");
+  if (!host) return;
+  host.innerHTML = FUWA_BUILTIN_STICKERS.map(sticker => `<button type="button" class="sticker-palette-button" data-add-builtin-sticker="${escapeHtml(sticker)}">${escapeHtml(sticker)}</button>`).join("");
+  host.querySelectorAll("[data-add-builtin-sticker]").forEach(button => {
+    button.addEventListener("click", () => addJournalCanvasItem({ type: "builtin", content: button.dataset.addBuiltinSticker }));
+  });
+}
+
+async function renderMyStickerPalette() {
+  const host = $("myStickerPalette");
+  if (!host) return;
+  const assets = await diaryRepository.getAll("stickerAssets");
+  host.innerHTML = assets.length ? assets.sort((a,b) => b.createdAt - a.createdAt).map(asset => {
+    const src = journalCanvasAssetUrls.get(asset.id) || "";
+    return `<div class="my-sticker-chip"><button type="button" data-add-custom-sticker="${escapeHtml(asset.id)}"><img src="${src}" alt="${escapeHtml(asset.name || "My sticker")}"></button><button type="button" class="my-sticker-delete" data-delete-custom-sticker="${escapeHtml(asset.id)}" aria-label="Delete sticker">×</button></div>`;
+  }).join("") : `<p class="journal-palette-empty">Import PNG, JPG, or WebP stickers from your device. Transparent PNG/WebP works best.</p>`;
+  host.querySelectorAll("[data-add-custom-sticker]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "custom", assetId: button.dataset.addCustomSticker })));
+  host.querySelectorAll("[data-delete-custom-sticker]").forEach(button => button.addEventListener("click", () => deleteCustomSticker(button.dataset.deleteCustomSticker)));
+}
+
+async function importCustomSticker(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) return toast("Choose an image for your sticker.");
+  if (file.size > 6 * 1024 * 1024) return toast("Keep sticker images under 6 MB.");
+  const record = {
+    id: uid("sticker"),
+    name: file.name.replace(/\.[^.]+$/, "") || "My sticker",
+    blob: file,
+    type: file.type,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  try {
+    await diaryRepository.save("stickerAssets", record);
+    const url = URL.createObjectURL(record.blob);
+    journalCanvasAssetUrls.set(record.id, url);
+    await renderMyStickerPalette();
+    addJournalCanvasItem({ type: "custom", assetId: record.id });
+    toast("Sticker added to My Stickers 🎀");
+  } catch (error) {
+    console.error("Could not save custom sticker.", error);
+    toast("Fuwa couldn't save that sticker on this device.");
+  }
+}
+
+async function deleteCustomSticker(assetId) {
+  if (!confirm("Delete this sticker from My Stickers? Existing decorated pages using it will show a missing sticker.")) return;
+  try {
+    await diaryRepository.remove("stickerAssets", assetId);
+    const url = journalCanvasAssetUrls.get(assetId);
+    if (url) URL.revokeObjectURL(url);
+    journalCanvasAssetUrls.delete(assetId);
+    await renderMyStickerPalette();
+    renderJournalCanvas();
+  } catch (error) {
+    console.error("Could not delete custom sticker.", error);
+    toast("Fuwa couldn't delete that sticker.");
+  }
+}
+
+async function renderJournalPhotoPalette() {
+  const host = $("journalPhotoPalette");
+  if (!host) return;
+  const media = await diaryRepository.getMediaForEntry(activeJournalCanvasEntryId);
+  host.innerHTML = media.length ? media.map(record => `<button type="button" class="journal-photo-chip" data-add-entry-photo="${escapeHtml(record.id)}"><img src="${journalCanvasMediaUrls.get(record.id) || ""}" alt="Entry photo"></button>`).join("") : `<p class="journal-palette-empty">This entry has no saved photos yet.</p>`;
+  host.querySelectorAll("[data-add-entry-photo]").forEach(button => button.addEventListener("click", () => addJournalCanvasItem({ type: "photo", mediaId: button.dataset.addEntryPhoto, scale: .9 })));
+}
+
+function switchJournalPalette(tab) {
+  document.querySelectorAll("[data-journal-palette-tab]").forEach(button => button.classList.toggle("active", button.dataset.journalPaletteTab === tab));
+  document.querySelectorAll("[data-journal-palette-panel]").forEach(panel => panel.classList.toggle("active", panel.dataset.journalPalettePanel === tab));
+}
+
+async function openJournalCanvas() {
+  const entryId = $("entryId")?.value;
+  if (!entryId) {
+    toast("Save this entry first, then decorate its page 🎀");
+    return;
+  }
+  activeJournalCanvasEntryId = entryId;
+  selectedJournalCanvasItemId = null;
+  journalCanvasState = await diaryRepository.get("journalCanvases", entryId) || defaultJournalCanvas(entryId);
+  await loadJournalCanvasAssetUrls();
+  renderBuiltinStickerPalette();
+  await renderMyStickerPalette();
+  await renderJournalPhotoPalette();
+  switchJournalPalette("stickers");
+  renderJournalCanvas();
+  navigate("journalCanvas");
+}
+
+function closeJournalCanvas() {
+  cleanupJournalCanvasUrls();
+  selectedJournalCanvasItemId = null;
+  journalCanvasState = null;
+  const entryId = activeJournalCanvasEntryId;
+  activeJournalCanvasEntryId = null;
+  openEditor(entryId);
+}
+
+async function saveJournalCanvas() {
+  if (!journalCanvasState || !activeJournalCanvasEntryId) return;
+  try {
+    journalCanvasState.updatedAt = Date.now();
+    await diaryRepository.save("journalCanvases", structuredClone(journalCanvasState));
+    toast("Decorated page saved locally 🎀");
+  } catch (error) {
+    console.error("Could not save decorated page.", error);
+    toast("Fuwa couldn't save this decorated page.");
+  }
+}
+
+function updateSelectedJournalItem(patch) {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item) return;
+  Object.assign(item, patch);
+  renderJournalCanvas();
+}
+
+function removeSelectedJournalItem() {
+  if (!journalCanvasState || !selectedJournalCanvasItemId) return;
+  journalCanvasState.items = journalCanvasState.items.filter(x => x.id !== selectedJournalCanvasItemId);
+  selectedJournalCanvasItemId = null;
+  renderJournalCanvas();
+}
+
+function duplicateSelectedJournalItem() {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item) return;
+  addJournalCanvasItem({ ...structuredClone(item), id: undefined, x: Math.min(.92, (item.x || .5) + .06), y: Math.min(.92, (item.y || .5) + .06) });
+}
+
+function moveSelectedJournalItemLayer(direction) {
+  const item = journalCanvasState?.items.find(x => x.id === selectedJournalCanvasItemId);
+  if (!item) return;
+  const zValues = journalCanvasState.items.map(x => Number(x.z || 1));
+  item.z = direction > 0 ? Math.max(...zValues, 1) + 1 : Math.min(...zValues, 1) - 1;
+  renderJournalCanvas();
+}
+
+function addJournalText() {
+  const text = window.prompt("Add a little text to the page:", "Little note");
+  if (text == null || !text.trim()) return;
+  addJournalCanvasItem({ type: "text", text: text.trim(), scale: .9 });
+}
+
+function setJournalPaper(name) {
+  if (!journalCanvasState) return;
+  journalCanvasState.background = name;
+  document.querySelectorAll("[data-journal-paper]").forEach(button => button.classList.toggle("active", button.dataset.journalPaper === name));
+  renderJournalCanvas();
+}
+
 async function saveEntry() {
   const id = $("entryId").value;
   const title = $("entryTitle").value.trim();
@@ -6187,6 +6493,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("newEntryButton").addEventListener("click", () => openEditor());
   $("navCreate").addEventListener("click", () => openEditor());
   $("saveEntryButton").addEventListener("click", saveEntry);
+  $("decorateEntryButton")?.addEventListener("click", openJournalCanvas);
+  $("journalCanvasBack")?.addEventListener("click", closeJournalCanvas);
+  $("saveJournalCanvasButton")?.addEventListener("click", saveJournalCanvas);
+  $("journalCanvasPaper")?.addEventListener("click", () => { selectedJournalCanvasItemId = null; renderJournalCanvas(); });
+  $("importStickerButton")?.addEventListener("click", () => $("customStickerInput")?.click());
+  $("customStickerInput")?.addEventListener("change", importCustomSticker);
+  $("addJournalTextButton")?.addEventListener("click", addJournalText);
+  document.querySelectorAll("[data-journal-palette-tab]").forEach(button => button.addEventListener("click", () => switchJournalPalette(button.dataset.journalPaletteTab)));
+  document.querySelectorAll("[data-journal-paper]").forEach(button => button.addEventListener("click", () => setJournalPaper(button.dataset.journalPaper)));
+  $("journalCanvasScale")?.addEventListener("input", event => updateSelectedJournalItem({ scale: Number(event.target.value) / 100 }));
+  $("journalCanvasRotation")?.addEventListener("input", event => updateSelectedJournalItem({ rotation: Number(event.target.value) }));
+  $("journalCanvasDuplicate")?.addEventListener("click", duplicateSelectedJournalItem);
+  $("journalCanvasForward")?.addEventListener("click", () => moveSelectedJournalItemLayer(1));
+  $("journalCanvasBackward")?.addEventListener("click", () => moveSelectedJournalItemLayer(-1));
+  $("journalCanvasDelete")?.addEventListener("click", removeSelectedJournalItem);
   $("cancelEditor").addEventListener("click", () => {
     cleanupEditorMediaPreviews();
     navigate("entries");

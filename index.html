@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v59-stable-contextual-tutorials -->
+  <!-- FUWA_BUILD: v62-local-journal-canvas -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1220,6 +1220,14 @@
             <div class="photo-grid" id="entryPhotoGrid"></div>
           </div>
 
+          <div class="editor-section journal-decorate-entry-section">
+            <div>
+              <label>Decorated Journal Page</label>
+              <small>Turn this saved entry into a scrapbook page with stickers, photos, and little notes.</small>
+            </div>
+            <button type="button" class="journal-decorate-button" id="decorateEntryButton">🎀 Decorate Page</button>
+          </div>
+
           <div class="editor-section">
             <label for="entryTags">Tags</label>
             <input id="entryTags" placeholder="travel, work, japan, little joys" />
@@ -1235,6 +1243,74 @@
             <button type="button" class="danger-btn hidden" id="deleteEntryButton">Delete entry</button>
           </div>
         </form>
+      </section>
+
+      <section class="view journal-canvas-view" id="journalCanvasView">
+        <div class="journal-canvas-topbar">
+          <button class="text-btn" id="journalCanvasBack" type="button">Back</button>
+          <div>
+            <p class="eyebrow">Decorate your memory</p>
+            <h2>Journal Page</h2>
+          </div>
+          <button class="text-btn strong" id="saveJournalCanvasButton" type="button">Save</button>
+        </div>
+
+        <div class="journal-paper-wrap">
+          <div class="journal-canvas-paper" id="journalCanvasPaper" data-paper="blush" aria-label="Decorated journal canvas"></div>
+        </div>
+
+        <div class="journal-item-controls hidden" id="journalCanvasItemControls">
+          <label>Size <input id="journalCanvasScale" type="range" min="45" max="180" value="100" /></label>
+          <label>Rotate <input id="journalCanvasRotation" type="range" min="-180" max="180" value="0" /></label>
+          <div class="journal-layer-actions">
+            <button type="button" id="journalCanvasBackward">Back layer</button>
+            <button type="button" id="journalCanvasForward">Front layer</button>
+            <button type="button" id="journalCanvasDuplicate">Duplicate</button>
+            <button type="button" class="danger" id="journalCanvasDelete">Delete</button>
+          </div>
+        </div>
+
+        <div class="journal-palette">
+          <div class="journal-palette-tabs">
+            <button type="button" class="active" data-journal-palette-tab="stickers">Stickers</button>
+            <button type="button" data-journal-palette-tab="mine">My Stickers</button>
+            <button type="button" data-journal-palette-tab="photos">Photos</button>
+            <button type="button" data-journal-palette-tab="paper">Paper</button>
+          </div>
+
+          <div class="journal-palette-panel active" data-journal-palette-panel="stickers">
+            <div class="builtin-sticker-palette" id="builtinStickerPalette"></div>
+          </div>
+
+          <div class="journal-palette-panel" data-journal-palette-panel="mine">
+            <div class="journal-palette-heading">
+              <div>
+                <strong>My Stickers</strong>
+                <small>Saved only on this device. They are not uploaded to Fuwa Cloud.</small>
+              </div>
+              <button type="button" class="journal-import-sticker" id="importStickerButton">＋ Import Sticker</button>
+            </div>
+            <input id="customStickerInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            <div class="my-sticker-palette" id="myStickerPalette"></div>
+          </div>
+
+          <div class="journal-palette-panel" data-journal-palette-panel="photos">
+            <p class="journal-palette-note">Use photos already attached to this entry.</p>
+            <div class="journal-photo-palette" id="journalPhotoPalette"></div>
+          </div>
+
+          <div class="journal-palette-panel" data-journal-palette-panel="paper">
+            <div class="journal-paper-options">
+              <button type="button" class="active" data-journal-paper="blush"><span class="paper-swatch blush"></span>Blush</button>
+              <button type="button" data-journal-paper="cream"><span class="paper-swatch cream"></span>Cream</button>
+              <button type="button" data-journal-paper="lavender"><span class="paper-swatch lavender"></span>Lavender</button>
+              <button type="button" data-journal-paper="grid"><span class="paper-swatch grid"></span>Grid</button>
+            </div>
+          </div>
+
+          <button type="button" class="journal-add-text-button" id="addJournalTextButton">＋ Add a little text</button>
+          <p class="journal-local-note">🎀 Decorated pages and imported stickers stay on this device and are not included in Fuwa Cloud backup.</p>
+        </div>
       </section>
 
       <section class="view" id="lettersView">
