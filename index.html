@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v73-final-stabilization -->
+  <!-- FUWA_BUILD: v74-daily-life-navigation-release-ritual -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -326,11 +326,12 @@
         </details>
 
         <details class="drawer-group drawer-collapsible">
-          <summary><span>Comfort & Rest</span><small>4 tools</small></summary>
+          <summary><span>Comfort & Rest</span><small>5 tools</small></summary>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="nightly" type="button"><span class="drawer-item-icon drawer-night-icon"></span><span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="sleep" type="button"><span class="drawer-item-icon drawer-sleep-icon"></span><span><strong>Sleep Corner</strong><small>Soft sounds with a timer.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="comfort" type="button"><span class="drawer-item-icon comfort-icon"></span><span><strong>Comfort Corner</strong><small>Keep soft things and future joys close.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="release" type="button"><span class="drawer-item-icon release-ritual-icon">✦</span><span><strong>Release Ritual</strong><small>Write down what is weighing on you, then let it go.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="sanctuary" type="button"><span class="drawer-item-icon sanctuary-icon"></span><span><strong>Fuwa Sanctuary</strong><small>Your little room grows with you.</small></span><b>›</b></button>
           </div>
         </details>
@@ -898,6 +899,36 @@
         <div class="feature-list" id="comfortList"></div>
       </section>
 
+      <section class="view" id="releaseView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">Put it down for a moment</p><h2>Release Ritual</h2></div>
+          <span class="page-cute-icon release-page-icon">✦</span>
+        </div>
+        <p class="muted feature-intro">Write the things that keep circling in your head. They can stay here until you are ready to let them go. Fuwa does not keep a history after you burn them.</p>
+
+        <form class="release-capture" id="releaseRitualForm">
+          <textarea id="releaseRitualInput" rows="4" maxlength="500" placeholder="Something I want to put down for now…"></textarea>
+          <button type="submit">＋ Add to the pile</button>
+        </form>
+
+        <div class="release-stage" id="releaseStage">
+          <div class="release-paper-stack" id="releasePaperStack"></div>
+          <div class="release-fire" aria-hidden="true">
+            <span class="release-flame flame-one"></span>
+            <span class="release-flame flame-two"></span>
+            <span class="release-flame flame-three"></span>
+            <span class="release-ember ember-one"></span>
+            <span class="release-ember ember-two"></span>
+            <span class="release-ember ember-three"></span>
+          </div>
+        </div>
+
+        <div class="release-actions">
+          <button type="button" class="release-burn-button" id="releaseBurnButton">Burn & release</button>
+          <p id="releaseRitualNote">Nothing is sent anywhere. Unburned slips stay only on this device.</p>
+        </div>
+      </section>
+
       <section class="view" id="monthlyView">
         <div class="page-title-row">
           <div><p class="eyebrow">Your month, gathered</p><h2>Monthly Story</h2></div>
@@ -1015,6 +1046,10 @@
               <span class="life-save-status" id="lifeSaveStatus">Not checked in</span>
             </div>
             <div class="notebook-progress" id="journalProgressDots" aria-label="Journal progress"></div>
+            <div class="journal-section-jump">
+              <div class="journal-section-tabs" id="journalSectionTabs" aria-label="Daily Life sections"></div>
+              <div class="journal-page-jump-list" id="journalPageJumpList" aria-label="Pages in this section"></div>
+            </div>
             <form id="lifeDailyForm" class="notebook-form">
               <div class="journal-page-stack" id="journalPageStack">
                 <section class="journal-page" data-journal-page="mood"><p class="eyebrow">Page 1 · Mood</p><h3>How are you feeling today?</h3><p class="journal-prompt">Pick the feeling that comes closest. You can always leave it blank.</p><div class="journal-mood-grid" id="lifeMoodPicker"><button type="button" data-life-mood="amazing">🥰<span>Amazing</span></button><button type="button" data-life-mood="good">🙂<span>Good</span></button><button type="button" data-life-mood="neutral">😐<span>Meh</span></button><button type="button" data-life-mood="tired">🥱<span>Tired</span></button><button type="button" data-life-mood="sad">😢<span>Sad</span></button><button type="button" data-life-mood="angry">😤<span>Stressed</span></button></div></section>
@@ -1022,7 +1057,7 @@
                 <section class="journal-page" data-journal-page="highlight"><p class="eyebrow">Page 3 · Highlight</p><h3>What was the best little part of today?</h3><textarea id="lifeHighlight" rows="8" maxlength="500" placeholder="A tiny thing counts."></textarea></section>
                 <section class="journal-page" data-journal-page="energy"><p class="eyebrow">Page 4 · Energy</p><h3>How much of you was available today?</h3><div class="journal-two-field"><label><span>Energy</span><select id="lifeEnergy"><option value="">Skip</option><option value="1">Very low</option><option value="2">Low</option><option value="3">Okay</option><option value="4">Good</option><option value="5">High</option></select></label><label><span>Social battery</span><select id="lifeSocial"><option value="">Skip</option><option value="1">Empty</option><option value="2">Low</option><option value="3">Half</option><option value="4">Good</option><option value="5">Full</option></select></label></div></section>
                 <section class="journal-page" data-journal-page="sleep"><p class="eyebrow">Page 5 · Sleep</p><h3>How did last night treat you?</h3><div class="journal-two-field"><label><span>Hours slept</span><input id="lifeSleepHours" type="number" min="0" max="24" step="0.5" inputmode="decimal" placeholder="7.5"></label><label><span>Sleep quality</span><select id="lifeSleepQuality"><option value="">Skip</option><option value="1">Rough</option><option value="2">Poor</option><option value="3">Okay</option><option value="4">Good</option><option value="5">Restful</option></select></label></div></section>
-                <section class="journal-page" data-journal-page="wellness"><p class="eyebrow">Page 6 · Body & Wellness</p><h3>What did your body get today?</h3><div class="journal-three-field"><label><span>Water</span><input id="lifeWater" type="number" min="0" max="30" step="1" inputmode="numeric" placeholder="6"><small>glasses</small></label><label><span>Outside time</span><select id="lifeOutside"><option value="">Skip</option><option value="0">None</option><option value="1">&lt;30 min</option><option value="2">30–60 min</option><option value="3">1h+</option></select></label><label><span>Movement mins</span><input id="lifeMovementMinutes" type="number" min="0" max="600" step="5" inputmode="numeric" placeholder="30"></label></div><div class="journal-chip-row" id="lifeMovementChoices"><button type="button" data-life-choice="movement" data-value="none">Rest</button><button type="button" data-life-choice="movement" data-value="walk">Walk</button><button type="button" data-life-choice="movement" data-value="cardio">Cardio</button><button type="button" data-life-choice="movement" data-value="strength">Strength</button><button type="button" data-life-choice="movement" data-value="yoga">Yoga</button></div></section>
+                <section class="journal-page" data-journal-page="wellness"><p class="eyebrow">Page 6 · Body & Wellness</p><h3>What did your body get today?</h3><div class="journal-three-field"><label><span>Water</span><input id="lifeWater" type="number" min="0" max="30" step="1" inputmode="numeric" placeholder="6"><small>glasses</small></label><label><span>Outside time</span><select id="lifeOutside"><option value="">Skip</option><option value="0">None</option><option value="1">&lt;30 min</option><option value="2">30–60 min</option><option value="3">1h+</option></select></label><label><span>Movement mins</span><input id="lifeMovementMinutes" type="number" min="0" max="600" step="5" inputmode="numeric" placeholder="30"></label></div><div class="journal-choice-heading"><span>Movement</span><button type="button" class="journal-edit-link compact" id="lifeEditMovementButton">Edit choices</button></div><div class="journal-chip-row" id="lifeMovementChoices"><button type="button" data-life-choice="movement" data-value="none">Rest</button><button type="button" data-life-choice="movement" data-value="walk">Walk</button><button type="button" data-life-choice="movement" data-value="cardio">Cardio</button><button type="button" data-life-choice="movement" data-value="strength">Strength</button><button type="button" data-life-choice="movement" data-value="yoga">Yoga</button></div></section>
                 <section class="journal-page" data-journal-page="mind"><p class="eyebrow">Page 7 · Mind</p><h3>How noisy was your head today?</h3><div class="journal-two-field"><label><span>Stress / anxiety</span><select id="lifeStress"><option value="">Skip</option><option value="1">Peaceful</option><option value="2">Low</option><option value="3">Moderate</option><option value="4">High</option><option value="5">Overwhelmed</option></select></label><label><span>Calmness</span><select id="lifeCalm"><option value="">Skip</option><option value="1">Not calm</option><option value="2">A little</option><option value="3">Okay</option><option value="4">Calm</option><option value="5">Very calm</option></select></label></div><textarea id="lifeMindNote" rows="5" maxlength="600" placeholder="What stayed on your mind?"></textarea></section>
                 <section class="journal-page" data-journal-page="adulting"><p class="eyebrow">Page 8 · Adulting</p><h3>What everyday things got done?</h3><div class="life-habit-grid" id="lifeHabitGrid"></div><button type="button" class="journal-edit-link" id="lifeManageHabitsButton">Edit adulting list</button></section>
                 <section class="journal-page" data-journal-page="habits"><p class="eyebrow">Page 9 · Habits</p><h3>What habits did you show up for?</h3><div class="journal-habit-custom" id="lifeCustomHabitGrid"></div><button type="button" class="journal-edit-link" id="lifeManageCustomHabitsButton">Edit personal habits</button></section>
