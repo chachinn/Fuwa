@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v47-app-lock-wallpaper-polish -->
+  <!-- FUWA_BUILD: v48-pin-keyboard-fix -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1387,10 +1387,13 @@
       </div>
       <div class="privacy-pin-cloud" aria-hidden="true"><span></span></div>
       <p class="muted" id="privacyPinHelp">Choose a 4–6 digit PIN.</p>
-      <div class="privacy-pin-dots" id="privacyPinDots" aria-hidden="true">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
+      <div class="privacy-pin-entry-wrap">
+        <div class="privacy-pin-dots pin-input-tap-target" id="privacyPinDots" aria-label="Tap to enter your Fuwa PIN">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <small class="pin-tap-hint">Tap the circles to enter your PIN</small>
       </div>
-      <input id="privacyPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="PIN" />
+      <input id="privacyPinInput" class="ios-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="PIN" />
       <button class="primary-btn" type="submit" id="privacyPinSubmit">Continue</button>
     </form>
   </div>
@@ -1406,11 +1409,14 @@
       <h1>Fuwa is resting</h1>
       <p>A little private space, just for you.</p>
 
-      <div class="unlock-dots" id="unlockDots">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
+      <div class="privacy-pin-entry-wrap">
+        <div class="unlock-dots pin-input-tap-target" id="unlockDots" aria-label="Tap to enter your Fuwa PIN">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <small class="pin-tap-hint">Tap the circles to enter your PIN</small>
       </div>
 
-      <input id="unlockPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="Enter Fuwa PIN" />
+      <input id="unlockPinInput" class="ios-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-label="Enter Fuwa PIN" />
 
       <button class="privacy-unlock-btn" id="unlockPinButton" type="button">Unlock Fuwa</button>
       <button class="privacy-biometric-btn hidden" id="unlockBiometricButton" type="button">Use Face ID / Device Unlock</button>

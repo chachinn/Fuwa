@@ -1294,6 +1294,16 @@ async function verifyPrivacyPin(pin) {
   return hash === credential.hash;
 }
 
+function focusPinInput(inputId) {
+  const input = $(inputId);
+  if (!input) return;
+  try {
+    input.focus({ preventScroll: true });
+  } catch (_) {
+    input.focus();
+  }
+}
+
 function renderPinDots(inputId, dotsId) {
   const input = $(inputId);
   const dots = $(dotsId);
@@ -1315,7 +1325,8 @@ function openPrivacyPinSetup({ lockAfterSetup = false } = {}) {
   renderPinDots("privacyPinInput", "privacyPinDots");
   $("privacyPinModal").classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  setTimeout(() => $("privacyPinInput").focus(), 80);
+  focusPinInput("privacyPinInput");
+  setTimeout(() => focusPinInput("privacyPinInput"), 120);
 }
 
 function closePrivacyPinSetup() {
@@ -1343,7 +1354,7 @@ async function handlePrivacyPinSetup(event) {
     $("privacyPinHelp").textContent = "Enter the same PIN one more time.";
     $("privacyPinInput").value = "";
     renderPinDots("privacyPinInput", "privacyPinDots");
-    $("privacyPinInput").focus();
+    focusPinInput("privacyPinInput");
     return;
   }
 
@@ -1452,7 +1463,8 @@ function lockFuwa(reason = "manual") {
   document.body.classList.add("privacy-locked");
   document.body.style.overflow = "hidden";
 
-  setTimeout(() => $("unlockPinInput").focus(), 100);
+  focusPinInput("unlockPinInput");
+  setTimeout(() => focusPinInput("unlockPinInput"), 120);
 }
 
 function unlockFuwaSuccess() {
@@ -5288,7 +5300,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   $("privacyPinCancel").addEventListener("click", closePrivacyPinSetup);
   $("privacyPinForm").addEventListener("submit", handlePrivacyPinSetup);
-  $("privacyPinInput").addEventListener("input", () => renderPinDots("privacyPinInput", "privacyPinDots"));
+  $("privacyPinInput").addEventListener("input", event => {
+    event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6);
+    renderPinDots("privacyPinInput", "privacyPinDots");
+  });
+  $("privacyPinDots")?.addEventListener("click", () => focusPinInput("privacyPinInput"));
+  $("privacyPinDots")?.addEventListener("touchend", () => focusPinInput("privacyPinInput"), { passive: true });
+  $("unlockDots")?.addEventListener("click", () => focusPinInput("unlockPinInput"));
+  $("unlockDots")?.addEventListener("touchend", () => focusPinInput("unlockPinInput"), { passive: true });
 
   $("unlockPinInput").addEventListener("input", () => renderPinDots("unlockPinInput", "unlockDots"));
   $("unlockPinInput").addEventListener("keydown", event => {

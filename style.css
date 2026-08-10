@@ -5188,9 +5188,42 @@ select,
 
 #privacyPinInput,
 #unlockPinInput {
-  position:absolute;
-  opacity:0;
-  pointer-events:none;
+  position:fixed;
+  width:1px;
+  height:1px;
+  left:50%;
+  bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  opacity:.01;
+  border:0;
+  padding:0;
+  margin:0;
+  pointer-events:auto;
+  caret-color:transparent;
+  color:transparent;
+  background:transparent;
+  font-size:16px;
+  z-index:9999;
+}
+
+.privacy-pin-entry-wrap{
+  display:grid;
+  justify-items:center;
+  gap:8px;
+  cursor:text;
+  -webkit-tap-highlight-color:transparent;
+}
+
+.pin-input-tap-target{
+  min-width:170px;
+  min-height:44px;
+  align-items:center;
+  cursor:text;
+}
+
+.pin-tap-hint{
+  color:var(--muted);
+  font-size:7px;
+  letter-spacing:.01em;
 }
 
 .privacy-lock-screen {
