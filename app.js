@@ -5846,12 +5846,28 @@ async function removeStickerBackgroundLocally(blob) {
   const pixels = frame.data;
   const pixelCount = width * height;
 
-  // Build a small palette from the image edges instead of averaging every
-  // edge into one color. This handles watercolor/gradient backgrounds much
-  // better than v70's single-average-color method.
+  const colorAt = pixelIndex => {
+    const offset = pixelIndex * 4;
+    return [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
+  };
+
+  const colorDistanceSq = (a, b) => {
+    const dr = a[0] - b[0];
+    const dg = a[1] - b[1];
+    const db = a[2] - b[2];
+    return dr * dr + dg * dg + db * db;
+  };
+
+  /*
+   * V72 gentle removal:
+   * Learn the background mostly from corner regions instead of the complete
+   * image border. People, clothing and objects often touch the bottom edge,
+   * so treating that entire edge as "background" can eat into the subject.
+   */
   const buckets = new Map();
-  const quantize = value => Math.min(255, Math.round(value / 24) * 24);
-  const addEdgeColor = (x, y) => {
+  const quantize = value => Math.min(255, Math.round(value / 20) * 20);
+  const addSample = (x, y) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
     const offset = (y * width + x) * 4;
     if (pixels[offset + 3] < 20) return;
     const qr = quantize(pixels[offset]);
@@ -5866,19 +5882,34 @@ async function removeStickerBackgroundLocally(blob) {
     buckets.set(key, current);
   };
 
-  const edgeStep = Math.max(1, Math.floor(Math.min(width, height) / 120));
-  for (let x = 0; x < width; x += edgeStep) {
-    addEdgeColor(x, 0);
-    addEdgeColor(x, height - 1);
-  }
-  for (let y = 0; y < height; y += edgeStep) {
-    addEdgeColor(0, y);
-    addEdgeColor(width - 1, y);
+  const sampleStep = Math.max(1, Math.floor(Math.min(width, height) / 100));
+  const cornerW = Math.max(2, Math.round(width * 0.16));
+  const cornerH = Math.max(2, Math.round(height * 0.16));
+
+  const sampleRegion = (xStart, yStart, xEnd, yEnd) => {
+    for (let y = yStart; y < yEnd; y += sampleStep) {
+      for (let x = xStart; x < xEnd; x += sampleStep) {
+        addSample(x, y);
+      }
+    }
+  };
+
+  sampleRegion(0, 0, cornerW, cornerH);
+  sampleRegion(Math.max(0, width - cornerW), 0, width, cornerH);
+  sampleRegion(0, Math.max(0, height - cornerH), cornerW, height);
+  sampleRegion(Math.max(0, width - cornerW), Math.max(0, height - cornerH), width, height);
+
+  // A few sparse samples along the top and side edges help with gradients,
+  // while deliberately avoiding the central bottom edge.
+  for (let x = 0; x < width; x += sampleStep * 2) addSample(x, 0);
+  for (let y = 0; y < height; y += sampleStep * 2) {
+    addSample(0, y);
+    addSample(width - 1, y);
   }
 
   const palette = [...buckets.values()]
     .sort((a, b) => b.count - a.count)
-    .slice(0, 24)
+    .slice(0, 14)
     .map(bucket => [
       bucket.r / bucket.count,
       bucket.g / bucket.count,
@@ -5888,16 +5919,10 @@ async function removeStickerBackgroundLocally(blob) {
   if (!palette.length) throw new Error("Fuwa could not detect a background.");
 
   const distanceToPaletteSq = pixelIndex => {
-    const offset = pixelIndex * 4;
-    const r = pixels[offset];
-    const g = pixels[offset + 1];
-    const b = pixels[offset + 2];
+    const color = colorAt(pixelIndex);
     let best = Infinity;
-    for (const color of palette) {
-      const dr = r - color[0];
-      const dg = g - color[1];
-      const db = b - color[2];
-      const distance = dr * dr + dg * dg + db * db;
+    for (const backgroundColor of palette) {
+      const distance = colorDistanceSq(color, backgroundColor);
       if (distance < best) best = distance;
     }
     return best;
@@ -5905,34 +5930,65 @@ async function removeStickerBackgroundLocally(blob) {
 
   const buildConnectedBackgroundMask = async tolerance => {
     const toleranceSq = tolerance * tolerance;
+    const neighborToleranceSq = 46 * 46;
     const mask = new Uint8Array(pixelCount);
     const queue = new Int32Array(pixelCount);
     let head = 0;
     let tail = 0;
 
-    const tryAdd = pixelIndex => {
+    const trySeed = pixelIndex => {
       if (pixelIndex < 0 || pixelIndex >= pixelCount || mask[pixelIndex]) return;
+      const alpha = pixels[pixelIndex * 4 + 3];
+      if (alpha <= 10 || distanceToPaletteSq(pixelIndex) <= toleranceSq) {
+        mask[pixelIndex] = 1;
+        queue[tail++] = pixelIndex;
+      }
+    };
+
+    const tryGrow = (fromIndex, pixelIndex) => {
+      if (pixelIndex < 0 || pixelIndex >= pixelCount || mask[pixelIndex]) return;
+
       const alpha = pixels[pixelIndex * 4 + 3];
       if (alpha <= 10) {
         mask[pixelIndex] = 1;
         queue[tail++] = pixelIndex;
         return;
       }
-      if (distanceToPaletteSq(pixelIndex) <= toleranceSq) {
-        mask[pixelIndex] = 1;
-        queue[tail++] = pixelIndex;
-      }
+
+      if (distanceToPaletteSq(pixelIndex) > toleranceSq) return;
+
+      // Do not jump across a strong local color edge. This helps preserve
+      // pale clothes, skin and hair even when they resemble the background.
+      const localDistance = colorDistanceSq(colorAt(fromIndex), colorAt(pixelIndex));
+      if (localDistance > neighborToleranceSq) return;
+
+      mask[pixelIndex] = 1;
+      queue[tail++] = pixelIndex;
     };
 
-    // Start only from image borders so similarly colored areas inside the
-    // subject are not removed unless they are actually connected to background.
+    // Seed from corners, top edge, side edges, and only the outer portions
+    // of the bottom edge. The central bottom is intentionally protected.
+    const seedInset = Math.max(1, Math.round(Math.min(width, height) * 0.02));
+
     for (let x = 0; x < width; x++) {
-      tryAdd(x);
-      tryAdd((height - 1) * width + x);
+      trySeed(x);
+      if (x < width * 0.24 || x > width * 0.76) {
+        trySeed((height - 1) * width + x);
+      }
     }
     for (let y = 1; y < height - 1; y++) {
-      tryAdd(y * width);
-      tryAdd(y * width + width - 1);
+      trySeed(y * width);
+      trySeed(y * width + width - 1);
+    }
+
+    // Reinforce the four corner blocks.
+    for (let y = 0; y < Math.min(cornerH, height); y += seedInset) {
+      for (let x = 0; x < Math.min(cornerW, width); x += seedInset) {
+        trySeed(y * width + x);
+        trySeed(y * width + (width - 1 - x));
+        trySeed((height - 1 - y) * width + x);
+        trySeed((height - 1 - y) * width + (width - 1 - x));
+      }
     }
 
     while (head < tail) {
@@ -5940,12 +5996,12 @@ async function removeStickerBackgroundLocally(blob) {
       const x = pixelIndex % width;
       const y = Math.floor(pixelIndex / width);
 
-      if (x > 0) tryAdd(pixelIndex - 1);
-      if (x < width - 1) tryAdd(pixelIndex + 1);
-      if (y > 0) tryAdd(pixelIndex - width);
-      if (y < height - 1) tryAdd(pixelIndex + width);
+      if (x > 0) tryGrow(pixelIndex, pixelIndex - 1);
+      if (x < width - 1) tryGrow(pixelIndex, pixelIndex + 1);
+      if (y > 0) tryGrow(pixelIndex, pixelIndex - width);
+      if (y < height - 1) tryGrow(pixelIndex, pixelIndex + width);
 
-      if (head % 45000 === 0) {
+      if (head % 42000 === 0) {
         await new Promise(resolve => requestAnimationFrame(resolve));
       }
     }
@@ -5953,33 +6009,39 @@ async function removeStickerBackgroundLocally(blob) {
     return { mask, removed: tail, tolerance };
   };
 
-  let result = await buildConnectedBackgroundMask(82);
+  // Conservative by default. Unlike v71, Fuwa no longer jumps to a very
+  // aggressive 108 tolerance just because a small amount was removed.
+  let result = await buildConnectedBackgroundMask(54);
   let ratio = result.removed / pixelCount;
 
-  // Automatically adapt if the initial pass is too timid or too aggressive.
-  if (ratio < 0.055) {
-    result = await buildConnectedBackgroundMask(108);
-    ratio = result.removed / pixelCount;
-  } else if (ratio > 0.78) {
-    result = await buildConnectedBackgroundMask(62);
+  if (ratio < 0.025) {
+    result = await buildConnectedBackgroundMask(66);
     ratio = result.removed / pixelCount;
   }
 
-  if (ratio < 0.01) {
+  // If the result still tries to remove too much, retreat instead of trusting
+  // it. Subject preservation is more important than a perfectly clean cutout.
+  if (ratio > 0.66) {
+    result = await buildConnectedBackgroundMask(42);
+    ratio = result.removed / pixelCount;
+  }
+
+  if (ratio < 0.008) {
     throw new Error("Fuwa could not confidently separate this background.");
   }
 
   const mask = result.mask;
-  const featherToleranceSq = Math.pow(result.tolerance + 38, 2);
+  const featherEnd = result.tolerance + 22;
+  const featherToleranceSq = featherEnd * featherEnd;
 
   for (let pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
     const offset = pixelIndex * 4;
+
     if (mask[pixelIndex]) {
       pixels[offset + 3] = 0;
       continue;
     }
 
-    // Feather just the foreground pixels touching the removed area.
     const x = pixelIndex % width;
     const y = Math.floor(pixelIndex / width);
     const touchesBackground =
@@ -5990,11 +6052,14 @@ async function removeStickerBackgroundLocally(blob) {
 
     if (touchesBackground) {
       const distanceSq = distanceToPaletteSq(pixelIndex);
+
       if (distanceSq < featherToleranceSq) {
         const distance = Math.sqrt(distanceSq);
         const start = result.tolerance;
-        const end = result.tolerance + 38;
-        const factor = Math.max(0.18, Math.min(1, (distance - start) / Math.max(1, end - start)));
+        const factor = Math.max(
+          0.62,
+          Math.min(1, (distance - start) / Math.max(1, featherEnd - start))
+        );
         pixels[offset + 3] = Math.round(pixels[offset + 3] * factor);
       }
     }
@@ -6063,7 +6128,7 @@ async function refreshStickerBackgroundPreview() {
     return;
   }
 
-  if (status) status.textContent = "Removing the background locally…";
+  if (status) status.textContent = "Removing the background gently while preserving the subject…";
   if (saveButton) saveButton.disabled = true;
 
   try {
@@ -6074,7 +6139,7 @@ async function refreshStickerBackgroundPreview() {
     if (pendingStickerProcessedUrl) URL.revokeObjectURL(pendingStickerProcessedUrl);
     pendingStickerProcessedUrl = URL.createObjectURL(processed);
     preview.src = pendingStickerProcessedUrl;
-    if (status) status.textContent = "Transparent preview ready. The checkerboard shows removed areas.";
+    if (status) status.textContent = "Gentle transparent preview ready. The checkerboard shows removed areas.";
   } catch (error) {
     console.error("Could not preview background removal.", error);
     if (token !== stickerImportPreviewToken) return;
