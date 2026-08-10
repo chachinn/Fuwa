@@ -8073,3 +8073,213 @@ button,
   .journal-paper-options{grid-template-columns:repeat(2,minmax(0,1fr))}
   .journal-decor-palette{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
+
+
+/* =========================================================
+   FUWA V69 — V1 RELEASE POLISH
+   Progressive disclosure, 30-page journal presets,
+   differentiated Thought Bubbles, and calm feature discovery.
+   ========================================================= */
+
+/* Drawer: depth without a wall of features */
+.drawer-gentle-start-note{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  margin:16px 0 8px;
+  padding:12px 13px;
+  border:1px solid rgba(231,202,214,.78);
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(255,246,250,.96),rgba(249,244,255,.88));
+}
+.drawer-gentle-start-note>span{
+  flex:0 0 auto;
+  font-size:19px;
+  line-height:1;
+}
+.drawer-gentle-start-note div{display:grid;gap:3px}
+.drawer-gentle-start-note strong{
+  color:#66515b;
+  font-size:10px;
+  line-height:1.35;
+}
+.drawer-gentle-start-note small{
+  color:#98858d;
+  font-size:8.5px;
+  line-height:1.45;
+}
+.drawer-start-here{margin-top:18px}
+.drawer-collapsible{
+  border-top:1px solid rgba(232,216,223,.72);
+  margin-top:16px;
+  padding-top:0;
+}
+.drawer-collapsible>summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-height:48px;
+  list-style:none;
+  cursor:pointer;
+  color:#75616a;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  -webkit-tap-highlight-color:transparent;
+}
+.drawer-collapsible>summary::-webkit-details-marker{display:none}
+.drawer-collapsible>summary::after{
+  content:"⌄";
+  margin-left:auto;
+  color:#bd8da0;
+  font-size:15px;
+  transform-origin:center;
+  transition:transform .18s ease;
+}
+.drawer-collapsible[open]>summary::after{transform:rotate(180deg)}
+.drawer-collapsible>summary span{min-width:0}
+.drawer-collapsible>summary small{
+  margin-left:auto;
+  color:#b09ca4;
+  font-size:8px;
+  font-weight:750;
+  letter-spacing:0;
+  text-transform:none;
+}
+.drawer-collapsible>.drawer-menu-list{
+  padding:0 0 5px;
+}
+
+/* Daily Life — 30 pages should feel optional, not demanding */
+.journal-preset-row{
+  display:flex;
+  gap:7px;
+  overflow-x:auto;
+  margin:14px 0 8px;
+  padding-bottom:2px;
+  scrollbar-width:none;
+}
+.journal-preset-row::-webkit-scrollbar{display:none}
+.journal-preset-row button{
+  flex:0 0 auto;
+  min-height:35px;
+  padding:7px 12px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:#fff;
+  color:#816b74;
+  font-size:9px;
+  font-weight:850;
+}
+.journal-preset-row button.active{
+  border-color:#dfa0b6;
+  background:#fff0f5;
+  color:#a65271;
+}
+.journal-selection-count{
+  margin:0 2px 12px;
+  color:#a18b94;
+  font-size:8.5px;
+  font-weight:750;
+}
+.journal-page-settings{
+  gap:12px;
+}
+.journal-settings-group{
+  display:grid;
+  gap:7px;
+}
+.journal-settings-group>p{
+  margin:3px 2px 1px;
+  color:#9b7c89;
+  font-size:8.5px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.journal-settings-group .journal-page-setting{
+  margin:0;
+}
+.journal-page[data-journal-page="food"] .journal-prompt{
+  max-width:420px;
+}
+.journal-page[data-journal-page="dayword"]>input{
+  margin-top:34px;
+  min-height:60px;
+  padding:16px;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:20px;
+  text-align:center;
+}
+
+/* Thought Bubbles now have a lifecycle: floating → released */
+.bubble-feature-intro{
+  margin-bottom:10px;
+}
+.bubble-feature-intro strong{
+  color:#765f69;
+}
+.thought-bubble{
+  position:relative;
+  transition:opacity .18s ease,filter .18s ease;
+}
+.thought-bubble.released{
+  opacity:.66;
+  filter:saturate(.72);
+  background:linear-gradient(145deg,#f6f2f5,#fbf8f9);
+}
+.thought-bubble-meta{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.thought-bubble-meta span{
+  color:var(--muted);
+  font-size:9px;
+}
+.thought-bubble-meta em{
+  padding:3px 7px;
+  border-radius:999px;
+  background:#f9eaf1;
+  color:#b06884;
+  font-size:7.5px;
+  font-style:normal;
+  font-weight:850;
+  letter-spacing:.04em;
+}
+.thought-bubble.released .thought-bubble-meta em{
+  background:#f0ecee;
+  color:#96878d;
+}
+.thought-bubble-state{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:9px;
+  padding:6px 9px;
+  border:1px solid rgba(225,194,207,.92);
+  border-radius:999px;
+  background:rgba(255,255,255,.76);
+  color:#a25d78;
+  font-size:8px;
+  font-weight:850;
+}
+.thought-bubble.released .thought-bubble-state{
+  color:#826e76;
+}
+
+/* Comfort item labels can fit the longer "Looking Forward To" category. */
+.comfort-item-card>span,
+.comfort-spotlight>span{
+  display:inline-block;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+
+@media(max-width:380px){
+  .drawer-gentle-start-note{padding:11px}
+  .journal-preset-row button{padding-inline:10px}
+}

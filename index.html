@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v68-expanded-scrapbook-library -->
+  <!-- FUWA_BUILD: v69-v1-release-polish -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -295,42 +295,56 @@
           <button class="drawer-signout-button" id="firebaseSignOutButton" type="button">Log out of Fuwa</button>
         </section>
 
-        <section class="drawer-group">
-          <p class="drawer-section-label">Journal</p>
+        <div class="drawer-gentle-start-note">
+          <span>☁️</span>
+          <div>
+            <strong>You do not need to use everything.</strong>
+            <small>Start with what feels useful today. The deeper corners of Fuwa can wait.</small>
+          </div>
+        </div>
+
+        <section class="drawer-group drawer-start-here">
+          <p class="drawer-section-label">Start Here</p>
           <div class="drawer-menu-list">
-            <button class="drawer-menu-item" data-nav="life" type="button"><span class="drawer-item-icon life-pages-icon">✦</span><span><strong>Daily Life Pages</strong><small>Check in once. Fuwa builds the trackers.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="life" type="button"><span class="drawer-item-icon life-pages-icon">✦</span><span><strong>Daily Life Pages</strong><small>Choose a few pages or use all 30.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="scrapbook" type="button"><span class="drawer-item-icon scrapbook-drawer-icon">🎀</span><span><strong>Scrapbook</strong><small>Make little pages from photos, stickers, and memories.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>Your tiny daily check-ins.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>A tiny check-in when that is enough.</small></span><b>›</b></button>
+          </div>
+        </section>
+
+        <details class="drawer-group drawer-collapsible">
+          <summary><span>Journal & Memories</span><small>7 tools</small></summary>
+          <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="threads" type="button"><span class="drawer-item-icon drawer-thread-icon"></span><span><strong>Memory Threads</strong><small>Stories that keep returning.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="bookmarks" type="button"><span class="drawer-item-icon drawer-bookmark-icon"></span><span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="thenNow" type="button"><span class="drawer-item-icon mirror-icon"></span><span><strong>Then & Now</strong><small>Meet an older version of you.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="monthly" type="button"><span class="drawer-item-icon story-icon"></span><span><strong>Monthly Story</strong><small>Your month, gathered gently.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="weather" type="button"><span class="drawer-item-icon weather-icon"></span><span><strong>Emotional Weather</strong><small>See your month as a sky.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" data-nav="bubbles" type="button"><span class="drawer-item-icon bubble-icon"></span><span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="bubbles" type="button"><span class="drawer-item-icon bubble-icon"></span><span><strong>Thought Bubbles</strong><small>Thoughts you want Fuwa to bring back.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="dreams" type="button"><span class="drawer-item-icon dream-icon"></span><span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></span><b>›</b></button>
           </div>
-        </section>
+        </details>
 
-        <section class="drawer-group">
-          <p class="drawer-section-label">Comfort</p>
+        <details class="drawer-group drawer-collapsible">
+          <summary><span>Comfort & Rest</span><small>4 tools</small></summary>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="nightly" type="button"><span class="drawer-item-icon drawer-night-icon"></span><span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="sleep" type="button"><span class="drawer-item-icon drawer-sleep-icon"></span><span><strong>Sleep Corner</strong><small>Soft sounds with a timer.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" data-nav="comfort" type="button"><span class="drawer-item-icon comfort-icon"></span><span><strong>Comfort Corner</strong><small>Keep soft things close.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="comfort" type="button"><span class="drawer-item-icon comfort-icon"></span><span><strong>Comfort Corner</strong><small>Keep soft things and future joys close.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="sanctuary" type="button"><span class="drawer-item-icon sanctuary-icon"></span><span><strong>Fuwa Sanctuary</strong><small>Your little room grows with you.</small></span><b>›</b></button>
           </div>
-        </section>
+        </details>
 
-        <section class="drawer-group">
-          <p class="drawer-section-label">Letters</p>
+        <details class="drawer-group drawer-collapsible">
+          <summary><span>Letters</span><small>2 tools</small></summary>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="letters" type="button"><span class="drawer-item-icon drawer-future-letter-icon"></span><span><strong>Letters Through Time</strong><small>Write something for later.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="unsent" type="button"><span class="drawer-item-icon letter-icon"></span><span><strong>Unsent Letters</strong><small>Words that never need sending.</small></span><b>›</b></button>
           </div>
-        </section>
+        </details>
 
-        <section class="drawer-group">
-          <p class="drawer-section-label">Fuwa</p>
+        <details class="drawer-group drawer-collapsible">
+          <summary><span>Fuwa & Settings</span><small>5 tools</small></summary>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" id="tutorialButton" type="button"><span class="drawer-item-icon tutorial-drawer-icon">?</span><span><strong>How to Use Fuwa</strong><small>Take the little tour again anytime.</small></span><b>›</b></button>
             <button class="drawer-menu-item" id="themeButton" type="button"><span class="drawer-item-icon drawer-appearance-icon"></span><span><strong>Appearance</strong><small>Theme, wallpaper, and softness.</small></span><b>›</b></button>
@@ -338,7 +352,7 @@
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Cloud</strong><small>Cloud backup, local export, and recovery tools.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-me-icon"></span><span><strong>Profile & Settings</strong><small>Stats and local data controls.</small></span><b>›</b></button>
           </div>
-        </section>
+        </details>
 
         <p class="drawer-footer-note">Soft moments, forever yours. ☁️</p>
       </div>
@@ -840,7 +854,7 @@
           <div class="explore-grid">
             <button class="explore-card" data-nav="threads" type="button"><span class="explore-icon thread-explore-icon"></span><strong>Memory Threads</strong><small>Stories that keep returning.</small></button>
             <button class="explore-card" data-nav="bookmarks" type="button"><span class="explore-icon bookmark-explore-icon"></span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></button>
-            <button class="explore-card" data-nav="bubbles" type="button"><span class="explore-icon bubble-icon"></span><strong>Thought Bubbles</strong><small>One sentence. Done.</small></button>
+            <button class="explore-card" data-nav="bubbles" type="button"><span class="explore-icon bubble-icon"></span><strong>Thought Bubbles</strong><small>Keep a thought floating until you are ready to release it.</small></button>
             <button class="explore-card" data-nav="dreams" type="button"><span class="explore-icon dream-icon"></span><strong>Dream Pocket</strong><small>Catch dreams before they fade.</small></button>
           </div>
         </div>
@@ -920,12 +934,13 @@
 
       <section class="view" id="bubblesView">
         <div class="page-title-row">
-          <div><p class="eyebrow">Tiny thoughts</p><h2>Thought Bubbles</h2></div>
+          <div><p class="eyebrow">Thoughts worth revisiting</p><h2>Thought Bubbles</h2></div>
           <span class="page-cute-icon bubble-icon"></span>
         </div>
+        <p class="muted feature-intro bubble-feature-intro"><strong>Different from Random Thoughts:</strong> Random Thoughts are quick passing notes. A Thought Bubble is something you want Fuwa to bring back later until you decide to release it.</p>
         <form class="bubble-capture" id="bubbleForm">
-          <input id="bubbleInput" maxlength="220" placeholder="What's floating through your head?" />
-          <button type="submit">＋</button>
+          <input id="bubbleInput" maxlength="220" placeholder="A thought I want to revisit…" />
+          <button type="submit" aria-label="Keep this thought floating">＋</button>
         </form>
         <button class="bubble-random-btn" id="bubbleRandomButton" type="button">Float one back to me</button>
         <div id="bubbleSpotlight"></div>
@@ -983,7 +998,7 @@
           <div><p class="eyebrow">Your everyday pages</p><h2>Daily Life Pages</h2></div>
           <span class="page-cute-icon life-pages-header-icon">✦</span>
         </div>
-        <p class="muted feature-intro">Check in once. Fuwa turns the little answers into your mood, sleep, habit, reading, weather, and life trackers automatically.</p>
+        <p class="muted feature-intro">Fuwa has 30 Daily Life pages, but they are a library—not a checklist. Choose only the pages that feel useful, and Fuwa turns the little answers into your trackers and memories.</p>
 
         <div class="life-tab-bar life-tab-bar-four" role="tablist" aria-label="Daily Life Pages">
           <button class="active" type="button" data-life-tab="today">Today</button>
@@ -996,7 +1011,7 @@
           <div class="notebook-shell">
             <div class="notebook-topbar">
               <button type="button" class="notebook-small-btn" id="journalCustomizeButton">Customize</button>
-              <div class="notebook-date-wrap"><span class="soft-label" id="lifeTodayDateLabel">Today</span><strong id="journalPageCounter">Page 1 of 21</strong></div>
+              <div class="notebook-date-wrap"><span class="soft-label" id="lifeTodayDateLabel">Today</span><strong id="journalPageCounter">Page 1 of 30</strong></div>
               <span class="life-save-status" id="lifeSaveStatus">Not checked in</span>
             </div>
             <div class="notebook-progress" id="journalProgressDots" aria-label="Journal progress"></div>
@@ -1022,13 +1037,22 @@
                 <section class="journal-page" data-journal-page="win"><p class="eyebrow">Page 18 · Little Win</p><h3>What did you do that deserves a tiny victory?</h3><textarea id="lifeLittleWin" rows="6" maxlength="500" placeholder="Even getting out of bed counts."></textarea></section>
                 <section class="journal-page" data-journal-page="memory"><p class="eyebrow">Page 19 · Memory of the Day</p><h3>What don't you want to forget?</h3><textarea id="lifeMemory" rows="7" maxlength="900" placeholder="A scene, conversation, smell, joke, tiny detail…"></textarea><p class="journal-photo-note">📷 For a photo, attach it to a full Fuwa diary entry. Photos remain device-only in the free version.</p></section>
                 <section class="journal-page" data-journal-page="tomorrow"><p class="eyebrow">Page 20 · Tomorrow</p><h3>What are you carrying gently into tomorrow?</h3><input id="lifeLookingForward" maxlength="240" placeholder="Something I'm looking forward to…"><textarea id="lifeTomorrowIntention" rows="5" maxlength="600" placeholder="One gentle intention for tomorrow…"></textarea></section>
-                <section class="journal-page" data-journal-page="free"><p class="eyebrow">Page 21 · Free Page</p><h3>This page is yours.</h3><textarea id="lifeNote" rows="10" maxlength="1800" placeholder="Anything else from today…"></textarea><div class="journal-cycle-inline"><span>Optional cycle note</span><div class="journal-chip-row" id="lifeCycleChoices"><button type="button" data-life-choice="cycle" data-value="none">None</button><button type="button" data-life-choice="cycle" data-value="spotting">Spotting</button><button type="button" data-life-choice="cycle" data-value="light">Light</button><button type="button" data-life-choice="cycle" data-value="regular">Regular</button><button type="button" data-life-choice="cycle" data-value="heavy">Heavy</button></div></div></section>
+                <section class="journal-page" data-journal-page="food"><p class="eyebrow">Page 21 · Food & Appetite</p><h3>Was there something good on your plate today?</h3><p class="journal-prompt">No calories, no scoring—just a little food memory if you want one.</p><textarea id="lifeFoodMoment" rows="7" maxlength="600" placeholder="A meal, drink, snack, restaurant, craving, or something delicious…"></textarea></section>
+                <section class="journal-page" data-journal-page="work"><p class="eyebrow">Page 22 · Work / Study</p><h3>How did focus feel today?</h3><div class="journal-two-field"><label><span>Focus</span><select id="lifeFocus"><option value="">Skip</option><option value="1">Scattered</option><option value="2">Hard to focus</option><option value="3">Okay</option><option value="4">Focused</option><option value="5">In the zone</option></select></label><label><span>What took your attention?</span><input id="lifeWorkStudy" maxlength="220" placeholder="Work, class, Japanese, a project…"></label></div></section>
+                <section class="journal-page" data-journal-page="connection"><p class="eyebrow">Page 23 · Connection</p><h3>How connected did you feel today?</h3><div class="journal-two-field"><label><span>Connection</span><select id="lifeConnection"><option value="">Skip</option><option value="1">Very alone</option><option value="2">A little distant</option><option value="3">Okay</option><option value="4">Connected</option><option value="5">Very connected</option></select></label><label><span>With whom?</span><input id="lifeConnectionNote" maxlength="220" placeholder="A person, family, friend, coworker…"></label></div></section>
+                <section class="journal-page" data-journal-page="money"><p class="eyebrow">Page 24 · Money</p><h3>Anything about spending worth remembering?</h3><label class="journal-check-row"><input id="lifeNoSpend" type="checkbox"><span>It was a no-spend day</span></label><textarea id="lifeMoneyNote" rows="6" maxlength="600" placeholder="Something you bought, saved for, resisted buying, or want to remember…"></textarea></section>
+                <section class="journal-page" data-journal-page="screen"><p class="eyebrow">Page 25 · Screen & Scroll</p><h3>How did your screen time feel?</h3><div class="journal-two-field"><label><span>Approx. hours</span><input id="lifeScreenHours" type="number" min="0" max="24" step="0.5" inputmode="decimal" placeholder="4"></label><label><span>How it felt</span><select id="lifeScreenFeeling"><option value="">Skip</option><option value="intentional">Intentional</option><option value="fine">Fine</option><option value="restful">Restful</option><option value="too-much">A bit too much</option><option value="draining">Draining</option></select></label></div></section>
+                <section class="journal-page" data-journal-page="selfcare"><p class="eyebrow">Page 26 · Self-Care</p><h3>What did you do for yourself today?</h3><textarea id="lifeSelfCare" rows="8" maxlength="700" placeholder="Skincare, rest, a long shower, saying no, going outside, doing absolutely nothing…"></textarea></section>
+                <section class="journal-page" data-journal-page="creativity"><p class="eyebrow">Page 27 · Creativity & Hobbies</p><h3>Did you make or practice anything today?</h3><div class="journal-two-field"><label><span>Minutes</span><input id="lifeCreativeMinutes" type="number" min="0" max="1440" step="5" inputmode="numeric" placeholder="30"></label><label><span>What was it?</span><input id="lifeCreativeNote" maxlength="220" placeholder="Drawing, coding, games, voice work, crafts…"></label></div></section>
+                <section class="journal-page" data-journal-page="anticipation"><p class="eyebrow">Page 28 · Looking Forward To</p><h3>What is pulling you gently toward the future?</h3><textarea id="lifeAnticipation" rows="7" maxlength="700" placeholder="A trip, dinner, weekend, package, concert, tiny plan…"></textarea></section>
+                <section class="journal-page" data-journal-page="dayword"><p class="eyebrow">Page 29 · One Word</p><h3>If today had one word, what would it be?</h3><input id="lifeDayWord" maxlength="50" placeholder="Soft. Busy. Lucky. Strange. Cozy."></section>
+                <section class="journal-page" data-journal-page="free"><p class="eyebrow">Page 30 · Free Page</p><h3>This page is yours.</h3><textarea id="lifeNote" rows="10" maxlength="1800" placeholder="Anything else from today…"></textarea><div class="journal-cycle-inline"><span>Optional cycle note</span><div class="journal-chip-row" id="lifeCycleChoices"><button type="button" data-life-choice="cycle" data-value="none">None</button><button type="button" data-life-choice="cycle" data-value="spotting">Spotting</button><button type="button" data-life-choice="cycle" data-value="light">Light</button><button type="button" data-life-choice="cycle" data-value="regular">Regular</button><button type="button" data-life-choice="cycle" data-value="heavy">Heavy</button></div></div></section>
               </div>
               <div class="journal-page-actions"><button type="button" class="journal-nav-btn ghost" id="journalBackButton">← Back</button><button type="button" class="journal-skip-btn" id="journalSkipButton">Skip</button><button type="button" class="journal-nav-btn" id="journalNextButton">Next →</button><button type="submit" class="journal-finish-btn hidden" id="journalFinishButton">Finish Today ♡</button></div>
             </form>
             <div class="journal-closing hidden" id="journalClosingPage"><div class="journal-closing-mark">☁️</div><p class="eyebrow" id="journalClosingDate">Today</p><h3 id="journalClosingTitle">You showed up for your day.</h3><p id="journalClosingSummary"></p><button class="primary-btn" type="button" id="journalCloseButton">Close Journal ♡</button></div>
           </div>
-          <div class="journal-customize-sheet hidden" id="journalCustomizeSheet"><div class="journal-customize-card"><div class="journal-customize-head"><div><p class="eyebrow">Customize My Journal</p><h3>Choose your pages</h3></div><button type="button" id="journalCustomizeClose">×</button></div><p class="muted">Turn off pages you don't want in your daily ritual.</p><div id="journalPageSettingsList" class="journal-page-settings"></div><button class="primary-btn" type="button" id="journalCustomizeSave">Save Journal</button></div></div>
+          <div class="journal-customize-sheet hidden" id="journalCustomizeSheet"><div class="journal-customize-card"><div class="journal-customize-head"><div><p class="eyebrow">Customize My Journal</p><h3>Choose your pages</h3></div><button type="button" id="journalCustomizeClose">×</button></div><p class="muted">Thirty pages are available, but Fuwa never expects you to answer thirty. Pick a preset or make your own little routine.</p><div class="journal-preset-row" role="group" aria-label="Daily Life page presets"><button type="button" data-journal-preset="gentle">Gentle 8</button><button type="button" data-journal-preset="everyday">Everyday 15</button><button type="button" data-journal-preset="all">All 30</button></div><div class="journal-selection-count" id="journalPageSelectionCount"></div><div id="journalPageSettingsList" class="journal-page-settings"></div><button class="primary-btn" type="button" id="journalCustomizeSave">Save Journal</button></div></div>
         </section>
 
         <section class="life-panel" id="lifeTrackersPanel">

@@ -1921,6 +1921,19 @@ function exitQuickHide() {
 }
 
 
+const COMFORT_TYPES = Object.freeze({
+  reminder: { label: "Reminder", icon: "☁️" },
+  quote: { label: "Quote", icon: "❝" },
+  place: { label: "Place", icon: "📍" },
+  person: { label: "Person", icon: "💗" },
+  memory: { label: "Memory", icon: "🌸" },
+  "looking-forward": { label: "Looking Forward To", icon: "✨" }
+});
+
+function comfortTypeMeta(type) {
+  return COMFORT_TYPES[type] || { label: type || "Comfort", icon: "♡" };
+}
+
 let featureModalMode = null;
 let featureEditingId = null;
 let monthlyCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -1951,7 +1964,7 @@ function openFeatureModal(mode, id=null) {
     title.textContent = item ? "Edit Comfort Item" : "Add Comfort Item";
     fields.innerHTML = `
       <label>Type
-        <select id="featureType"><option value="reminder">Reminder</option><option value="quote">Quote</option><option value="place">Place</option><option value="person">Person</option><option value="memory">Memory</option></select>
+        <select id="featureType">${Object.entries(COMFORT_TYPES).map(([value, meta]) => `<option value="${escapeHtml(value)}">${escapeHtml(meta.icon)} ${escapeHtml(meta.label)}</option>`).join("")}</select>
       </label>
       <label>Title<input id="featureTitle" maxlength="80" value="${escapeHtml(item?.title || "")}" required></label>
       <label>What makes this comforting?<textarea id="featureBody" rows="5" maxlength="700">${escapeHtml(item?.body || "")}</textarea></label>`;
@@ -2383,12 +2396,14 @@ function renderComfort() {
   const list = $("comfortList");
   if (!list) return;
   const items = [...state.comfortItems].sort((a,b) => b.updatedAt - a.updatedAt);
-  list.innerHTML = items.length ? items.map(item => `
-    ${swipeActionShell(`<article class="feature-card comfort-item-card">
-      <span>${escapeHtml(item.type || "comfort")}</span>
+  list.innerHTML = items.length ? items.map(item => {
+    const meta = comfortTypeMeta(item.type);
+    return swipeActionShell(`<article class="feature-card comfort-item-card">
+      <span>${escapeHtml(meta.icon)} ${escapeHtml(meta.label)}</span>
       <strong>${escapeHtml(item.title)}</strong>
       <p>${escapeHtml(item.body || "")}</p>
-    </article>`, "comfort", item.id)}`).join("") : `<div class="empty-state">Add little things that make life feel softer.</div>`;
+    </article>`, "comfort", item.id);
+  }).join("") : `<div class="empty-state">Add little things that make life feel softer—or something lovely you are looking forward to.</div>`;
   bindSwipeActions(list);
 }
 
@@ -2399,7 +2414,8 @@ function randomComfort() {
     return;
   }
   const item = state.comfortItems[Math.floor(Math.random()*state.comfortItems.length)];
-  host.innerHTML = `<div class="comfort-spotlight"><span>${escapeHtml(item.type)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body || "")}</p></div>`;
+  const meta = comfortTypeMeta(item.type);
+  host.innerHTML = `<div class="comfort-spotlight"><span>${escapeHtml(meta.icon)} ${escapeHtml(meta.label)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.body || "")}</p></div>`;
 }
 
 function renderUnsent() {
@@ -2417,28 +2433,81 @@ async function saveThoughtBubble(event) {
   const input = $("bubbleInput");
   const text = input.value.trim();
   if (!text) return;
-  const record = { id:uid("bubble"), text, date:isoToday(), createdAt:Date.now() };
+  const now = Date.now();
+  const record = { id:uid("bubble"), text, date:isoToday(), releasedAt:null, createdAt:now, updatedAt:now };
   await diaryRepository.save("thoughtBubbles", record);
   state.thoughtBubbles.push(record);
   input.value = "";
-  renderAll();
+  renderBubbles();
+  toast("Thought kept floating 💭");
+}
+
+async function toggleThoughtBubbleFloating(id) {
+  const item = state.thoughtBubbles.find(record => record.id === id);
+  if (!item) return;
+  const floating = !item.releasedAt;
+  const updated = {
+    ...item,
+    releasedAt: floating ? Date.now() : null,
+    updatedAt: Date.now()
+  };
+  try {
+    await diaryRepository.save("thoughtBubbles", updated);
+    state.thoughtBubbles = state.thoughtBubbles.map(record => record.id === id ? updated : record);
+    renderBubbles();
+    if (floating) {
+      $("bubbleSpotlight").innerHTML = "";
+      toast("Released softly ☁️");
+    } else {
+      toast("This thought can float back again 💭");
+    }
+  } catch (error) {
+    console.error("Could not update Thought Bubble state.", error);
+    toast("Fuwa couldn't update that bubble.");
+  }
 }
 
 function renderBubbles() {
   const host = $("bubbleList");
   if (!host) return;
-  const items = [...state.thoughtBubbles].sort((a,b)=>b.createdAt-a.createdAt).slice(0,50);
-  host.innerHTML = items.length ? items.map(item => swipeActionShell(`<div class="thought-bubble"><span>${escapeHtml(formatDate(item.date))}</span><p>${escapeHtml(item.text)}</p></div>`, "bubble", item.id)).join("") : `<div class="empty-state">Tiny thoughts can live here without becoming diary entries.</div>`;
+  const items = [...state.thoughtBubbles]
+    .sort((a,b) => {
+      const aReleased = a.releasedAt ? 1 : 0;
+      const bReleased = b.releasedAt ? 1 : 0;
+      if (aReleased !== bReleased) return aReleased - bReleased;
+      return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
+    })
+    .slice(0,60);
+
+  host.innerHTML = items.length ? items.map(item => {
+    const released = !!item.releasedAt;
+    return swipeActionShell(`<div class="thought-bubble${released ? " released" : ""}">
+      <div class="thought-bubble-meta">
+        <span>${escapeHtml(formatDate(item.date))}</span>
+        <em>${released ? "Released" : "Floating"}</em>
+      </div>
+      <p>${escapeHtml(item.text)}</p>
+      <button class="thought-bubble-state" type="button" data-bubble-toggle="${escapeHtml(item.id)}">${released ? "Float again" : "Release"}</button>
+    </div>`, "bubble", item.id);
+  }).join("") : `<div class="empty-state">Put something here when you want Fuwa to hold onto a thought and bring it back later.</div>`;
+
   bindSwipeActions(host);
+  host.querySelectorAll("[data-bubble-toggle]").forEach(button => {
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      toggleThoughtBubbleFloating(button.dataset.bubbleToggle);
+    });
+  });
 }
 
 function randomBubble() {
   const host = $("bubbleSpotlight");
-  if (!state.thoughtBubbles.length) {
-    host.innerHTML = `<div class="empty-state compact">No bubbles to float back yet.</div>`;
+  const floating = state.thoughtBubbles.filter(item => !item.releasedAt);
+  if (!floating.length) {
+    host.innerHTML = `<div class="empty-state compact">${state.thoughtBubbles.length ? "All your Thought Bubbles have been released." : "No bubbles to float back yet."}</div>`;
     return;
   }
-  const item = state.thoughtBubbles[Math.floor(Math.random()*state.thoughtBubbles.length)];
+  const item = floating[Math.floor(Math.random()*floating.length)];
   host.innerHTML = `<div class="bubble-spotlight"><span>A thought floated back · ${escapeHtml(formatDate(item.date))}</span><p>“${escapeHtml(item.text)}”</p></div>`;
 }
 
@@ -4884,28 +4953,100 @@ function renderLetters() {
 const LIFE_DEFAULT_HABITS = ["Made bed","Vitamins","Sunscreen","Flossed","Dishes","Read","Outside","Meditated"];
 const LIFE_DEFAULT_CUSTOM_HABITS = ["Skincare","Stretch","Japanese","No-spend day"];
 const JOURNAL_PREFS_KEY = "fuwaNotebookJournalPrefsV1";
-const JOURNAL_PAGES = [{id:"mood",label:"Mood"},{id:"rating",label:"Rate My Day"},{id:"highlight",label:"Highlight"},{id:"energy",label:"Energy & Social Battery"},{id:"sleep",label:"Sleep"},{id:"wellness",label:"Body & Wellness"},{id:"mind",label:"Mind"},{id:"adulting",label:"Adulting"},{id:"habits",label:"Habits"},{id:"reading",label:"Reading"},{id:"watching",label:"Watching"},{id:"listening",label:"Listening"},{id:"weather",label:"Weather"},{id:"dreams",label:"Dreams"},{id:"gratitude",label:"Gratitude"},{id:"learned",label:"Something I Learned"},{id:"cup",label:"Fill My Cup"},{id:"win",label:"Little Win"},{id:"memory",label:"Memory of the Day"},{id:"tomorrow",label:"Tomorrow"},{id:"free",label:"Free Page"}];
+const JOURNAL_PAGES = [
+  {id:"mood",label:"Mood",group:"Feel & Body"},
+  {id:"rating",label:"Rate My Day",group:"Feel & Body"},
+  {id:"highlight",label:"Highlight",group:"Day & Routine"},
+  {id:"energy",label:"Energy & Social Battery",group:"Feel & Body"},
+  {id:"sleep",label:"Sleep",group:"Feel & Body"},
+  {id:"wellness",label:"Body & Wellness",group:"Feel & Body"},
+  {id:"mind",label:"Mind",group:"Feel & Body"},
+  {id:"adulting",label:"Adulting",group:"Day & Routine"},
+  {id:"habits",label:"Habits",group:"Day & Routine"},
+  {id:"reading",label:"Reading",group:"Day & Routine"},
+  {id:"watching",label:"Watching",group:"Day & Routine"},
+  {id:"listening",label:"Listening",group:"Day & Routine"},
+  {id:"weather",label:"Weather",group:"Day & Routine"},
+  {id:"dreams",label:"Dreams",group:"Reflect"},
+  {id:"gratitude",label:"Gratitude",group:"Reflect"},
+  {id:"learned",label:"Something I Learned",group:"Reflect"},
+  {id:"cup",label:"Fill My Cup",group:"Reflect"},
+  {id:"win",label:"Little Win",group:"Reflect"},
+  {id:"memory",label:"Memory of the Day",group:"Reflect"},
+  {id:"tomorrow",label:"Tomorrow",group:"Reflect"},
+  {id:"food",label:"Food & Appetite",group:"Life Extras"},
+  {id:"work",label:"Work / Study",group:"Life Extras"},
+  {id:"connection",label:"Connection",group:"Life Extras"},
+  {id:"money",label:"Money",group:"Life Extras"},
+  {id:"screen",label:"Screen & Scroll",group:"Life Extras"},
+  {id:"selfcare",label:"Self-Care",group:"Life Extras"},
+  {id:"creativity",label:"Creativity & Hobbies",group:"Life Extras"},
+  {id:"anticipation",label:"Looking Forward To",group:"Reflect"},
+  {id:"dayword",label:"One Word",group:"Reflect"},
+  {id:"free",label:"Free Page",group:"Reflect"}
+];
+
+const JOURNAL_PRESETS = Object.freeze({
+  gentle: ["mood","rating","highlight","energy","sleep","gratitude","memory","tomorrow"],
+  everyday: ["mood","rating","highlight","energy","sleep","wellness","mind","habits","weather","gratitude","cup","win","memory","tomorrow","selfcare"],
+  all: JOURNAL_PAGES.map(page => page.id)
+});
+
 let lifeActiveTab="today", lifeTrackerYear=new Date().getFullYear(), lifeTrackerMetric="rating", lifeCollectionCategory="cup", journalPageIndex=0;
 let lifeDraft={rating:0,mood:"",movement:"",weather:"",dream:"",cycle:"",habits:{},customHabits:{}};
-let journalPreferences=(()=>{try{const saved=JSON.parse(localStorage.getItem(JOURNAL_PREFS_KEY)||"{}");const enabled=Array.isArray(saved.enabledPages)?saved.enabledPages.filter(id=>JOURNAL_PAGES.some(p=>p.id===id)):JOURNAL_PAGES.map(p=>p.id);return{enabledPages:enabled.length?enabled:JOURNAL_PAGES.map(p=>p.id)}}catch(_){return{enabledPages:JOURNAL_PAGES.map(p=>p.id)}}})();
+const LEGACY_JOURNAL_PAGE_IDS = ["mood","rating","highlight","energy","sleep","wellness","mind","adulting","habits","reading","watching","listening","weather","dreams","gratitude","learned","cup","win","memory","tomorrow","free"];
+let journalPreferences=(()=>{try{const saved=JSON.parse(localStorage.getItem(JOURNAL_PREFS_KEY)||"{}");let enabled=Array.isArray(saved.enabledPages)?saved.enabledPages.filter(id=>JOURNAL_PAGES.some(p=>p.id===id)):JOURNAL_PAGES.map(p=>p.id);const wasUsingAllLegacyPages=LEGACY_JOURNAL_PAGE_IDS.every(id=>enabled.includes(id))&&enabled.length===LEGACY_JOURNAL_PAGE_IDS.length;if(wasUsingAllLegacyPages)enabled=JOURNAL_PAGES.map(p=>p.id);return{enabledPages:enabled.length?enabled:JOURNAL_PAGES.map(p=>p.id)}}catch(_){return{enabledPages:JOURNAL_PAGES.map(p=>p.id)}}})();
 function saveJournalPreferences(){try{localStorage.setItem(JOURNAL_PREFS_KEY,JSON.stringify(journalPreferences))}catch(e){console.warn("Could not save Fuwa journal preferences.",e)}}
 function enabledJournalPages(){return JOURNAL_PAGES.filter(p=>journalPreferences.enabledPages.includes(p.id))}
 function ensureLifeHabits(){if(!state.habitDefinitions.length){state.habitDefinitions=LIFE_DEFAULT_HABITS.map((name,i)=>({id:`adult_${i+1}`,name,kind:"adulting",active:true,createdAt:Date.now()+i}));state.habitDefinitions.push(...LIFE_DEFAULT_CUSTOM_HABITS.map((name,i)=>({id:`habit_${i+1}`,name,kind:"habit",active:true,createdAt:Date.now()+100+i})));Promise.all(state.habitDefinitions.map(r=>diaryRepository.save("habitDefinitions",r))).catch(console.error)}else if(!state.habitDefinitions.some(h=>h.kind==="habit")){const add=LIFE_DEFAULT_CUSTOM_HABITS.map((name,i)=>({id:uid("habit"),name,kind:"habit",active:true,createdAt:Date.now()+i}));state.habitDefinitions=state.habitDefinitions.map(h=>({...h,kind:h.kind||"adulting"})).concat(add);Promise.all(state.habitDefinitions.map(r=>diaryRepository.save("habitDefinitions",r))).catch(console.error)}}
 function lifeTodayRecord(){return state.dailyCheckins.find(r=>r.date===isoToday())||null}
 function lifeSetChoice(group,value){lifeDraft[group]=value;document.querySelectorAll(`[data-life-choice="${group}"]`).forEach(b=>b.classList.toggle("selected",b.dataset.value===value))}
 function setInputValue(id,value){const el=$(id);if(el)el.value=value??""}function setChecked(id,value){const el=$(id);if(el)el.checked=!!value}
-function loadLifeTodayForm(){ensureLifeHabits();const r=lifeTodayRecord();journalPageIndex=Math.min(Number(r?.lastPageIndex||0),Math.max(0,enabledJournalPages().length-1));lifeDraft={rating:Number(r?.rating||0),mood:r?.mood||"",movement:r?.movement||"",weather:r?.weather||"",dream:r?.dream||"",cycle:r?.cycle||"",habits:{...(r?.habits||{})},customHabits:{...(r?.customHabits||{})}};$("lifeTodayDateLabel").textContent=new Intl.DateTimeFormat("en-US",{weekday:"long",month:"long",day:"numeric"}).format(new Date());$("lifeSaveStatus").textContent=r?"Saved ✓":"Not checked in";[["lifeRatingReason",r?.ratingReason],["lifeHighlight",r?.highlight],["lifeEnergy",r?.energy],["lifeSocial",r?.social],["lifeSleepHours",r?.sleepHours],["lifeSleepQuality",r?.sleepQuality],["lifeWater",r?.water],["lifeOutside",r?.outside],["lifeMovementMinutes",r?.movementMinutes],["lifeStress",r?.stress],["lifeCalm",r?.calm],["lifeMindNote",r?.mindNote],["lifeReadingTitle",r?.readingTitle],["lifeReadingPages",r?.readingPages],["lifeReadingMinutes",r?.readingMinutes],["lifeWatchedTitle",r?.watchedTitle],["lifeWatchedEpisode",r?.watchedEpisode],["lifeWatchedRating",r?.watchedRating],["lifeSong",r?.song],["lifeTemperature",r?.temperature],["lifeDreamNote",r?.dreamNote],["lifeGratitude1",Array.isArray(r?.gratitude)?r.gratitude[0]:r?.gratitude],["lifeGratitude2",Array.isArray(r?.gratitude)?r.gratitude[1]:""],["lifeGratitude3",Array.isArray(r?.gratitude)?r.gratitude[2]:""],["lifeLearned",r?.learned],["lifeCupToday",r?.cupToday],["lifeLittleWin",r?.littleWin],["lifeMemory",r?.memory],["lifeLookingForward",r?.lookingForward],["lifeTomorrowIntention",r?.tomorrowIntention],["lifeNote",r?.note]].forEach(([id,v])=>setInputValue(id,v));setChecked("lifeSongRepeat",r?.songRepeat);document.querySelectorAll("#lifeDayRating button").forEach(b=>{const a=Number(b.dataset.rating)<=lifeDraft.rating;b.classList.toggle("selected",a);b.textContent=a?"★":"☆"});document.querySelectorAll("#lifeMoodPicker button").forEach(b=>b.classList.toggle("selected",b.dataset.lifeMood===lifeDraft.mood));["movement","weather","dream","cycle"].forEach(g=>lifeSetChoice(g,lifeDraft[g]||""));renderLifeHabits();renderJournalPage();$("journalClosingPage")?.classList.add("hidden");$("lifeDailyForm")?.classList.remove("hidden")}
+function loadLifeTodayForm(){ensureLifeHabits();const r=lifeTodayRecord();journalPageIndex=Math.min(Number(r?.lastPageIndex||0),Math.max(0,enabledJournalPages().length-1));lifeDraft={rating:Number(r?.rating||0),mood:r?.mood||"",movement:r?.movement||"",weather:r?.weather||"",dream:r?.dream||"",cycle:r?.cycle||"",habits:{...(r?.habits||{})},customHabits:{...(r?.customHabits||{})}};$("lifeTodayDateLabel").textContent=new Intl.DateTimeFormat("en-US",{weekday:"long",month:"long",day:"numeric"}).format(new Date());$("lifeSaveStatus").textContent=r?"Saved ✓":"Not checked in";[["lifeRatingReason",r?.ratingReason],["lifeHighlight",r?.highlight],["lifeEnergy",r?.energy],["lifeSocial",r?.social],["lifeSleepHours",r?.sleepHours],["lifeSleepQuality",r?.sleepQuality],["lifeWater",r?.water],["lifeOutside",r?.outside],["lifeMovementMinutes",r?.movementMinutes],["lifeStress",r?.stress],["lifeCalm",r?.calm],["lifeMindNote",r?.mindNote],["lifeReadingTitle",r?.readingTitle],["lifeReadingPages",r?.readingPages],["lifeReadingMinutes",r?.readingMinutes],["lifeWatchedTitle",r?.watchedTitle],["lifeWatchedEpisode",r?.watchedEpisode],["lifeWatchedRating",r?.watchedRating],["lifeSong",r?.song],["lifeTemperature",r?.temperature],["lifeDreamNote",r?.dreamNote],["lifeGratitude1",Array.isArray(r?.gratitude)?r.gratitude[0]:r?.gratitude],["lifeGratitude2",Array.isArray(r?.gratitude)?r.gratitude[1]:""],["lifeGratitude3",Array.isArray(r?.gratitude)?r.gratitude[2]:""],["lifeLearned",r?.learned],["lifeCupToday",r?.cupToday],["lifeLittleWin",r?.littleWin],["lifeMemory",r?.memory],["lifeLookingForward",r?.lookingForward],["lifeTomorrowIntention",r?.tomorrowIntention],["lifeFoodMoment",r?.foodMoment],["lifeFocus",r?.focus],["lifeWorkStudy",r?.workStudy],["lifeConnection",r?.connection],["lifeConnectionNote",r?.connectionNote],["lifeMoneyNote",r?.moneyNote],["lifeScreenHours",r?.screenHours],["lifeScreenFeeling",r?.screenFeeling],["lifeSelfCare",r?.selfCare],["lifeCreativeMinutes",r?.creativeMinutes],["lifeCreativeNote",r?.creativeNote],["lifeAnticipation",r?.anticipation],["lifeDayWord",r?.dayWord],["lifeNote",r?.note]].forEach(([id,v])=>setInputValue(id,v));setChecked("lifeSongRepeat",r?.songRepeat);setChecked("lifeNoSpend",r?.noSpend);document.querySelectorAll("#lifeDayRating button").forEach(b=>{const a=Number(b.dataset.rating)<=lifeDraft.rating;b.classList.toggle("selected",a);b.textContent=a?"★":"☆"});document.querySelectorAll("#lifeMoodPicker button").forEach(b=>b.classList.toggle("selected",b.dataset.lifeMood===lifeDraft.mood));["movement","weather","dream","cycle"].forEach(g=>lifeSetChoice(g,lifeDraft[g]||""));renderLifeHabits();renderJournalPage();$("journalClosingPage")?.classList.add("hidden");$("lifeDailyForm")?.classList.remove("hidden")}
 function renderLifeHabits(){const a=$("lifeHabitGrid"),h=$("lifeCustomHabitGrid");if(a){const items=state.habitDefinitions.filter(x=>(x.kind||"adulting")==="adulting"&&x.active!==false);a.innerHTML=items.map(x=>`<button type="button" class="${lifeDraft.habits?.[x.id]?"done":""}" data-adult-habit="${escapeHtml(x.id)}"><span>${lifeDraft.habits?.[x.id]?"✓":"○"}</span><strong>${escapeHtml(x.name)}</strong></button>`).join("");a.querySelectorAll("[data-adult-habit]").forEach(b=>b.addEventListener("click",()=>{const id=b.dataset.adultHabit;lifeDraft.habits[id]=!lifeDraft.habits[id];renderLifeHabits()}))}if(h){const items=state.habitDefinitions.filter(x=>x.kind==="habit"&&x.active!==false);h.innerHTML=items.map(x=>`<button type="button" class="${lifeDraft.customHabits?.[x.id]?"done":""}" data-custom-habit="${escapeHtml(x.id)}"><span>${lifeDraft.customHabits?.[x.id]?"✓":"○"}</span><strong>${escapeHtml(x.name)}</strong></button>`).join("");h.querySelectorAll("[data-custom-habit]").forEach(b=>b.addEventListener("click",()=>{const id=b.dataset.customHabit;lifeDraft.customHabits[id]=!lifeDraft.customHabits[id];renderLifeHabits()}))}}
 async function editHabitKind(kind,label){const current=state.habitDefinitions.filter(h=>(h.kind||"adulting")===kind&&h.active!==false).map(h=>h.name).join(", ");const value=window.prompt(`${label} — separate each with a comma.`,current);if(value===null)return;const names=value.split(",").map(v=>v.trim()).filter(Boolean).slice(0,12);if(!names.length)return toast("Keep at least one item.");const existing=state.habitDefinitions.filter(h=>(h.kind||"adulting")===kind),byName=new Map(existing.map(h=>[h.name.toLowerCase(),h]));const next=names.map((name,i)=>{const f=byName.get(name.toLowerCase());return f?{...f,name,kind,active:true,updatedAt:Date.now()}:{id:uid(kind),name,kind,active:true,createdAt:Date.now()+i}}),keep=new Set(next.map(h=>h.id)),removed=existing.filter(h=>!keep.has(h.id)).map(h=>({...h,active:false,updatedAt:Date.now()}));state.habitDefinitions=state.habitDefinitions.filter(h=>(h.kind||"adulting")!==kind).concat(next,removed);await Promise.all([...next,...removed].map(r=>diaryRepository.save("habitDefinitions",r)));renderLifeHabits();toast(`${label} updated ♡`)}
 function manageLifeHabits(){return editHabitKind("adulting","Adulting list")}function manageCustomLifeHabits(){return editHabitKind("habit","Personal habits")}
 function renderJournalPage(){const pages=enabledJournalPages();if(!pages.length)return;journalPageIndex=Math.max(0,Math.min(journalPageIndex,pages.length-1));const id=pages[journalPageIndex].id;document.querySelectorAll(".journal-page").forEach(p=>p.classList.toggle("active",p.dataset.journalPage===id));$("journalPageCounter").textContent=`Page ${journalPageIndex+1} of ${pages.length}`;$("journalBackButton").disabled=journalPageIndex===0;$("journalNextButton").classList.toggle("hidden",journalPageIndex===pages.length-1);$("journalSkipButton").classList.toggle("hidden",journalPageIndex===pages.length-1);$("journalFinishButton").classList.toggle("hidden",journalPageIndex!==pages.length-1);$("journalProgressDots").innerHTML=pages.map((p,i)=>`<button type="button" class="${i===journalPageIndex?"active":i<journalPageIndex?"visited":""}" data-journal-jump="${i}" aria-label="${escapeHtml(p.label)}"></button>`).join("");$("journalProgressDots").querySelectorAll("[data-journal-jump]").forEach(b=>b.addEventListener("click",()=>{journalPageIndex=Number(b.dataset.journalJump);renderJournalPage()}))}
 function journalNext(){if(journalPageIndex<enabledJournalPages().length-1){journalPageIndex++;renderJournalPage()}}function journalBack(){if(journalPageIndex>0){journalPageIndex--;renderJournalPage()}}
 function valueOrNull(id,num=false){const el=$(id);if(!el||el.value==="")return null;return num?Number(el.value):el.value.trim()}
-async function saveLifeToday(event){event.preventDefault();const e=lifeTodayRecord(),gratitude=[valueOrNull("lifeGratitude1"),valueOrNull("lifeGratitude2"),valueOrNull("lifeGratitude3")].filter(Boolean);const r={id:e?.id||`daily_${isoToday()}`,date:isoToday(),rating:Number(lifeDraft.rating||0),ratingReason:valueOrNull("lifeRatingReason")||"",mood:lifeDraft.mood||"",highlight:valueOrNull("lifeHighlight")||"",energy:valueOrNull("lifeEnergy",true),social:valueOrNull("lifeSocial",true),sleepHours:valueOrNull("lifeSleepHours",true),sleepQuality:valueOrNull("lifeSleepQuality",true),water:valueOrNull("lifeWater",true),outside:valueOrNull("lifeOutside",true),movementMinutes:valueOrNull("lifeMovementMinutes",true),movement:lifeDraft.movement||"",stress:valueOrNull("lifeStress",true),calm:valueOrNull("lifeCalm",true),mindNote:valueOrNull("lifeMindNote")||"",habits:{...lifeDraft.habits},customHabits:{...lifeDraft.customHabits},readingTitle:valueOrNull("lifeReadingTitle")||"",readingPages:valueOrNull("lifeReadingPages",true),readingMinutes:valueOrNull("lifeReadingMinutes",true),watchedTitle:valueOrNull("lifeWatchedTitle")||"",watchedEpisode:valueOrNull("lifeWatchedEpisode")||"",watchedRating:valueOrNull("lifeWatchedRating",true),song:valueOrNull("lifeSong")||"",songRepeat:!!$("lifeSongRepeat")?.checked,weather:lifeDraft.weather||"",temperature:valueOrNull("lifeTemperature",true),dream:lifeDraft.dream||"",dreamNote:valueOrNull("lifeDreamNote")||"",gratitude,learned:valueOrNull("lifeLearned")||"",cupToday:valueOrNull("lifeCupToday")||"",littleWin:valueOrNull("lifeLittleWin")||"",memory:valueOrNull("lifeMemory")||"",lookingForward:valueOrNull("lifeLookingForward")||"",tomorrowIntention:valueOrNull("lifeTomorrowIntention")||"",note:valueOrNull("lifeNote")||"",cycle:lifeDraft.cycle||"",lastPageIndex:0,completedAt:Date.now(),createdAt:e?.createdAt||Date.now(),updatedAt:Date.now()};await diaryRepository.save("dailyCheckins",r);state.dailyCheckins=e?state.dailyCheckins.map(x=>x.id===r.id?r:x):[...state.dailyCheckins,r];$("lifeSaveStatus").textContent="Saved ✓";renderLifeTracker();renderLifeHistory();showJournalClosing(r)}
+async function saveLifeToday(event){event.preventDefault();const e=lifeTodayRecord(),gratitude=[valueOrNull("lifeGratitude1"),valueOrNull("lifeGratitude2"),valueOrNull("lifeGratitude3")].filter(Boolean);const r={id:e?.id||`daily_${isoToday()}`,date:isoToday(),rating:Number(lifeDraft.rating||0),ratingReason:valueOrNull("lifeRatingReason")||"",mood:lifeDraft.mood||"",highlight:valueOrNull("lifeHighlight")||"",energy:valueOrNull("lifeEnergy",true),social:valueOrNull("lifeSocial",true),sleepHours:valueOrNull("lifeSleepHours",true),sleepQuality:valueOrNull("lifeSleepQuality",true),water:valueOrNull("lifeWater",true),outside:valueOrNull("lifeOutside",true),movementMinutes:valueOrNull("lifeMovementMinutes",true),movement:lifeDraft.movement||"",stress:valueOrNull("lifeStress",true),calm:valueOrNull("lifeCalm",true),mindNote:valueOrNull("lifeMindNote")||"",habits:{...lifeDraft.habits},customHabits:{...lifeDraft.customHabits},readingTitle:valueOrNull("lifeReadingTitle")||"",readingPages:valueOrNull("lifeReadingPages",true),readingMinutes:valueOrNull("lifeReadingMinutes",true),watchedTitle:valueOrNull("lifeWatchedTitle")||"",watchedEpisode:valueOrNull("lifeWatchedEpisode")||"",watchedRating:valueOrNull("lifeWatchedRating",true),song:valueOrNull("lifeSong")||"",songRepeat:!!$("lifeSongRepeat")?.checked,weather:lifeDraft.weather||"",temperature:valueOrNull("lifeTemperature",true),dream:lifeDraft.dream||"",dreamNote:valueOrNull("lifeDreamNote")||"",gratitude,learned:valueOrNull("lifeLearned")||"",cupToday:valueOrNull("lifeCupToday")||"",littleWin:valueOrNull("lifeLittleWin")||"",memory:valueOrNull("lifeMemory")||"",lookingForward:valueOrNull("lifeLookingForward")||"",tomorrowIntention:valueOrNull("lifeTomorrowIntention")||"",foodMoment:valueOrNull("lifeFoodMoment")||"",focus:valueOrNull("lifeFocus",true),workStudy:valueOrNull("lifeWorkStudy")||"",connection:valueOrNull("lifeConnection",true),connectionNote:valueOrNull("lifeConnectionNote")||"",noSpend:!!$("lifeNoSpend")?.checked,moneyNote:valueOrNull("lifeMoneyNote")||"",screenHours:valueOrNull("lifeScreenHours",true),screenFeeling:valueOrNull("lifeScreenFeeling")||"",selfCare:valueOrNull("lifeSelfCare")||"",creativeMinutes:valueOrNull("lifeCreativeMinutes",true),creativeNote:valueOrNull("lifeCreativeNote")||"",anticipation:valueOrNull("lifeAnticipation")||"",dayWord:valueOrNull("lifeDayWord")||"",note:valueOrNull("lifeNote")||"",cycle:lifeDraft.cycle||"",lastPageIndex:0,completedAt:Date.now(),createdAt:e?.createdAt||Date.now(),updatedAt:Date.now()};await diaryRepository.save("dailyCheckins",r);state.dailyCheckins=e?state.dailyCheckins.map(x=>x.id===r.id?r:x):[...state.dailyCheckins,r];$("lifeSaveStatus").textContent="Saved ✓";renderLifeTracker();renderLifeHistory();showJournalClosing(r)}
 function showJournalClosing(r){$("lifeDailyForm").classList.add("hidden");$("journalClosingPage").classList.remove("hidden");$("journalClosingDate").textContent=formatDate(r.date);const stars=r.rating?`${"★".repeat(r.rating)}${"☆".repeat(5-r.rating)}`:"";$("journalClosingSummary").textContent=[r.mood?(moodLabels[r.mood]||r.mood):"",stars,r.highlight||""].filter(Boolean).join(" · ")||"Today is safely tucked away."}
 function closeJournal(){$("journalClosingPage").classList.add("hidden");$("lifeDailyForm").classList.remove("hidden");journalPageIndex=0;renderJournalPage();navigate("home")}
-function openJournalCustomizer(){const host=$("journalPageSettingsList");host.innerHTML=JOURNAL_PAGES.map(p=>`<label class="journal-page-setting"><input type="checkbox" value="${p.id}" ${journalPreferences.enabledPages.includes(p.id)?"checked":""}><span>${escapeHtml(p.label)}</span></label>`).join("");$("journalCustomizeSheet").classList.remove("hidden")}
-function closeJournalCustomizer(){$("journalCustomizeSheet").classList.add("hidden")}function saveJournalCustomizer(){const selected=[...$("journalPageSettingsList").querySelectorAll('input[type="checkbox"]:checked')].map(i=>i.value);if(!selected.length)return toast("Keep at least one journal page.");journalPreferences.enabledPages=selected;saveJournalPreferences();closeJournalCustomizer();journalPageIndex=0;renderJournalPage();toast("Your journal pages are saved ♡")}
+function updateJournalSelectionCount(){
+  const count=$("journalPageSettingsList")?.querySelectorAll('input[type="checkbox"]:checked').length||0;
+  if($("journalPageSelectionCount"))$("journalPageSelectionCount").textContent=`${count} of ${JOURNAL_PAGES.length} pages selected`;
+}
+function applyJournalPreset(name){
+  const preset=JOURNAL_PRESETS[name];
+  if(!preset)return;
+  const selected=new Set(preset);
+  $("journalPageSettingsList")?.querySelectorAll('input[type="checkbox"]').forEach(input=>{input.checked=selected.has(input.value)});
+  document.querySelectorAll("[data-journal-preset]").forEach(button=>button.classList.toggle("active",button.dataset.journalPreset===name));
+  updateJournalSelectionCount();
+}
+function openJournalCustomizer(){
+  const host=$("journalPageSettingsList");
+  const groups=["Feel & Body","Day & Routine","Life Extras","Reflect"];
+  host.innerHTML=groups.map(group=>{
+    const pages=JOURNAL_PAGES.filter(page=>page.group===group);
+    return `<section class="journal-settings-group"><p>${escapeHtml(group)}</p>${pages.map(p=>`<label class="journal-page-setting"><input type="checkbox" value="${p.id}" ${journalPreferences.enabledPages.includes(p.id)?"checked":""}><span>${escapeHtml(p.label)}</span></label>`).join("")}</section>`;
+  }).join("");
+  host.querySelectorAll('input[type="checkbox"]').forEach(input=>input.addEventListener("change",()=>{document.querySelectorAll("[data-journal-preset]").forEach(button=>button.classList.remove("active"));updateJournalSelectionCount()}));
+  document.querySelectorAll("[data-journal-preset]").forEach(button=>{button.onclick=()=>applyJournalPreset(button.dataset.journalPreset)});
+  updateJournalSelectionCount();
+  $("journalCustomizeSheet").classList.remove("hidden");
+}
+function closeJournalCustomizer(){$("journalCustomizeSheet").classList.add("hidden")}
+function saveJournalCustomizer(){
+  const selected=[...$("journalPageSettingsList").querySelectorAll('input[type="checkbox"]:checked')].map(i=>i.value);
+  if(!selected.length)return toast("Keep at least one journal page.");
+  journalPreferences.enabledPages=selected;
+  saveJournalPreferences();
+  closeJournalCustomizer();
+  journalPageIndex=0;
+  renderJournalPage();
+  toast(`${selected.length} Daily Life pages saved ♡`);
+}
 function lifeMetricValue(r,m){if(m==="rating")return r.rating||null;if(m==="mood")return({amazing:5,good:4,neutral:3,tired:2,sad:1,angry:1})[r.mood]||null;if(m==="sleep")return r.sleepHours??null;if(m==="energy")return r.energy??null;if(m==="stress")return r.stress??null;if(m==="reading")return r.readingPages??null;if(m==="movement")return r.movement?({none:1,walk:2,yoga:3,cardio:4,strength:5})[r.movement]||2:null;if(m==="weather")return r.weather?({stormy:1,rainy:1,cloudy:2,partly:3,sunny:4})[r.weather]||2:null;if(m==="dream")return r.dream?({none:1,scary:2,sad:2,weird:3,romantic:4,happy:5})[r.dream]||3:null;if(m==="cycle")return r.cycle?({none:1,spotting:2,light:3,regular:4,heavy:5})[r.cycle]||1:null;return null}
 function lifeMetricLevel(m,v){if(v==null||v==="")return 0;if(m==="sleep")return v>=8?5:v>=7?4:v>=6?3:v>=5?2:1;if(m==="reading")return v>=80?5:v>=50?4:v>=20?3:v>0?2:1;return Math.max(1,Math.min(5,Math.round(Number(v))))}
 function renderLifeTracker(){const host=$("lifeYearTracker");if(!host)return;$("lifeTrackerYear").textContent=lifeTrackerYear;const records=new Map(state.dailyCheckins.filter(r=>String(r.date).startsWith(`${lifeTrackerYear}-`)).map(r=>[r.date,r])),months=["J","F","M","A","M","J","J","A","S","O","N","D"];let html=`<div class="tracker-corner"></div>${months.map(m=>`<div class="tracker-month-label">${m}</div>`).join("")}`;for(let day=1;day<=31;day++){html+=`<div class="tracker-day-label">${day}</div>`;for(let month=1;month<=12;month++){const max=new Date(lifeTrackerYear,month,0).getDate();if(day>max){html+=`<div class="tracker-cell invalid"></div>`;continue}const date=`${lifeTrackerYear}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`,r=records.get(date),v=r?lifeMetricValue(r,lifeTrackerMetric):null,l=lifeMetricLevel(lifeTrackerMetric,v);html+=`<button type="button" class="tracker-cell level-${l}" data-life-history-date="${date}"></button>`}}host.innerHTML=html;host.querySelectorAll("[data-life-history-date]").forEach(b=>b.addEventListener("click",()=>showLifeHistoryDate(b.dataset.lifeHistoryDate)));renderLifeTrackerLegend()}
@@ -7233,11 +7374,11 @@ const FUWA_FEATURE_TUTORIALS = {
     icon: "✦",
     eyebrow: "YOUR EVERYDAY NOTEBOOK",
     title: "Daily Life Pages is your page-by-page check-in",
-    copy: "Instead of filling one giant form, move through your little notebook one page at a time. Answer only what feels useful that day.",
+    copy: "Fuwa has 30 Daily Life pages, but they are a library rather than a checklist. Use Gentle 8, Everyday 15, All 30, or choose your own set.",
     how: [
-      "Use Next, Back, or Skip as you move through today's pages.",
-      "Trackers build from the answers you save.",
-      "Moments and Collections keep other little pieces of your life."
+      "Use Customize to choose how many pages appear in your routine.",
+      "Use Next, Back, or Skip—blank pages are completely okay.",
+      "Trackers build only from the answers you actually save."
     ]
   },
   moodjar: {
@@ -7342,12 +7483,12 @@ const FUWA_FEATURE_TUTORIALS = {
   bubbles: {
     icon: "💭",
     eyebrow: "ONE SENTENCE IS ENOUGH",
-    title: "Thought Bubbles catches a thought before it disappears",
-    copy: "Use this when something is worth saving but does not need a full entry. Short, strange, serious, funny — all of it counts.",
+    title: "Thought Bubbles keeps a thought floating until you are done with it",
+    copy: "Random Thoughts are passing notes. Use a Thought Bubble for an idea, question, worry, or daydream you want Fuwa to intentionally bring back later.",
     how: [
-      "Write one quick sentence.",
-      "Use Float one back to me to revisit an older thought.",
-      "A Thought Bubble can stay tiny."
+      "Write one short thought you may want to revisit.",
+      "Use Float one back to me to meet an active Bubble again.",
+      "Tap Release when the thought no longer needs to keep floating."
     ]
   },
   dreams: {
@@ -7387,11 +7528,11 @@ const FUWA_FEATURE_TUTORIALS = {
     icon: "🫶",
     eyebrow: "KEEP SOFT THINGS CLOSE",
     title: "Comfort Corner is your personal comfort shelf",
-    copy: "Save words, activities, reminders, places, foods, or tiny things that reliably make a difficult moment a little softer.",
+    copy: "Save words, reminders, places, people, memories, and even future things that give you something warm to look forward to.",
     how: [
-      "Tap + to add something comforting.",
-      "Use I need something soft when you want Fuwa to pick one.",
-      "Build the list around what actually works for you."
+      "Tap + and choose the kind of comfort you are saving.",
+      "Use Looking Forward To for trips, plans, celebrations, and future joys.",
+      "Use I need something soft when you want Fuwa to pick one."
     ]
   },
   sanctuary: {
