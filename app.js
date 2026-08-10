@@ -5686,8 +5686,12 @@ function markFeatureTutorialSeen(key) {
 }
 
 function featureTutorialCanOpen() {
-  return $("featureTutorial")?.classList.contains("hidden") &&
-         $("fuwaTutorial")?.classList.contains("hidden") &&
+  const featureGuide = $("featureTutorial");
+  const mainGuide = $("fuwaTutorial");
+  return !!featureGuide &&
+         featureGuide.hidden === true &&
+         !!mainGuide &&
+         mainGuide.classList.contains("hidden") &&
          !$("privacyLockScreen")?.classList.contains("active");
 }
 
@@ -5722,13 +5726,20 @@ function openFeatureTutorial(key, { force = false } = {}) {
 
   if (!renderFeatureTutorial(key)) return;
   pendingFeatureTutorialKey = null;
-  $("featureTutorial")?.classList.remove("hidden");
+  const modal = $("featureTutorial");
+  if (!modal) return;
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
 }
 
 function closeFeatureTutorial({ markSeen = true } = {}) {
   if (markSeen) markFeatureTutorialSeen(activeFeatureTutorialKey);
-  $("featureTutorial")?.classList.add("hidden");
+  const modal = $("featureTutorial");
+  if (modal) {
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+  }
   activeFeatureTutorialKey = null;
 
   if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open") &&
@@ -5866,8 +5877,11 @@ function closeFuwaTutorial({ markSeen = true } = {}) {
   tutorialOpenedAutomatically = false;
   if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open")) document.body.style.overflow = "";
 
-  if (pendingFeatureTutorialKey) flushPendingFeatureTutorial();
-  else maybeShowFeatureTutorial(currentView || "home");
+  if (pendingFeatureTutorialKey) {
+    window.setTimeout(flushPendingFeatureTutorial, 280);
+  } else if (tutorialOpenedAutomatically === false) {
+    window.setTimeout(() => maybeShowFeatureTutorial(currentView || "home"), 320);
+  }
 }
 
 function goNextTutorialStep() {
@@ -5959,13 +5973,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.body.classList.remove("fuwa-loading");
     maybeOpenFirstUseTutorial();
 
-    if (tutorialWasSeen()) {
-      maybeShowFeatureTutorial(currentView || "home");
-    }
-
     window.addEventListener("fuwa-auth-ready", () => {
       maybeOpenFirstUseTutorial();
-      if (tutorialWasSeen()) maybeShowFeatureTutorial(currentView || "home");
     }, { once: true });
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);

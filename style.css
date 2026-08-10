@@ -7247,3 +7247,21 @@ body.privacy-locked{overscroll-behavior:none}
   .feature-tutorial-card{padding:22px 16px 16px}
   #featureTutorialTitle{font-size:20px}
 }
+
+
+/* =========================================================
+   FUWA V59 — CONTEXTUAL TUTORIAL STABILITY GUARD
+   Native [hidden] is used so a closed guide can never intercept taps.
+   ========================================================= */
+.feature-tutorial[hidden]{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+.feature-tutorial:not([hidden]){
+  display:grid;
+  visibility:visible;
+  opacity:1;
+  pointer-events:auto;
+}
