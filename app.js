@@ -5379,6 +5379,167 @@ function installIOSZoomGuard() {
 }
 
 
+
+const FUWA_TUTORIAL_SEEN_KEY = "fuwaTutorialSeenV1";
+let tutorialStepIndex = 0;
+let tutorialOpenedAutomatically = false;
+
+const FUWA_TUTORIAL_STEPS = [
+  {
+    icon: "🌷",
+    eyebrow: "WELCOME TO YOUR GARDEN",
+    title: "Welcome to Fuwa ☁️",
+    copy: "Fuwa is your soft little place for memories, thoughts, moods, letters, and the everyday things you want to keep. There is no right way to use it — add as much or as little as you want.",
+    chips: ["Private by default", "Works offline", "No streak pressure"]
+  },
+  {
+    icon: "🏡",
+    eyebrow: "START WITH TODAY",
+    title: "Home is your daily landing place",
+    copy: "Check in with your mood, add a Tiny Joy, or drop a Random Thought without writing a full journal entry. Home stays focused on today so it never becomes overwhelming.",
+    chips: ["Mood check-in", "Tiny Joys 🌷", "Random Thoughts 💭"]
+  },
+  {
+    icon: "📖",
+    eyebrow: "KEEP THE STORY",
+    title: "Entries hold the fuller memories",
+    copy: "Use Entries when you want to write more. Add a title, your memory, mood, tags, and photos. Your past entries stay searchable, so yesterday never disappears.",
+    chips: ["Journal entries", "Photos", "Search & tags"]
+  },
+  {
+    icon: "✦",
+    eyebrow: "LIFE, ALL IN ONE PLACE",
+    title: "Daily Life Pages turn check-ins into patterns",
+    copy: "Open Daily Life Pages from the hamburger menu to track things like mood, sleep, habits, reading, health, highlights, entertainment, and more. You finish the day's page in one flow.",
+    chips: ["Trackers", "Daily check-in", "Moments & Wrapped"]
+  },
+  {
+    icon: "💌",
+    eyebrow: "WORDS FOR LATER",
+    title: "Write letters and keep returning memories",
+    copy: "Letters Through Time lets you write to your future self or someone else. Memory Threads, Bookmarks, Then & Now, Dream Pocket, and other tools help you keep the things that matter in different ways.",
+    chips: ["Letters", "Memory Threads", "Bookmarks"]
+  },
+  {
+    icon: "☾",
+    eyebrow: "YOUR QUIETER CORNERS",
+    title: "The hamburger holds the deeper features",
+    copy: "Open ☰ whenever you want the rest of your garden: Nightly Wind-Down, Sleep Corner, Comfort Corner, Sanctuary, Dream Pocket, Emotional Weather, and more. Home stays clean while these remain close by.",
+    chips: ["Sleep Corner", "Sanctuary", "Nightly Wind-Down"]
+  },
+  {
+    icon: "🔒",
+    eyebrow: "MAKE FUWA YOURS",
+    title: "Private, customizable, and yours",
+    copy: "Use Appearance for themes and wallpaper, Lock Fuwa when you want PIN protection, and Settings for reminders, account, and cloud backup. You can use Fuwa without logging in, and this tutorial is always available again from ☰ → How to Use Fuwa.",
+    chips: ["Optional login", "App Lock", "Cloud backup"]
+  }
+];
+
+function hasMeaningfulFuwaContent() {
+  const keys = [
+    "entries","tinyJoys","letters","moodCheckins","threads","bookmarks",
+    "nightlyReflections","thenNow","comfortItems","unsentLetters","thoughtBubbles",
+    "dreams","dailyCheckins","lifeCollections","moments","randomThoughts"
+  ];
+  return keys.some(key => Array.isArray(state?.[key]) && state[key].length > 0);
+}
+
+function markTutorialSeen() {
+  try { localStorage.setItem(FUWA_TUTORIAL_SEEN_KEY, "1"); } catch (_) {}
+}
+
+function tutorialWasSeen() {
+  try { return localStorage.getItem(FUWA_TUTORIAL_SEEN_KEY) === "1"; }
+  catch (_) { return false; }
+}
+
+function renderTutorialStep() {
+  const step = FUWA_TUTORIAL_STEPS[tutorialStepIndex];
+  if (!step) return;
+
+  $("tutorialVisual")?.setAttribute("data-icon", step.icon);
+  if ($("tutorialEyebrow")) $("tutorialEyebrow").textContent = step.eyebrow;
+  if ($("tutorialTitle")) $("tutorialTitle").textContent = step.title;
+  if ($("tutorialCopy")) $("tutorialCopy").textContent = step.copy;
+  if ($("tutorialStepCount")) $("tutorialStepCount").textContent = `${tutorialStepIndex + 1} of ${FUWA_TUTORIAL_STEPS.length}`;
+
+  const chips = $("tutorialFeatureChips");
+  if (chips) chips.innerHTML = step.chips.map(item => `<span>${escapeHtml(item)}</span>`).join("");
+
+  const dots = $("tutorialDots");
+  if (dots) {
+    dots.innerHTML = FUWA_TUTORIAL_STEPS.map((_, index) =>
+      `<button type="button" class="tutorial-dot ${index === tutorialStepIndex ? "active" : ""}" data-tutorial-dot="${index}" aria-label="Go to tutorial step ${index + 1}"></button>`
+    ).join("");
+    dots.querySelectorAll("[data-tutorial-dot]").forEach(button => {
+      button.addEventListener("click", () => {
+        tutorialStepIndex = Number(button.dataset.tutorialDot);
+        renderTutorialStep();
+      });
+    });
+  }
+
+  $("tutorialBackButton")?.classList.toggle("hidden", tutorialStepIndex === 0);
+  if ($("tutorialNextButton")) {
+    $("tutorialNextButton").textContent =
+      tutorialStepIndex === FUWA_TUTORIAL_STEPS.length - 1 ? "Enter Fuwa" : "Next";
+  }
+}
+
+function openFuwaTutorial({ automatic = false } = {}) {
+  tutorialOpenedAutomatically = automatic;
+  tutorialStepIndex = 0;
+  renderTutorialStep();
+  $("fuwaTutorial")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeFuwaTutorial({ markSeen = true } = {}) {
+  $("fuwaTutorial")?.classList.add("hidden");
+  if (markSeen) markTutorialSeen();
+  tutorialOpenedAutomatically = false;
+  if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open")) document.body.style.overflow = "";
+}
+
+function goNextTutorialStep() {
+  if (tutorialStepIndex >= FUWA_TUTORIAL_STEPS.length - 1) {
+    closeFuwaTutorial({ markSeen: true });
+    return;
+  }
+  tutorialStepIndex += 1;
+  renderTutorialStep();
+}
+
+function goBackTutorialStep() {
+  if (tutorialStepIndex <= 0) return;
+  tutorialStepIndex -= 1;
+  renderTutorialStep();
+}
+
+function maybeOpenFirstUseTutorial() {
+  if (tutorialWasSeen()) return;
+
+  // Existing journals upgrading to v55 should not suddenly get first-use onboarding.
+  if (hasMeaningfulFuwaContent()) {
+    markTutorialSeen();
+    return;
+  }
+
+  const insideApp =
+    document.body.classList.contains("auth-local") ||
+    document.body.classList.contains("auth-signed-in") ||
+    (!document.body.classList.contains("auth-pending") &&
+     !document.body.classList.contains("auth-signed-out"));
+
+  if (!insideApp) return;
+
+  setTimeout(() => {
+    if (!tutorialWasSeen() && !$("fuwaTutorial")?.classList.contains("hidden")) return;
+    if (!tutorialWasSeen()) openFuwaTutorial({ automatic: true });
+  }, 250);
+}
+
 function openSettingsSheet() {
   $("settingsSheet")?.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -5398,6 +5559,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("settingsSheet")?.addEventListener("click", event => {
     if (event.target === $("settingsSheet")) closeSettingsSheet();
   });
+  $("tutorialButton")?.addEventListener("click", () => {
+    closeFuwaDrawer();
+    openFuwaTutorial({ automatic: false });
+  });
+  $("tutorialNextButton")?.addEventListener("click", goNextTutorialStep);
+  $("tutorialBackButton")?.addEventListener("click", goBackTutorialStep);
+  $("tutorialSkipButton")?.addEventListener("click", () => closeFuwaTutorial({ markSeen: true }));
+  $("tutorialCloseButton")?.addEventListener("click", () => closeFuwaTutorial({ markSeen: true }));
+
   document.body.classList.add("fuwa-loading");
   try {
     state = { ...state, ...loadPreferences() };
@@ -5413,6 +5583,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     installPrivacyActivityWatch();
 
     document.body.classList.remove("fuwa-loading");
+    maybeOpenFirstUseTutorial();
+
+    window.addEventListener("fuwa-auth-ready", () => {
+      maybeOpenFirstUseTutorial();
+    }, { once: true });
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
     alert("Fuwa could not open its local diary. Please reload and try again.");
@@ -5456,7 +5631,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && $("fuwaDrawer")?.classList.contains("open")) closeFuwaDrawer();
+    if (event.key !== "Escape") return;
+    if (!$("fuwaTutorial")?.classList.contains("hidden")) {
+      closeFuwaTutorial({ markSeen: true });
+      return;
+    }
+    if ($("fuwaDrawer")?.classList.contains("open")) closeFuwaDrawer();
   });
 
   $("quickHideButton").addEventListener("click", async () => { closeFuwaDrawer(); await lockFuwaFromDrawer(); });

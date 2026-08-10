@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v54-little-things-navigation-fix -->
+  <!-- FUWA_BUILD: v55-first-use-tutorial -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -283,6 +283,7 @@
         <section class="drawer-group">
           <p class="drawer-section-label">Fuwa</p>
           <div class="drawer-menu-list">
+            <button class="drawer-menu-item" id="tutorialButton" type="button"><span class="drawer-item-icon tutorial-drawer-icon">?</span><span><strong>How to Use Fuwa</strong><small>Take the little tour again anytime.</small></span><b>›</b></button>
             <button class="drawer-menu-item" id="themeButton" type="button"><span class="drawer-item-icon drawer-appearance-icon"></span><span><strong>Appearance</strong><small>Theme, wallpaper, and softness.</small></span><b>›</b></button>
             <button class="drawer-menu-item" id="quickHideButton" type="button"><span class="drawer-item-icon drawer-hide-icon"></span><span><strong>Lock Fuwa</strong><small>Protect your journal with your Fuwa PIN.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="me" type="button"><span class="drawer-item-icon drawer-backup-icon"></span><span><strong>Backup & Cloud</strong><small>Cloud backup, local export, and recovery tools.</small></span><b>›</b></button>
@@ -1702,6 +1703,33 @@
       </label>
       <button class="danger-btn hidden" id="deleteThreadButton" type="button">Delete thread</button>
     </form>
+  </div>
+
+
+  <div class="fuwa-tutorial hidden" id="fuwaTutorial" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+    <div class="fuwa-tutorial-card">
+      <div class="tutorial-topbar">
+        <button type="button" id="tutorialSkipButton" class="tutorial-skip">Skip</button>
+        <span class="tutorial-step-count" id="tutorialStepCount">1 of 7</span>
+        <button type="button" id="tutorialCloseButton" class="tutorial-close" aria-label="Close tutorial">×</button>
+      </div>
+
+      <div class="tutorial-stage">
+        <div class="tutorial-visual" id="tutorialVisual" aria-hidden="true"></div>
+        <p class="eyebrow tutorial-eyebrow" id="tutorialEyebrow">WELCOME TO YOUR GARDEN</p>
+        <h2 id="tutorialTitle">Welcome to Fuwa ☁️</h2>
+        <p class="tutorial-copy" id="tutorialCopy"></p>
+        <div class="tutorial-feature-chips" id="tutorialFeatureChips"></div>
+      </div>
+
+      <div class="tutorial-footer">
+        <div class="tutorial-dots" id="tutorialDots" aria-label="Tutorial progress"></div>
+        <div class="tutorial-actions">
+          <button type="button" class="tutorial-back hidden" id="tutorialBackButton">Back</button>
+          <button type="button" class="tutorial-next" id="tutorialNextButton">Next</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="mood-checkin-modal hidden" id="moodCheckinModal" role="dialog" aria-modal="true" aria-labelledby="moodCheckinTitle">
