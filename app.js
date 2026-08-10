@@ -6120,7 +6120,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("nightlySkipButton").addEventListener("click", skipNightlyReflection);
 
   $("memoryDriftBackButton").addEventListener("click", () => navigate("home"));
-  $("bookmarksHomeCard").addEventListener("click", event => {
+  $("bookmarksHomeCard")?.addEventListener("click", event => {
     if (!event.target.closest("[data-bookmark-open]")) navigate("bookmarks");
   });
   $("bookmarksBackButton").addEventListener("click", () => navigate("bookmarks"));
