@@ -6966,3 +6966,61 @@ body.privacy-locked{overscroll-behavior:none}
 .fuwa-tagline{margin:0;color:var(--muted);font-family:Georgia,serif;font-size:6.5px;font-style:italic;line-height:1.2;letter-spacing:.01em;white-space:nowrap}
 .drawer-fuwa-tagline{margin:2px 0 0;color:var(--muted);font-family:Georgia,serif;font-size:7px;font-style:italic;line-height:1.35}
 @media(max-width:360px){.fuwa-tagline{font-size:5.9px}}
+
+
+/* FUWA V52 — HOME / ME / SETTINGS REORGANIZATION */
+.me-top-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin-bottom:12px
+}
+.me-top-row h2{
+  margin:2px 0 0;font-family:Georgia,serif;font-size:27px;color:#55424b
+}
+.me-settings-button{
+  width:40px;height:40px;display:grid;place-items:center;flex:0 0 auto;
+  border:1px solid var(--line);border-radius:50%;
+  background:rgba(255,255,255,.9);color:var(--accent-dark);
+  font-size:18px;box-shadow:0 5px 14px rgba(82,58,67,.08)
+}
+.me-settings-button:active{transform:translateY(1px)}
+#meView .section-block{margin-top:18px}
+
+.settings-sheet{
+  position:fixed;z-index:6500;inset:0;
+  display:grid;align-items:end;
+  background:rgba(61,47,54,.32);
+  backdrop-filter:blur(7px)
+}
+.settings-sheet-card{
+  width:100%;max-height:88vh;overflow:auto;box-sizing:border-box;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));
+  border-radius:28px 28px 0 0;background:#fff9fb;
+  box-shadow:0 -18px 45px rgba(72,51,60,.16)
+}
+.settings-sheet-head{
+  position:sticky;top:-18px;z-index:3;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:18px 0 12px;
+  background:linear-gradient(#fff9fb 80%,rgba(255,249,251,0))
+}
+.settings-sheet-head h2{
+  margin:2px 0 0;font-family:Georgia,serif;font-size:24px;color:#56434c
+}
+.settings-sheet-head>button{
+  width:36px;height:36px;border:0;border-radius:50%;
+  background:#f4e7ec;color:#805f6d;font-size:22px
+}
+.settings-sheet-body{display:grid;gap:14px}
+.settings-sheet-body .firebase-account-panel,
+.settings-sheet-body .notification-settings-card,
+.settings-sheet-body #cloudBackupCard{margin:0!important}
+
+
+/* FUWA V53 — LITTLE THINGS HISTORY */
+.little-things-history-grid{display:grid;gap:14px;margin-top:14px}
+.little-things-history-section{padding:14px;border:1px solid var(--line);border-radius:20px;background:rgba(255,255,255,.72)}
+.little-things-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.little-things-history-head>div{display:flex;align-items:center;gap:7px}
+.little-things-history-head strong{font-family:Georgia,serif;color:#5b4750;font-size:15px}
+.little-things-history-head small{max-width:48%;text-align:right;color:var(--muted);font-size:7px;line-height:1.35}
+@media(max-width:380px){.little-things-history-head{display:block}.little-things-history-head small{display:block;max-width:none;text-align:left;margin:3px 0 0 25px}}

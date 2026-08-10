@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v51-secret-garden -->
+  <!-- FUWA_BUILD: v53-little-things-history -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -390,17 +390,6 @@
           <div id="memoryDriftHome"></div>
         </section>
 
-        <section class="section-block" id="bookmarksHomeCard">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">For Future You</p>
-              <h3>Fuwa Bookmarks</h3>
-            </div>
-            <button class="text-btn" id="openBookmarksButton">View all</button>
-          </div>
-          <div id="homeBookmarkPreview"></div>
-        </section>
-
         <section class="section-block">
           <div class="section-heading">
             <div>
@@ -415,18 +404,6 @@
             <div class="calendar-grid" id="calendarGrid"></div>
           </div>
         </section>
-
-        <section class="section-block">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Recently</p>
-              <h3>Recent memories</h3>
-            </div>
-            <button class="text-btn" data-nav="entries">View all</button>
-          </div>
-          <div class="stack" id="recentEntries"></div>
-        </section>
-
 
         <section class="section-block nightly-home-section" id="nightlyHomeSection">
           <div class="section-heading">
@@ -454,30 +431,6 @@
         </section>
 
 
-        <section class="section-block sleep-home-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Drift off softly</p>
-              <h3>Sleep Corner</h3>
-            </div>
-            <button class="text-btn" id="openSleepCornerButton">Open</button>
-          </div>
-
-          <button class="sleep-home-card" id="sleepHomeCard" type="button">
-            <div class="sleep-home-art" aria-hidden="true">
-              <div class="sleep-pillow"></div>
-              <div class="sleep-cloud-small"><span></span></div>
-              <span class="sleep-z z-one">z</span>
-              <span class="sleep-z z-two">z</span>
-            </div>
-            <div class="sleep-home-copy">
-              <strong id="sleepHomeTitle">Something soft to fall asleep to.</strong>
-              <span id="sleepHomeText">Rain, waves, fireplace, wind, forest night, café, brown noise, and white noise.</span>
-              <small id="sleepHomeAction">Choose a sound →</small>
-            </div>
-          </button>
-        </section>
-
         <section class="section-block little-things-section" id="littleThingsSection">
           <div class="section-heading">
             <div>
@@ -499,6 +452,7 @@
               </form>
 
               <div class="little-things-list" id="tinyJoyList"></div>
+              <button class="little-things-see-all" id="tinyJoySeeAllButton" type="button">See all →</button>
             </article>
 
             <article class="little-things-card thought-card">
@@ -1108,17 +1062,32 @@
 
       <section class="view" id="thoughtsView">
         <div class="page-title-row">
-          <div><p class="eyebrow">WHATEVER IS FLOATING AROUND</p><h2>Random Thoughts</h2></div>
-          <span class="page-cute-icon">💭</span>
+          <div><p class="eyebrow">YOUR LITTLE THINGS, KEPT</p><h2>Little Things</h2></div>
+          <span class="page-cute-icon">🌷</span>
         </div>
-        <p class="muted feature-intro">Funny, sad, annoying, happy, useful, weird — anything goes.</p>
+        <p class="muted feature-intro">Yesterday doesn't disappear. Your tiny joys and passing thoughts stay here, grouped by day.</p>
 
-        <form class="thoughts-compose-card" id="randomThoughtPageForm">
-          <input id="randomThoughtPageInput" maxlength="220" placeholder="What's on your mind right now?" />
-          <button class="primary-btn" type="submit">Add Thought</button>
-        </form>
+        <div class="little-things-history-grid">
+          <section class="little-things-history-section">
+            <div class="little-things-history-head">
+              <div><span class="little-things-icon">🌷</span><strong>Tiny Joys</strong></div>
+              <small>Small things that made you smile</small>
+            </div>
+            <div class="thoughts-history-list" id="tinyJoyHistoryList"></div>
+          </section>
 
-        <div class="thoughts-history-list" id="randomThoughtHistoryList"></div>
+          <section class="little-things-history-section">
+            <div class="little-things-history-head">
+              <div><span class="little-things-icon">💭</span><strong>Random Thoughts</strong></div>
+              <small>Funny, sad, happy, weird — anything goes</small>
+            </div>
+            <form class="thoughts-compose-card" id="randomThoughtPageForm">
+              <input id="randomThoughtPageInput" maxlength="220" placeholder="What's on your mind right now?" />
+              <button class="primary-btn" type="submit">Add Thought</button>
+            </form>
+            <div class="thoughts-history-list" id="randomThoughtHistoryList"></div>
+          </section>
+        </div>
       </section>
 
       <section class="view" id="entriesView">
@@ -1245,6 +1214,13 @@
       </section>
 
       <section class="view" id="meView">
+        <div class="me-top-row">
+          <div>
+            <p class="eyebrow">Your secret garden</p>
+            <h2>Me</h2>
+          </div>
+          <button class="me-settings-button" id="openSettingsButton" type="button" aria-label="Open Settings">⚙︎</button>
+        </div>
         <div class="profile-card">
           <div class="avatar">🌷</div>
           <div>
@@ -1254,115 +1230,19 @@
           </div>
         </div>
 
-        <div class="firebase-account-panel">
-          <div class="firebase-account-panel-top">
-            <div class="firebase-account-cloud" aria-hidden="true"></div>
+
+        <section class="section-block">
+          <div class="section-heading">
             <div>
-              <p class="eyebrow">Account & Login</p>
-              <h3>Your private Fuwa</h3>
+              <p class="eyebrow">From your garden</p>
+              <h3>Recent memories</h3>
             </div>
-            <span class="firebase-session-pill" id="firebaseSessionPill">Signed in</span>
+            <button class="text-btn" data-nav="entries">View all</button>
           </div>
+          <div class="stack" id="recentEntries"></div>
+        </section>
 
-          <div class="firebase-account-detail" id="firebaseEmailDetail">
-            <span>Email</span>
-            <strong id="firebaseAccountEmailProfile">Loading account…</strong>
-          </div>
-          <div class="firebase-account-detail" id="firebaseProviderDetail">
-            <span>Sign-in method</span>
-            <strong id="firebaseAccountProviderProfile">Checking…</strong>
-          </div>
-          <div class="firebase-account-detail" id="firebaseCloudDetail">
-            <span>Cloud connection</span>
-            <strong id="firebaseCloudConnectionStatus">Checking Firestore…</strong>
-          </div>
 
-          <div class="firebase-local-data-note">
-            <span class="local-data-cloud" aria-hidden="true"></span>
-            <div>
-              <strong id="firebaseLocalDataTitle">Your diary is stored on this device.</strong>
-              <small id="firebaseLocalDataCopy">Your journal and device preferences remain local. Fuwa Cloud is available when you sign in.</small>
-            </div>
-          </div>
-
-          <button class="primary-btn firebase-profile-login hidden" id="firebaseProfileLoginButton" type="button">Log in or create an account</button>
-          <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
-        </div>
-
-        <div class="notification-settings-card">
-          <div class="notification-settings-heading">
-            <div>
-              <p class="eyebrow">Gentle Reminders</p>
-              <h3>Come back to Fuwa</h3>
-            </div>
-            <span class="notification-status-badge" id="notificationPermissionBadge">Not enabled</span>
-          </div>
-
-          <p class="muted notification-settings-copy">Choose when Fuwa should gently nudge you to finish your Daily Life Pages. Notification permission and testing work now; reliable closed-app scheduling can be connected later.</p>
-
-          <div class="notification-setting-row">
-            <div>
-              <strong>Daily Fuwa reminder</strong>
-              <small id="notificationSupportNote">Checking this device…</small>
-            </div>
-            <label class="fuwa-switch">
-              <input id="dailyReminderToggle" type="checkbox" />
-              <span></span>
-            </label>
-          </div>
-
-          <label class="notification-time-row">
-            <span>Reminder time</span>
-            <input id="dailyReminderTime" type="time" value="20:00" />
-          </label>
-
-          <label class="notification-style-row">
-            <span>Reminder style</span>
-            <select id="dailyReminderStyle">
-              <option value="rotate">Rotate gentle messages</option>
-              <option value="checkin">How was your day?</option>
-              <option value="remember">Anything to remember?</option>
-              <option value="soft">A little moment for yourself</option>
-            </select>
-          </label>
-
-          <div class="notification-action-row">
-            <button class="primary-btn" id="enableNotificationsButton" type="button">Enable Notifications</button>
-            <button class="secondary-btn" id="testNotificationButton" type="button">Send Test</button>
-          </div>
-
-          <small class="notification-footnote">On iPhone, Fuwa must be installed to the Home Screen for web push. The free client-only build cannot reliably wake itself at a chosen time while closed, so the daily schedule is saved now and will become active when we connect a push sender.</small>
-        </div>
-
-        <div class="cloud-backup-card" id="cloudBackupCard">
-          <div class="cloud-backup-heading">
-            <div>
-              <p class="eyebrow">Cloud Backup</p>
-              <h3>Keep a copy in your Fuwa cloud</h3>
-            </div>
-            <span class="cloud-backup-badge" id="cloudBackupBadge">Ready</span>
-          </div>
-          <p class="muted cloud-backup-copy">Backs up your journal text and Fuwa records to your signed-in Firebase account. Photos stay on this device for now.</p>
-          <div class="cloud-backup-meta">
-            <span>Last cloud backup</span>
-            <strong id="cloudBackupLastTime">No cloud backup yet</strong>
-          </div>
-          <div class="cloud-backup-meta">
-            <span>Records</span>
-            <strong id="cloudBackupRecordCount">Not backed up yet</strong>
-          </div>
-          <div class="cloud-backup-meta">
-            <span>Automatic sync</span>
-            <strong id="cloudAutoSyncStatus">On · waiting for changes</strong>
-          </div>
-          <div class="cloud-backup-meta cloud-photo-status">
-            <span>Attached photos</span>
-            <strong>Device only</strong>
-          </div>
-          <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
-          <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>
-          <small class="cloud-backup-footnote"><strong>Photo reminder:</strong> Fuwa Cloud cannot restore attached photos. Save important photos to your device’s Photos library before deleting Fuwa, clearing browser data, or moving to another device.</small>
-        </div>
 
         <div class="stats-grid" id="statsGrid">
           <div class="stat-card"><strong id="entryCount">0</strong><span>Entries</span></div>
@@ -1465,6 +1345,134 @@
   </div>
 
   <div class="quick-hide-screen hidden" id="quickHideScreen" aria-hidden="true"></div>
+
+
+  <div class="settings-sheet hidden" id="settingsSheet" role="dialog" aria-modal="true" aria-label="Fuwa Settings">
+    <div class="settings-sheet-card">
+      <div class="settings-sheet-head">
+        <div>
+          <p class="eyebrow">Fuwa</p>
+          <h2>Settings</h2>
+        </div>
+        <button type="button" id="closeSettingsButton" aria-label="Close settings">×</button>
+      </div>
+      <div class="settings-sheet-body">
+        <div class="firebase-account-panel">
+          <div class="firebase-account-panel-top">
+            <div class="firebase-account-cloud" aria-hidden="true"></div>
+            <div>
+              <p class="eyebrow">Account & Login</p>
+              <h3>Your private Fuwa</h3>
+            </div>
+            <span class="firebase-session-pill" id="firebaseSessionPill">Signed in</span>
+          </div>
+
+          <div class="firebase-account-detail" id="firebaseEmailDetail">
+            <span>Email</span>
+            <strong id="firebaseAccountEmailProfile">Loading account…</strong>
+          </div>
+          <div class="firebase-account-detail" id="firebaseProviderDetail">
+            <span>Sign-in method</span>
+            <strong id="firebaseAccountProviderProfile">Checking…</strong>
+          </div>
+          <div class="firebase-account-detail" id="firebaseCloudDetail">
+            <span>Cloud connection</span>
+            <strong id="firebaseCloudConnectionStatus">Checking Firestore…</strong>
+          </div>
+
+          <div class="firebase-local-data-note">
+            <span class="local-data-cloud" aria-hidden="true"></span>
+            <div>
+              <strong id="firebaseLocalDataTitle">Your diary is stored on this device.</strong>
+              <small id="firebaseLocalDataCopy">Your journal and device preferences remain local. Fuwa Cloud is available when you sign in.</small>
+            </div>
+          </div>
+
+          <button class="primary-btn firebase-profile-login hidden" id="firebaseProfileLoginButton" type="button">Log in or create an account</button>
+          <button class="secondary-btn firebase-profile-signout" id="firebaseProfileSignOutButton" type="button">Log out of Fuwa</button>
+        </div>
+
+
+        <div class="notification-settings-card">
+          <div class="notification-settings-heading">
+            <div>
+              <p class="eyebrow">Gentle Reminders</p>
+              <h3>Come back to Fuwa</h3>
+            </div>
+            <span class="notification-status-badge" id="notificationPermissionBadge">Not enabled</span>
+          </div>
+
+          <p class="muted notification-settings-copy">Choose when Fuwa should gently nudge you to finish your Daily Life Pages. Notification permission and testing work now; reliable closed-app scheduling can be connected later.</p>
+
+          <div class="notification-setting-row">
+            <div>
+              <strong>Daily Fuwa reminder</strong>
+              <small id="notificationSupportNote">Checking this device…</small>
+            </div>
+            <label class="fuwa-switch">
+              <input id="dailyReminderToggle" type="checkbox" />
+              <span></span>
+            </label>
+          </div>
+
+          <label class="notification-time-row">
+            <span>Reminder time</span>
+            <input id="dailyReminderTime" type="time" value="20:00" />
+          </label>
+
+          <label class="notification-style-row">
+            <span>Reminder style</span>
+            <select id="dailyReminderStyle">
+              <option value="rotate">Rotate gentle messages</option>
+              <option value="checkin">How was your day?</option>
+              <option value="remember">Anything to remember?</option>
+              <option value="soft">A little moment for yourself</option>
+            </select>
+          </label>
+
+          <div class="notification-action-row">
+            <button class="primary-btn" id="enableNotificationsButton" type="button">Enable Notifications</button>
+            <button class="secondary-btn" id="testNotificationButton" type="button">Send Test</button>
+          </div>
+
+          <small class="notification-footnote">On iPhone, Fuwa must be installed to the Home Screen for web push. The free client-only build cannot reliably wake itself at a chosen time while closed, so the daily schedule is saved now and will become active when we connect a push sender.</small>
+        </div>
+
+
+        <div class="cloud-backup-card" id="cloudBackupCard">
+          <div class="cloud-backup-heading">
+            <div>
+              <p class="eyebrow">Cloud Backup</p>
+              <h3>Keep a copy in your Fuwa cloud</h3>
+            </div>
+            <span class="cloud-backup-badge" id="cloudBackupBadge">Ready</span>
+          </div>
+          <p class="muted cloud-backup-copy">Backs up your journal text and Fuwa records to your signed-in Firebase account. Photos stay on this device for now.</p>
+          <div class="cloud-backup-meta">
+            <span>Last cloud backup</span>
+            <strong id="cloudBackupLastTime">No cloud backup yet</strong>
+          </div>
+          <div class="cloud-backup-meta">
+            <span>Records</span>
+            <strong id="cloudBackupRecordCount">Not backed up yet</strong>
+          </div>
+          <div class="cloud-backup-meta">
+            <span>Automatic sync</span>
+            <strong id="cloudAutoSyncStatus">On · waiting for changes</strong>
+          </div>
+          <div class="cloud-backup-meta cloud-photo-status">
+            <span>Attached photos</span>
+            <strong>Device only</strong>
+          </div>
+          <button class="primary-btn cloud-backup-button" id="cloudBackupNowButton" type="button">Back up to Fuwa Cloud</button>
+          <button class="secondary-btn cloud-restore-button" id="cloudRestoreButton" type="button">Restore from Fuwa Cloud</button>
+          <small class="cloud-backup-footnote"><strong>Photo reminder:</strong> Fuwa Cloud cannot restore attached photos. Save important photos to your device’s Photos library before deleting Fuwa, clearing browser data, or moving to another device.</small>
+        </div>
+
+
+      </div>
+    </div>
+  </div>
 
   <div class="feature-modal hidden" id="momentModal" role="dialog" aria-modal="true" aria-label="Fuwa Moment">
     <div class="feature-modal-card moment-modal-card">

@@ -4418,9 +4418,20 @@ function renderEntries(query = "") {
   bindEntryCards(container);
 }
 
+function littleThingDate(item) {
+  if (item?.date) return item.date;
+  const stamp = Number(item?.createdAt || 0);
+  if (!stamp) return "";
+  const d = new Date(stamp);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function getTodayRandomThoughts() {
   return [...state.randomThoughts]
-    .filter(item => item.date === isoToday())
+    .filter(item => littleThingDate(item) === isoToday())
     .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
 }
 
@@ -4511,7 +4522,7 @@ function renderTinyJoys() {
   if (!container) return;
 
   const joys = [...state.tinyJoys]
-    .filter(item => item.date === isoToday())
+    .filter(item => littleThingDate(item) === isoToday())
     .sort((a,b) => (b.createdAt||0) - (a.createdAt||0))
     .slice(0,3);
 
@@ -4521,6 +4532,58 @@ function renderTinyJoys() {
         <div><strong>${escapeHtml(joy.text)}</strong><small>${new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit"}).format(new Date(joy.createdAt))}</small></div>
       </div>`).join("")
     : `<div class="little-things-empty">No tiny joys yet today.</div>`;
+
+  $("tinyJoySeeAllButton")?.classList.toggle("hidden", state.tinyJoys.length === 0);
+}
+
+async function editTinyJoyHistory(id) {
+  const item = state.tinyJoys.find(x => x.id === id);
+  if (!item) return;
+  const next = window.prompt("Edit tiny joy", item.text || "");
+  if (next === null) return;
+  const text = next.trim();
+  if (!text) return;
+  const updated = { ...item, text, date: littleThingDate(item) || isoToday(), updatedAt: Date.now() };
+  await diaryRepository.save("tinyJoys", updated);
+  state.tinyJoys = state.tinyJoys.map(x => x.id === id ? updated : x);
+  saveState();
+  renderTinyJoys();
+  renderTinyJoyHistory();
+}
+
+async function deleteTinyJoyHistory(id) {
+  if (!confirm("Delete this tiny joy?")) return;
+  await diaryRepository.remove("tinyJoys", id);
+  state.tinyJoys = state.tinyJoys.filter(x => x.id !== id);
+  saveState();
+  renderTinyJoys();
+  renderTinyJoyHistory();
+}
+
+function renderTinyJoyHistory() {
+  const host = $("tinyJoyHistoryList");
+  if (!host) return;
+  const items = [...state.tinyJoys].sort((a,b) =>
+    String(littleThingDate(b)).localeCompare(String(littleThingDate(a))) ||
+    (b.createdAt||0) - (a.createdAt||0)
+  );
+
+  host.innerHTML = items.length ? items.map(item => {
+    const date = littleThingDate(item);
+    const time = item.createdAt
+      ? new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit"}).format(new Date(item.createdAt))
+      : "";
+    return `<article class="thought-history-card">
+      <div><span>${date ? escapeHtml(formatDate(date)) : "Saved joy"}${time ? ` · ${time}` : ""}</span><strong>${escapeHtml(item.text || "")}</strong></div>
+      <div class="thought-history-actions">
+        <button type="button" data-joy-edit="${escapeHtml(item.id)}">Edit</button>
+        <button type="button" data-joy-delete="${escapeHtml(item.id)}">Delete</button>
+      </div>
+    </article>`;
+  }).join("") : `<div class="empty-state">No tiny joys yet.</div>`;
+
+  host.querySelectorAll("[data-joy-edit]").forEach(button => button.addEventListener("click", () => editTinyJoyHistory(button.dataset.joyEdit)));
+  host.querySelectorAll("[data-joy-delete]").forEach(button => button.addEventListener("click", () => deleteTinyJoyHistory(button.dataset.joyDelete)));
 }
 
 function renderLetters() {
@@ -4654,17 +4717,16 @@ function renderViewOnDemand(view = currentView) {
     renderMoodPicker();
     renderHomeMoodJar();
     renderHomeThreads();
-    renderSleepHome();
     renderNightlyHome();
     renderMemoryDriftHome();
-    renderHomeBookmarks();
     renderCalendar();
     renderRecentEntries();
     renderLittleThingsHome();
     return;
   }
+  if (view === "me") return renderRecentEntries();
   if (view === "entries") return renderEntries($("entrySearch")?.value || "");
-  if (view === "thoughts") return renderRandomThoughtHistory();
+  if (view === "thoughts") { renderTinyJoyHistory(); return renderRandomThoughtHistory(); }
   if (view === "letters") return renderLetters();
   if (view === "threads") return renderThreads();
   if (view === "threadDetail" && activeThreadId) return renderThreadDetail();
@@ -4807,7 +4869,9 @@ async function addTinyJoy(event) {
   const joy = {
     id: uid("joy"),
     text,
-    createdAt: Date.now()
+    date: isoToday(),
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   };
 
   try {
@@ -4815,6 +4879,8 @@ async function addTinyJoy(event) {
     state.tinyJoys.push(joy);
     input.value = "";
     saveState();
+    renderTinyJoys();
+    if (currentView === "thoughts") renderTinyJoyHistory();
     toast("Tiny joy saved ✨");
   } catch (error) {
     console.error("Could not save Tiny Joy.", error);
@@ -5313,9 +5379,25 @@ function installIOSZoomGuard() {
 }
 
 
+function openSettingsSheet() {
+  $("settingsSheet")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeSettingsSheet() {
+  $("settingsSheet")?.classList.add("hidden");
+  document.body.style.overflow = "";
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   setTimeout(() => sessionStorage.removeItem("fuwa-sw-reloaded"), 2500);
   installIOSZoomGuard();
+
+  $("openSettingsButton")?.addEventListener("click", openSettingsSheet);
+  $("closeSettingsButton")?.addEventListener("click", closeSettingsSheet);
+  $("settingsSheet")?.addEventListener("click", event => {
+    if (event.target === $("settingsSheet")) closeSettingsSheet();
+  });
   document.body.classList.add("fuwa-loading");
   try {
     state = { ...state, ...loadPreferences() };
@@ -5461,8 +5543,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (next <= current) { weatherCursor = next; renderEmotionalWeather(); }
   });
 
-  $("openSleepCornerButton").addEventListener("click", openSleepCorner);
-  $("sleepHomeCard").addEventListener("click", openSleepCorner);
   $("sleepBackButton").addEventListener("click", () => navigate("home"));
 
   document.querySelectorAll("[data-sleep-sound]").forEach(button => {
@@ -5485,7 +5565,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("nightlySkipButton").addEventListener("click", skipNightlyReflection);
 
   $("memoryDriftBackButton").addEventListener("click", () => navigate("home"));
-  $("openBookmarksButton").addEventListener("click", () => navigate("bookmarks"));
   $("bookmarksHomeCard").addEventListener("click", event => {
     if (!event.target.closest("[data-bookmark-open]")) navigate("bookmarks");
   });
@@ -5570,6 +5649,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("randomThoughtForm")?.addEventListener("submit", addRandomThought);
   $("randomThoughtPageForm")?.addEventListener("submit", addRandomThought);
   $("randomThoughtSeeAllButton")?.addEventListener("click", () => navigate("thoughts"));
+  $("tinyJoySeeAllButton")?.addEventListener("click", () => navigate("thoughts"));
   $("entrySearch").addEventListener("input", event => renderEntries(event.target.value));
 
   $("newLetterButton").addEventListener("click", () => toggleLetterComposer(true));
