@@ -6929,3 +6929,40 @@ body.auth-local #fuwaAuthGate{display:none!important}body.auth-local .app-shell{
 
 /* FUWA V49 — MANUAL-ONLY LOCK + PERFORMANCE */
 body.privacy-locked{overscroll-behavior:none}
+
+/* FUWA V50 — LITTLE THINGS */
+.little-things-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.little-things-card{min-width:0;padding:11px;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.joy-card{background:linear-gradient(155deg,rgba(255,250,252,.96),rgba(255,243,247,.88))}
+.thought-card{background:linear-gradient(155deg,rgba(255,255,255,.96),rgba(246,242,255,.90))}
+.little-things-card-head{display:grid;grid-template-columns:auto 1fr;gap:6px;align-items:center}
+.little-things-icon{font-size:17px}
+.little-things-card-head strong{display:block;font-family:Georgia,serif;font-size:11px;color:#5b4750}
+.little-things-card-head small{display:block;margin-top:1px;color:var(--muted);font-size:6.6px}
+.little-things-form{display:grid;grid-template-columns:1fr 32px;gap:5px;margin-top:9px}
+.little-things-form input{min-width:0;width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:11px;background:#fff;padding:8px 9px;font-size:7.6px;color:var(--ink)}
+.little-things-add{width:32px;height:32px;border:0;border-radius:11px;color:white;font-size:18px}
+.joy-add{background:linear-gradient(135deg,#eca0b9,#dc789c)}
+.thought-add{background:linear-gradient(135deg,#cbb8e9,#a58bd1)}
+.little-things-list{display:grid;gap:5px;margin-top:8px}
+.little-thing-item{display:grid;grid-template-columns:18px 1fr;gap:5px;align-items:start;width:100%;box-sizing:border-box;border:0;border-radius:10px;background:rgba(255,255,255,.62);padding:7px;text-align:left}
+.little-thing-item>span{font-size:11px}
+.little-thing-item strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#62505a;font-size:7.8px}
+.little-thing-item small{display:block;margin-top:1px;color:var(--muted);font-size:6.1px}
+.little-things-empty{padding:9px 3px;text-align:center;color:var(--muted);font-size:6.8px;line-height:1.35}
+.little-things-see-all{width:100%;margin-top:6px;padding:3px;border:0;background:transparent;color:var(--accent-dark);font-size:6.7px;font-weight:800}
+.thoughts-compose-card{display:grid;grid-template-columns:1fr auto;gap:7px;margin:12px 0;padding:11px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.72)}
+.thoughts-compose-card input{min-width:0;border:1px solid var(--line);border-radius:11px;background:#fff;padding:9px;font-size:8.5px}
+.thoughts-compose-card .primary-btn{min-height:37px;padding:8px 12px;font-size:8px}
+.thoughts-history-list{display:grid;gap:8px}
+.thought-history-card{display:grid;grid-template-columns:1fr auto;gap:9px;padding:11px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.72)}
+.thought-history-card span{color:var(--muted);font-size:6.4px}.thought-history-card strong{display:block;margin-top:3px;color:#604d56;font-size:9.5px;line-height:1.4}
+.thought-history-actions{display:flex;flex-direction:column;gap:5px}.thought-history-actions button{border:1px solid var(--line);border-radius:8px;background:#fff7fa;color:#8d6071;padding:5px 7px;font-size:6.3px}
+@media(max-width:360px){.little-things-grid{gap:6px}.little-things-card{padding:8px}.little-things-form{grid-template-columns:1fr 29px}.little-things-add{width:29px;height:29px}}
+
+/* FUWA V51 — SECRET GARDEN BRANDING */
+.fuwa-brand-v51{display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.fuwa-brand-v51 h1{margin-bottom:1px}
+.fuwa-tagline{margin:0;color:var(--muted);font-family:Georgia,serif;font-size:6.5px;font-style:italic;line-height:1.2;letter-spacing:.01em;white-space:nowrap}
+.drawer-fuwa-tagline{margin:2px 0 0;color:var(--muted);font-family:Georgia,serif;font-size:7px;font-style:italic;line-height:1.35}
+@media(max-width:360px){.fuwa-tagline{font-size:5.9px}}

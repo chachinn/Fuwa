@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v49-manual-lock-performance -->
+  <!-- FUWA_BUILD: v51-secret-garden -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Fuwa" />
-  <title>Fuwa — Soft moments, forever yours.</title>
+  <title>Fuwa — Your Secret Garden of Little Things</title>
 
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="./icon/apple-touch-icon.png" />
@@ -151,7 +151,7 @@
       <div class="auth-heading">
         <p class="eyebrow" id="authEyebrow">Your little place</p>
         <h1 id="authTitle">Welcome back to Fuwa</h1>
-        <p class="muted" id="authSubtitle">Your soft little diary is waiting.</p>
+        <p class="muted" id="authSubtitle">Your secret garden of little things is waiting.</p>
       </div>
 
       <form class="auth-form" id="loginForm" novalidate>
@@ -218,9 +218,10 @@
       <button class="icon-btn fuwa-menu-button" id="menuButton" aria-label="Open Fuwa menu" aria-expanded="false" aria-controls="fuwaDrawer">
         <span class="hamburger-lines" aria-hidden="true"><i></i><i></i><i></i></span>
       </button>
-      <div class="topbar-brand">
+      <div class="topbar-brand fuwa-brand-v51">
         <p class="eyebrow" id="todayLabel">Today</p>
         <h1>Fuwa <span class="fuwa-cloud-mark" aria-hidden="true"><span></span></span></h1>
+        <p class="fuwa-tagline">Your Secret Garden of Little Things</p>
       </div>
     </header>
 
@@ -231,7 +232,7 @@
         <div class="drawer-header">
           <div class="drawer-brand">
             <span class="drawer-brand-cloud" aria-hidden="true"><span></span></span>
-            <div><p class="eyebrow">Personal diary</p><h2>Fuwa</h2></div>
+            <div><p class="eyebrow">Your private little world</p><h2>Fuwa</h2><p class="drawer-fuwa-tagline">Your Secret Garden of Little Things</p></div>
           </div>
           <button class="drawer-close-button" id="drawerCloseButton" type="button" aria-label="Close menu">×</button>
         </div>
@@ -477,20 +478,44 @@
           </button>
         </section>
 
-        <section class="section-block">
+        <section class="section-block little-things-section" id="littleThingsSection">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Small things</p>
-              <h3>Tiny joys</h3>
+              <h3>Little Things</h3>
             </div>
           </div>
 
-          <form class="tiny-joy-form" id="tinyJoyForm">
-            <input id="tinyJoyInput" maxlength="100" placeholder="Something tiny that made you smile…" />
-            <button type="submit" class="mini-add-btn">＋</button>
-          </form>
+          <div class="little-things-grid">
+            <article class="little-things-card joy-card">
+              <div class="little-things-card-head">
+                <span class="little-things-icon">🌷</span>
+                <div><strong>Tiny Joys</strong><small>Made me smile</small></div>
+              </div>
 
-          <div class="tiny-joy-list" id="tinyJoyList"></div>
+              <form class="little-things-form" id="tinyJoyForm">
+                <input id="tinyJoyInput" maxlength="100" placeholder="A tiny joy…" />
+                <button type="submit" class="little-things-add joy-add" aria-label="Add tiny joy">＋</button>
+              </form>
+
+              <div class="little-things-list" id="tinyJoyList"></div>
+            </article>
+
+            <article class="little-things-card thought-card">
+              <div class="little-things-card-head">
+                <span class="little-things-icon">💭</span>
+                <div><strong>Random Thoughts</strong><small>Anything on my mind</small></div>
+              </div>
+
+              <form class="little-things-form" id="randomThoughtForm">
+                <input id="randomThoughtInput" maxlength="220" placeholder="What's on your mind?" />
+                <button type="submit" class="little-things-add thought-add" aria-label="Add random thought">＋</button>
+              </form>
+
+              <div class="little-things-list" id="randomThoughtList"></div>
+              <button class="little-things-see-all" id="randomThoughtSeeAllButton" type="button">See all →</button>
+            </article>
+          </div>
         </section>
       </section>
 
@@ -1079,6 +1104,21 @@
           </form>
           <div class="life-collection-list" id="lifeCollectionList"></div>
         </section>
+      </section>
+
+      <section class="view" id="thoughtsView">
+        <div class="page-title-row">
+          <div><p class="eyebrow">WHATEVER IS FLOATING AROUND</p><h2>Random Thoughts</h2></div>
+          <span class="page-cute-icon">💭</span>
+        </div>
+        <p class="muted feature-intro">Funny, sad, annoying, happy, useful, weird — anything goes.</p>
+
+        <form class="thoughts-compose-card" id="randomThoughtPageForm">
+          <input id="randomThoughtPageInput" maxlength="220" placeholder="What's on your mind right now?" />
+          <button class="primary-btn" type="submit">Add Thought</button>
+        </form>
+
+        <div class="thoughts-history-list" id="randomThoughtHistoryList"></div>
       </section>
 
       <section class="view" id="entriesView">

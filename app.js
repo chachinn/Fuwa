@@ -1,12 +1,12 @@
 const STORAGE_KEY = "fuwaDataV1";
 const PREFERENCES_KEY = "fuwaPreferencesV1";
 const DATABASE_NAME = "FuwaDB";
-const DATABASE_VERSION = 9;
+const DATABASE_VERSION = 10;
 const MAX_PHOTOS_PER_ENTRY = 8;
 const MAX_PHOTO_DIMENSION = 1800;
 const PHOTO_JPEG_QUALITY = 0.82;
 const CONTENT_STORES = ["entries", "tinyJoys", "letters"];
-const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "settings"];
+const ALL_STORES = [...CONTENT_STORES, "media", "chapters", "threads", "moodCheckins", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts", "settings"];
 const LEGACY_MIGRATION_KEY = "legacy-fuwaDataV1-imported";
 
 const defaultState = {
@@ -26,6 +26,7 @@ const defaultState = {
   lifeCollections: [],
   habitDefinitions: [],
   moments: [],
+  randomThoughts: [],
   selectedMood: "good",
   theme: "pink",
   wallpaperEnabled: false,
@@ -451,7 +452,7 @@ const diaryRepository = {
   },
 
   async readCurrentData() {
-    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments] = await Promise.all([
+    const [entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments, randomThoughts] = await Promise.all([
       ...CONTENT_STORES.map(store => this.getAll(store)),
       this.getAll("moodCheckins"),
       this.getAll("threads"),
@@ -465,13 +466,14 @@ const diaryRepository = {
       this.getAll("dailyCheckins"),
       this.getAll("lifeCollections"),
       this.getAll("habitDefinitions"),
-      this.getAll("moments")
+      this.getAll("moments"),
+      this.getAll("randomThoughts")
     ]);
-    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments };
+    return { entries, tinyJoys, letters, moodCheckins, threads, bookmarks, nightlyReflections, thenNow, comfortItems, unsentLetters, thoughtBubbles, dreams, dailyCheckins, lifeCollections, habitDefinitions, moments, randomThoughts };
   },
 
   async replaceContent(data, mediaRecords = []) {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"];
     const transaction = this.db.transaction(stores, "readwrite");
     CONTENT_STORES.forEach(storeName => {
       const store = transaction.objectStore(storeName);
@@ -494,7 +496,7 @@ const diaryRepository = {
     nightlyStore.clear();
     (data.nightlyReflections || []).forEach(record => nightlyStore.put(record));
 
-    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"].forEach(storeName => {
+    ["thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"].forEach(storeName => {
       const store = transaction.objectStore(storeName);
       store.clear();
       (data[storeName] || []).forEach(record => store.put(record));
@@ -520,7 +522,7 @@ const diaryRepository = {
   },
 
   async clearDiaryData() {
-    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments"];
+    const stores = [...CONTENT_STORES, "media", "moodCheckins", "threads", "bookmarks", "nightlyReflections", "thenNow", "comfortItems", "unsentLetters", "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions", "moments", "randomThoughts"];
     const transaction = this.db.transaction(stores, "readwrite");
     stores.forEach(storeName => transaction.objectStore(storeName).clear());
     await transactionDone(transaction);
@@ -4416,22 +4418,109 @@ function renderEntries(query = "") {
   bindEntryCards(container);
 }
 
+function getTodayRandomThoughts() {
+  return [...state.randomThoughts]
+    .filter(item => item.date === isoToday())
+    .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+}
+
+async function addRandomThought(event) {
+  event?.preventDefault?.();
+  const input = event?.currentTarget?.id === "randomThoughtPageForm"
+    ? $("randomThoughtPageInput")
+    : $("randomThoughtInput");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  const item = { id: uid("thought"), text, date: isoToday(), createdAt: Date.now(), updatedAt: Date.now() };
+  await diaryRepository.save("randomThoughts", item);
+  state.randomThoughts.push(item);
+  input.value = "";
+  renderRandomThoughtsHome();
+  if (currentView === "thoughts") renderRandomThoughtHistory();
+  toast("Thought tucked away 💭");
+}
+
+async function editRandomThought(id) {
+  const item = state.randomThoughts.find(x => x.id === id);
+  if (!item) return;
+  const next = window.prompt("Edit thought", item.text);
+  if (next === null) return;
+  const text = next.trim();
+  if (!text) return;
+  const updated = { ...item, text, updatedAt: Date.now() };
+  await diaryRepository.save("randomThoughts", updated);
+  state.randomThoughts = state.randomThoughts.map(x => x.id === id ? updated : x);
+  renderRandomThoughtsHome();
+  if (currentView === "thoughts") renderRandomThoughtHistory();
+}
+
+async function deleteRandomThought(id) {
+  if (!confirm("Delete this thought?")) return;
+  await diaryRepository.remove("randomThoughts", id);
+  state.randomThoughts = state.randomThoughts.filter(x => x.id !== id);
+  renderRandomThoughtsHome();
+  if (currentView === "thoughts") renderRandomThoughtHistory();
+}
+
+function renderRandomThoughtsHome() {
+  const host = $("randomThoughtList");
+  if (!host) return;
+  const items = getTodayRandomThoughts().slice(0,3);
+
+  host.innerHTML = items.length
+    ? items.map(item => `<button type="button" class="little-thing-item" data-thought-id="${escapeHtml(item.id)}">
+        <span>💭</span><div><strong>${escapeHtml(item.text)}</strong><small>${new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit"}).format(new Date(item.createdAt))}</small></div>
+      </button>`).join("")
+    : `<div class="little-things-empty">No thoughts yet today.</div>`;
+
+  host.querySelectorAll("[data-thought-id]").forEach(button => {
+    button.addEventListener("click", () => editRandomThought(button.dataset.thoughtId));
+  });
+
+  $("randomThoughtSeeAllButton")?.classList.toggle("hidden", state.randomThoughts.length === 0);
+}
+
+function renderRandomThoughtHistory() {
+  const host = $("randomThoughtHistoryList");
+  if (!host) return;
+  const items = [...state.randomThoughts].sort((a,b) =>
+    String(b.date).localeCompare(String(a.date)) || (b.createdAt||0) - (a.createdAt||0)
+  );
+
+  host.innerHTML = items.length ? items.map(item => `<article class="thought-history-card">
+      <div><span>${escapeHtml(formatDate(item.date))} · ${new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit"}).format(new Date(item.createdAt))}</span><strong>${escapeHtml(item.text)}</strong></div>
+      <div class="thought-history-actions">
+        <button type="button" data-thought-edit="${escapeHtml(item.id)}">Edit</button>
+        <button type="button" data-thought-delete="${escapeHtml(item.id)}">Delete</button>
+      </div>
+    </article>`).join("") : `<div class="empty-state">No random thoughts yet.</div>`;
+
+  host.querySelectorAll("[data-thought-edit]").forEach(button => button.addEventListener("click", () => editRandomThought(button.dataset.thoughtEdit)));
+  host.querySelectorAll("[data-thought-delete]").forEach(button => button.addEventListener("click", () => deleteRandomThought(button.dataset.thoughtDelete)));
+}
+
+function renderLittleThingsHome() {
+  renderTinyJoys();
+  renderRandomThoughtsHome();
+}
+
 function renderTinyJoys() {
   const container = $("tinyJoyList");
-  const joys = [...state.tinyJoys].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6);
+  if (!container) return;
+
+  const joys = [...state.tinyJoys]
+    .filter(item => item.date === isoToday())
+    .sort((a,b) => (b.createdAt||0) - (a.createdAt||0))
+    .slice(0,3);
 
   container.innerHTML = joys.length
-    ? joys.map(joy => `
-      ${swipeActionShell(`<div class="joy-item">
+    ? joys.map(joy => `<div class="little-thing-item">
         <span>🌷</span>
-        <div>
-          <div>${escapeHtml(joy.text)}</div>
-          <time>${new Date(joy.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
-        </div>
-      </div>`, "tinyJoy", joy.id)}
-    `).join("")
-    : `<div class="empty-state">Add one tiny happy thing from today.</div>`;
-  bindSwipeActions(container);
+        <div><strong>${escapeHtml(joy.text)}</strong><small>${new Intl.DateTimeFormat("en-US",{hour:"numeric",minute:"2-digit"}).format(new Date(joy.createdAt))}</small></div>
+      </div>`).join("")
+    : `<div class="little-things-empty">No tiny joys yet today.</div>`;
 }
 
 function renderLetters() {
@@ -4571,10 +4660,11 @@ function renderViewOnDemand(view = currentView) {
     renderHomeBookmarks();
     renderCalendar();
     renderRecentEntries();
-    renderTinyJoys();
+    renderLittleThingsHome();
     return;
   }
   if (view === "entries") return renderEntries($("entrySearch")?.value || "");
+  if (view === "thoughts") return renderRandomThoughtHistory();
   if (view === "letters") return renderLetters();
   if (view === "threads") return renderThreads();
   if (view === "threadDetail" && activeThreadId) return renderThreadDetail();
@@ -4802,7 +4892,8 @@ function cloudBackupRecordCount(data) {
     "dailyCheckins",
     "lifeCollections",
     "habitDefinitions",
-    "moments"
+    "moments",
+    "randomThoughts"
   ].reduce((total, storeName) => total + (Array.isArray(data?.[storeName]) ? data[storeName].length : 0), 0);
 }
 
@@ -4824,6 +4915,7 @@ async function createCloudBackupPayload() {
   validateSimpleStore(currentData.lifeCollections, "lifeCollections");
   validateSimpleStore(currentData.habitDefinitions, "habitDefinitions");
   validateSimpleStore(currentData.moments, "moments");
+  validateSimpleStore(currentData.randomThoughts, "randomThoughts");
 
   const data = {
     ...currentData,
@@ -5024,6 +5116,7 @@ async function applyCloudRestorePayload(payload) {
   incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
   incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
   incoming.moments = validateSimpleStore(incoming.moments, "moments");
+  incoming.randomThoughts = validateSimpleStore(incoming.randomThoughts, "randomThoughts");
 
   const existingMedia = await diaryRepository.readAllMedia();
 
@@ -5054,6 +5147,7 @@ async function applyCloudRestorePayload(payload) {
     lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
     habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
     moments: Array.isArray(incoming.moments) ? incoming.moments : [],
+    randomThoughts: Array.isArray(incoming.randomThoughts) ? incoming.randomThoughts : [],
     selectedMood: incoming.selectedMood || defaultState.selectedMood,
     theme: incoming.theme || defaultState.theme,
     wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
@@ -5113,6 +5207,7 @@ function importBackup(file) {
       incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
       incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
       incoming.moments = validateSimpleStore(incoming.moments, "moments");
+      incoming.randomThoughts = validateSimpleStore(incoming.randomThoughts, "randomThoughts");
       const backupMedia = validateMediaBackup(incoming.media);
       const mediaRecords = backupMedia.map(record => ({
         id: record.id,
@@ -5143,6 +5238,7 @@ function importBackup(file) {
         lifeCollections: Array.isArray(incoming.lifeCollections) ? incoming.lifeCollections : [],
         habitDefinitions: Array.isArray(incoming.habitDefinitions) ? incoming.habitDefinitions : [],
         moments: Array.isArray(incoming.moments) ? incoming.moments : [],
+        randomThoughts: Array.isArray(incoming.randomThoughts) ? incoming.randomThoughts : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
@@ -5471,6 +5567,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("tinyJoyForm").addEventListener("submit", addTinyJoy);
+  $("randomThoughtForm")?.addEventListener("submit", addRandomThought);
+  $("randomThoughtPageForm")?.addEventListener("submit", addRandomThought);
+  $("randomThoughtSeeAllButton")?.addEventListener("click", () => navigate("thoughts"));
   $("entrySearch").addEventListener("input", event => renderEntries(event.target.value));
 
   $("newLetterButton").addEventListener("click", () => toggleLetterComposer(true));
