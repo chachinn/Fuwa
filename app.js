@@ -6031,6 +6031,27 @@ async function removeStickerBackgroundLocally(blob) {
   }
 
   const mask = result.mask;
+
+  // A flood fill can still cross a soft edge into pale skin, white clothing,
+  // or illustrated hair. Reject that result instead of saving a damaged
+  // subject; the import sheet will safely fall back to the original image.
+  let centerPixels = 0;
+  let centerRemoved = 0;
+  const centerLeft = Math.floor(width * 0.2);
+  const centerRight = Math.ceil(width * 0.8);
+  const centerTop = Math.floor(height * 0.08);
+  const centerBottom = Math.ceil(height * 0.95);
+  for (let y = centerTop; y < centerBottom; y++) {
+    for (let x = centerLeft; x < centerRight; x++) {
+      centerPixels += 1;
+      if (mask[y * width + x]) centerRemoved += 1;
+    }
+  }
+  const centerRemovalRatio = centerPixels ? centerRemoved / centerPixels : 0;
+  if (ratio > 0.68 || centerRemovalRatio > 0.72) {
+    throw new Error("Fuwa could not preserve the subject confidently.");
+  }
+
   const featherEnd = result.tolerance + 22;
   const featherToleranceSq = featherEnd * featherEnd;
 
