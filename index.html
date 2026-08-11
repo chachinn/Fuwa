@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v75-soft-soundscapes-custom-name -->
+  <!-- FUWA_BUILD: v76-journal-history-dashboard -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1029,13 +1029,12 @@
           <div><p class="eyebrow">Your everyday pages</p><h2>Daily Life Pages</h2></div>
           <span class="page-cute-icon life-pages-header-icon">✦</span>
         </div>
-        <p class="muted feature-intro">Fuwa has 30 Daily Life pages, but they are a library—not a checklist. Choose only the pages that feel useful, and Fuwa turns the little answers into your trackers and memories.</p>
+        <p class="muted feature-intro">Answer only what feels useful today. Jump to any page, finish whenever you want, revisit past journals, or check your gentle patterns over time.</p>
 
-        <div class="life-tab-bar life-tab-bar-four" role="tablist" aria-label="Daily Life Pages">
-          <button class="active" type="button" data-life-tab="today">Today</button>
-          <button type="button" data-life-tab="trackers">Trackers</button>
-          <button type="button" data-life-tab="moments">Moments</button>
-          <button type="button" data-life-tab="collections">Collections</button>
+        <div class="life-tab-bar" role="tablist" aria-label="Daily Life Pages">
+          <button class="active" type="button" data-life-tab="journal">Journal</button>
+          <button type="button" data-life-tab="history">History</button>
+          <button type="button" data-life-tab="dashboard">Dashboard</button>
         </div>
 
         <section class="life-panel active" id="lifeTodayPanel">
@@ -1045,6 +1044,7 @@
               <div class="notebook-date-wrap"><span class="soft-label" id="lifeTodayDateLabel">Today</span><strong id="journalPageCounter">Page 1 of 30</strong></div>
               <span class="life-save-status" id="lifeSaveStatus">Not checked in</span>
             </div>
+            <button type="button" class="journal-return-today hidden" id="journalTodayButton">← Return to today</button>
             <div class="notebook-progress" id="journalProgressDots" aria-label="Journal progress"></div>
             <div class="journal-section-jump">
               <div class="journal-section-tabs" id="journalSectionTabs" aria-label="Daily Life sections"></div>
@@ -1083,41 +1083,77 @@
                 <section class="journal-page" data-journal-page="dayword"><p class="eyebrow">Page 29 · One Word</p><h3>If today had one word, what would it be?</h3><input id="lifeDayWord" maxlength="50" placeholder="Soft. Busy. Lucky. Strange. Cozy."></section>
                 <section class="journal-page" data-journal-page="free"><p class="eyebrow">Page 30 · Free Page</p><h3>This page is yours.</h3><textarea id="lifeNote" rows="10" maxlength="1800" placeholder="Anything else from today…"></textarea><div class="journal-cycle-inline"><span>Optional cycle note</span><div class="journal-chip-row" id="lifeCycleChoices"><button type="button" data-life-choice="cycle" data-value="none">None</button><button type="button" data-life-choice="cycle" data-value="spotting">Spotting</button><button type="button" data-life-choice="cycle" data-value="light">Light</button><button type="button" data-life-choice="cycle" data-value="regular">Regular</button><button type="button" data-life-choice="cycle" data-value="heavy">Heavy</button></div></div></section>
               </div>
-              <div class="journal-page-actions"><button type="button" class="journal-nav-btn ghost" id="journalBackButton">← Back</button><button type="button" class="journal-skip-btn" id="journalSkipButton">Skip</button><button type="button" class="journal-nav-btn" id="journalNextButton">Next →</button><button type="submit" class="journal-finish-btn hidden" id="journalFinishButton">Finish Today ♡</button></div>
+              <div class="journal-page-actions"><button type="button" class="journal-nav-btn ghost" id="journalBackButton">← Back</button><button type="button" class="journal-skip-btn" id="journalSkipButton">Skip</button><button type="button" class="journal-nav-btn" id="journalNextButton">Next →</button><button type="submit" class="journal-finish-btn" id="journalFinishButton">Finish for today ♡</button></div>
             </form>
             <div class="journal-closing hidden" id="journalClosingPage"><div class="journal-closing-mark">☁️</div><p class="eyebrow" id="journalClosingDate">Today</p><h3 id="journalClosingTitle">You showed up for your day.</h3><p id="journalClosingSummary"></p><button class="primary-btn" type="button" id="journalCloseButton">Close Journal ♡</button></div>
           </div>
           <div class="journal-customize-sheet hidden" id="journalCustomizeSheet"><div class="journal-customize-card"><div class="journal-customize-head"><div><p class="eyebrow">Customize My Journal</p><h3>Choose your pages</h3></div><button type="button" id="journalCustomizeClose">×</button></div><p class="muted">Thirty pages are available, but Fuwa never expects you to answer thirty. Pick a preset or make your own little routine.</p><div class="journal-preset-row" role="group" aria-label="Daily Life page presets"><button type="button" data-journal-preset="gentle">Gentle 8</button><button type="button" data-journal-preset="everyday">Everyday 15</button><button type="button" data-journal-preset="all">All 30</button></div><div class="journal-selection-count" id="journalPageSelectionCount"></div><div id="journalPageSettingsList" class="journal-page-settings"></div><button class="primary-btn" type="button" id="journalCustomizeSave">Save Journal</button></div></div>
         </section>
 
-        <section class="life-panel" id="lifeTrackersPanel">
-          <div class="tracker-toolbar">
-            <button type="button" id="lifeTrackerPrevYear">‹</button>
-            <strong id="lifeTrackerYear">2026</strong>
-            <button type="button" id="lifeTrackerNextYear">›</button>
+        <section class="life-panel" id="lifeHistoryPanel">
+          <div class="life-panel-heading">
+            <div>
+              <p class="eyebrow">Your days, kept</p>
+              <h3>Past journals</h3>
+            </div>
+            <span class="life-panel-count" id="lifeHistoryCount">0 saved</span>
           </div>
-          <label class="tracker-metric-select">Show me
-            <select id="lifeTrackerMetric">
-              <option value="rating">Day rating</option>
-              <option value="mood">Mood</option>
-              <option value="sleep">Sleep</option>
-              <option value="energy">Energy</option>
-              <option value="stress">Stress</option>
-              <option value="reading">Reading</option>
-              <option value="movement">Movement</option>
-              <option value="weather">Weather</option>
-              <option value="dream">Dreams</option>
-              <option value="cycle">Cycle</option>
-            </select>
-          </label>
-          <div class="year-tracker-card">
-            <div class="year-tracker-scroll"><div class="year-tracker-grid" id="lifeYearTracker"></div></div>
-            <div class="year-tracker-legend" id="lifeTrackerLegend"></div>
-          </div>
+          <p class="muted life-panel-copy">Open any saved day to read what you answered, or edit it without creating a duplicate.</p>
+          <div class="life-history-detail hidden" id="lifeHistoryDetail"></div>
           <div class="life-history-list" id="lifeHistoryList"></div>
+          <button type="button" class="life-load-more hidden" id="lifeHistoryLoadMore">Show older journals</button>
+        </section>
+
+        <section class="life-panel" id="lifeDashboardPanel">
+          <div class="life-dashboard-head">
+            <div>
+              <p class="eyebrow">A gentle overview</p>
+              <h3 id="lifeDashboardMonth">This month</h3>
+            </div>
+            <span class="life-dashboard-cloud">☁️</span>
+          </div>
+
+          <div class="life-dashboard-stats" id="lifeDashboardStats"></div>
+          <div class="life-dashboard-note" id="lifeDashboardNote"></div>
+          <div class="life-dashboard-recent" id="lifeDashboardRecent"></div>
+
+          <details class="life-dashboard-patterns">
+            <summary><span>Explore a tracker</span><small>Optional deeper view</small></summary>
+            <div class="life-dashboard-pattern-body">
+              <div class="tracker-toolbar">
+                <button type="button" id="lifeTrackerPrevYear">‹</button>
+                <strong id="lifeTrackerYear">2026</strong>
+                <button type="button" id="lifeTrackerNextYear">›</button>
+              </div>
+              <label class="tracker-metric-select">Show me
+                <select id="lifeTrackerMetric">
+                  <option value="rating">Day rating</option>
+                  <option value="mood">Mood</option>
+                  <option value="sleep">Sleep</option>
+                  <option value="energy">Energy</option>
+                  <option value="stress">Stress</option>
+                  <option value="reading">Reading</option>
+                  <option value="movement">Movement</option>
+                  <option value="weather">Weather</option>
+                  <option value="dream">Dreams</option>
+                  <option value="cycle">Cycle</option>
+                </select>
+              </label>
+              <div class="year-tracker-card">
+                <div class="year-tracker-scroll"><div class="year-tracker-grid" id="lifeYearTracker"></div></div>
+                <div class="year-tracker-legend" id="lifeTrackerLegend"></div>
+              </div>
+            </div>
+          </details>
+
+          <div class="life-dashboard-extra-grid">
+            <button type="button" data-life-open-panel="moments"><span>✦</span><strong>Moments</strong><small>Little events worth keeping</small></button>
+            <button type="button" data-life-open-panel="collections"><span>♡</span><strong>Collections</strong><small>Your lists and little keeps</small></button>
+          </div>
         </section>
 
         <section class="life-panel" id="lifeMomentsPanel">
+          <button type="button" class="life-subview-back" data-life-back-dashboard>← Dashboard</button>
           <div class="moments-hero-card">
             <div>
               <p class="eyebrow">Little things worth keeping</p>
@@ -1147,6 +1183,7 @@
         </section>
 
         <section class="life-panel" id="lifeCollectionsPanel">
+          <button type="button" class="life-subview-back" data-life-back-dashboard>← Dashboard</button>
           <div class="collection-category-row" id="lifeCollectionCategories">
             <button class="active" type="button" data-collection-category="cup">☕ Fill My Cup</button>
             <button type="button" data-collection-category="wishlist">☆ Wishlist</button>
