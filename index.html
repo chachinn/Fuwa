@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v74-daily-life-navigation-release-ritual -->
+  <!-- FUWA_BUILD: v75-soft-soundscapes-custom-name -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -362,7 +362,7 @@
     <main id="app">
       <section class="view active" id="homeView">
         <div class="hero-card">
-          <p class="soft-label cozy-greeting">Good day, Cha <span class="mini-cloud" aria-hidden="true"></span></p>
+          <p class="soft-label cozy-greeting">Good day, <span id="homeGreetingName">Little Cloud</span> <span class="mini-cloud" aria-hidden="true"></span></p>
           <h2>How was your day?</h2>
 
           <div class="mood-picker" id="moodPicker" aria-label="Choose today's mood">
@@ -725,43 +725,43 @@
           <div class="sleep-sound-grid" id="sleepSoundGrid">
             <button type="button" class="sleep-sound-card" data-sleep-sound="rain">
               <span class="sleep-sound-icon sound-rain" aria-hidden="true"></span>
-              <strong>Soft Rain</strong>
-              <small>Gentle rainfall</small>
+              <strong>Gentle Rain</strong>
+              <small>Soft rain beyond the window</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="waves">
               <span class="sleep-sound-icon sound-waves" aria-hidden="true"></span>
-              <strong>Night Waves</strong>
-              <small>Slow ocean wash</small>
+              <strong>Ocean Drift</strong>
+              <small>Slow, distant tide</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="fireplace">
               <span class="sleep-sound-icon sound-fireplace" aria-hidden="true"></span>
-              <strong>Fireplace</strong>
-              <small>Warm crackle</small>
+              <strong>Warm Hearth</strong>
+              <small>Low, sleepy warmth</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="wind">
               <span class="sleep-sound-icon sound-wind" aria-hidden="true"></span>
-              <strong>Gentle Wind</strong>
-              <small>Soft moving air</small>
+              <strong>Evening Breeze</strong>
+              <small>A slow airy hush</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="forest">
               <span class="sleep-sound-icon sound-forest" aria-hidden="true"></span>
-              <strong>Forest Night</strong>
-              <small>Quiet night woods</small>
+              <strong>Quiet Forest</strong>
+              <small>Soft air after dark</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="cafe">
               <span class="sleep-sound-icon sound-cafe" aria-hidden="true"></span>
-              <strong>Cozy Café</strong>
-              <small>Soft room ambience</small>
+              <strong>Cozy Room</strong>
+              <small>Warm, muffled ambience</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="brown">
               <span class="sleep-sound-icon sound-brown" aria-hidden="true"></span>
-              <strong>Brown Noise</strong>
-              <small>Deep steady hush</small>
+              <strong>Deep Hush</strong>
+              <small>Warm low-frequency calm</small>
             </button>
             <button type="button" class="sleep-sound-card" data-sleep-sound="white">
               <span class="sleep-sound-icon sound-white" aria-hidden="true"></span>
-              <strong>White Noise</strong>
-              <small>Clean steady hush</small>
+              <strong>Soft Air</strong>
+              <small>Gentler than white noise</small>
             </button>
           </div>
         </section>
@@ -807,7 +807,7 @@
             </div>
             <div>
               <p class="eyebrow">Now playing</p>
-              <h3 id="sleepNowPlaying">Soft Rain</h3>
+              <h3 id="sleepNowPlaying">Gentle Rain</h3>
               <span id="sleepCountdown">30:00 remaining</span>
             </div>
           </div>
@@ -1548,9 +1548,12 @@
         </div>
         <div class="profile-card">
           <div class="avatar">🌷</div>
-          <div>
+          <div class="profile-card-copy">
             <p class="eyebrow">Your Fuwa</p>
-            <h2>Cha</h2>
+            <div class="profile-name-row">
+              <h2 id="profileDisplayName">Little Cloud</h2>
+              <button class="profile-name-edit" id="editProfileNameButton" type="button">Edit name</button>
+            </div>
             <p class="muted">Collect moments, not things.</p>
           </div>
         </div>

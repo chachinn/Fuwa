@@ -32,6 +32,7 @@ const defaultState = {
   moments: [],
   randomThoughts: [],
   selectedMood: "good",
+  profileName: "Little Cloud",
   theme: "pink",
   wallpaperEnabled: false,
   wallpaperOverlay: "medium",
@@ -308,6 +309,7 @@ function loadPreferences() {
     const saved = JSON.parse(localStorage.getItem(PREFERENCES_KEY) || "{}");
     return {
       selectedMood: typeof saved.selectedMood === "string" ? saved.selectedMood : defaultState.selectedMood,
+      profileName: typeof saved.profileName === "string" && saved.profileName.trim() ? saved.profileName.trim().slice(0, 28) : defaultState.profileName,
       theme: typeof saved.theme === "string" ? saved.theme : defaultState.theme,
       wallpaperEnabled: typeof saved.wallpaperEnabled === "boolean" ? saved.wallpaperEnabled : defaultState.wallpaperEnabled,
       wallpaperOverlay: ["light", "medium", "strong"].includes(saved.wallpaperOverlay) ? saved.wallpaperOverlay : defaultState.wallpaperOverlay,
@@ -330,6 +332,7 @@ function savePreferences() {
   try {
     localStorage.setItem(PREFERENCES_KEY, JSON.stringify({
       selectedMood: state.selectedMood,
+      profileName: state.profileName,
       theme: state.theme,
       wallpaperEnabled: state.wallpaperEnabled,
       wallpaperOverlay: state.wallpaperOverlay,
@@ -344,6 +347,29 @@ function savePreferences() {
   } catch (error) {
     console.error("Could not save Fuwa preferences.", error);
   }
+}
+
+function normalizedProfileName(value) {
+  const cleaned = String(value || "").replace(/\s+/g, " ").trim().slice(0, 28);
+  return cleaned || defaultState.profileName;
+}
+
+function renderProfileName() {
+  state.profileName = normalizedProfileName(state.profileName);
+  if ($("homeGreetingName")) $("homeGreetingName").textContent = state.profileName;
+  if ($("profileDisplayName")) $("profileDisplayName").textContent = state.profileName;
+}
+
+function editProfileName() {
+  const current = normalizedProfileName(state.profileName);
+  const value = window.prompt("What should Fuwa call you?", current);
+  if (value === null) return;
+
+  const next = normalizedProfileName(value);
+  state.profileName = next;
+  savePreferences();
+  renderProfileName();
+  toast(`Fuwa will call you ${next} ☁️`);
 }
 
 function requestResult(request) {
@@ -2342,7 +2368,7 @@ function bindSwipeActions(container) {
 
       window.setTimeout(() => {
         content.style.transition = "";
-      }, 220);
+      }, 370);
     };
 
     row.addEventListener("pointerup", finish);
@@ -2744,14 +2770,14 @@ function renderExpansionFeatures() {
 
 
 const sleepSoundNames = {
-  rain: "Soft Rain",
-  waves: "Night Waves",
-  fireplace: "Fireplace",
-  wind: "Gentle Wind",
-  forest: "Forest Night",
-  cafe: "Cozy Café",
-  brown: "Brown Noise",
-  white: "White Noise"
+  rain: "Gentle Rain",
+  waves: "Ocean Drift",
+  fireplace: "Warm Hearth",
+  wind: "Evening Breeze",
+  forest: "Quiet Forest",
+  cafe: "Cozy Room",
+  brown: "Deep Hush",
+  white: "Soft Air"
 };
 
 function ensureSleepAudioContext() {
@@ -2761,30 +2787,79 @@ function ensureSleepAudioContext() {
 
     sleepAudioContext = new AudioCtx({ latencyHint: "playback" });
     sleepMasterGain = sleepAudioContext.createGain();
+    sleepMasterFilter = sleepAudioContext.createBiquadFilter();
+    sleepCompressor = sleepAudioContext.createDynamicsCompressor();
+
     sleepMasterGain.gain.value = Math.max(0, Math.min(1, state.sleepVolume / 100));
-    sleepMasterGain.connect(sleepAudioContext.destination);
+    sleepMasterFilter.type = "lowpass";
+    sleepMasterFilter.frequency.value = 6200;
+    sleepMasterFilter.Q.value = 0.12;
+
+    sleepCompressor.threshold.value = -28;
+    sleepCompressor.knee.value = 24;
+    sleepCompressor.ratio.value = 2.5;
+    sleepCompressor.attack.value = 0.08;
+    sleepCompressor.release.value = 0.42;
+
+    sleepMasterGain.connect(sleepMasterFilter);
+    sleepMasterFilter.connect(sleepCompressor);
+    sleepCompressor.connect(sleepAudioContext.destination);
   }
   return sleepAudioContext;
 }
 
-function getSleepNoiseBuffer() {
+function getSleepNoiseBuffer(color = "pink") {
   const ctx = ensureSleepAudioContext();
-  if (sleepNoiseBuffer && sleepNoiseBuffer.sampleRate === ctx.sampleRate) return sleepNoiseBuffer;
+  const key = `${color}-${ctx.sampleRate}`;
+  if (sleepNoiseBuffers.has(key)) return sleepNoiseBuffers.get(key);
 
-  // 4 seconds is long enough to avoid an obvious tiny loop while staying lightweight.
-  const length = ctx.sampleRate * 4;
+  // Longer, colored-noise beds avoid the short harsh white-noise loop that
+  // made older Fuwa soundscapes feel synthetic. Buffers are created lazily.
+  const seconds = 10;
+  const length = ctx.sampleRate * seconds;
   const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
 
-  sleepNoiseBuffer = buffer;
+  let brown = 0;
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+
+  for (let i = 0; i < length; i++) {
+    const white = Math.random() * 2 - 1;
+    let sample = white;
+
+    if (color === "brown") {
+      brown = (brown + 0.018 * white) / 1.018;
+      sample = brown * 3.1;
+    } else if (color === "pink") {
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      sample = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+    }
+
+    data[i] = Math.max(-0.92, Math.min(0.92, sample));
+  }
+
+  // Blend the tail toward the head so the 10-second loop has no hard seam.
+  const crossfade = Math.min(Math.floor(ctx.sampleRate * 0.35), Math.floor(length / 4));
+  for (let i = 0; i < crossfade; i++) {
+    const t = i / Math.max(1, crossfade - 1);
+    const tailIndex = length - crossfade + i;
+    data[tailIndex] = data[tailIndex] * (1 - t) + data[i] * t;
+  }
+
+  sleepNoiseBuffers.set(key, buffer);
   return buffer;
 }
 
-function createNoiseSource() {
+function createNoiseSource(color = "pink") {
   const ctx = ensureSleepAudioContext();
   const source = ctx.createBufferSource();
-  source.buffer = getSleepNoiseBuffer();
+  source.buffer = getSleepNoiseBuffer(color);
   source.loop = true;
   return source;
 }
@@ -2800,9 +2875,9 @@ function connectSleepNode(source, destination = sleepMasterGain) {
   return source;
 }
 
-function createFilteredNoise({ type = "lowpass", frequency = 1000, q = 0.7, gain = 0.3 } = {}) {
+function createFilteredNoise({ color = "pink", type = "lowpass", frequency = 1000, q = 0.35, gain = 0.1 } = {}) {
   const ctx = ensureSleepAudioContext();
-  const source = createNoiseSource();
+  const source = createNoiseSource(color);
   const filter = ctx.createBiquadFilter();
   filter.type = type;
   filter.frequency.value = frequency;
@@ -2818,7 +2893,7 @@ function createFilteredNoise({ type = "lowpass", frequency = 1000, q = 0.7, gain
   trackSleepNode(source);
   trackSleepNode(filter);
   trackSleepNode(localGain);
-  source.start();
+  source.start(0, Math.random() * Math.max(0.1, source.buffer.duration - 0.1));
 
   return { source, filter, gain: localGain };
 }
@@ -2827,6 +2902,7 @@ function createLfo(targetParam, frequency, depth, center) {
   const ctx = ensureSleepAudioContext();
   const lfo = ctx.createOscillator();
   const lfoGain = ctx.createGain();
+  lfo.type = "sine";
   lfo.frequency.value = frequency;
   lfoGain.gain.value = depth;
   targetParam.value = center;
@@ -2839,73 +2915,62 @@ function createLfo(targetParam, frequency, depth, center) {
   return { lfo, lfoGain };
 }
 
-function createSoftTone(frequency, gain = 0.02, type = "sine") {
-  const ctx = ensureSleepAudioContext();
-  const osc = ctx.createOscillator();
-  const localGain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.value = frequency;
-  localGain.gain.value = gain;
-  osc.connect(localGain);
-  localGain.connect(sleepMasterGain);
-  trackSleepNode(osc);
-  trackSleepNode(localGain);
-  osc.start();
-  return { osc, gain: localGain };
-}
-
 function buildRainSound() {
-  const rain = createFilteredNoise({ type: "highpass", frequency: 900, q: 0.4, gain: 0.21 });
-  const body = createFilteredNoise({ type: "bandpass", frequency: 1800, q: 0.6, gain: 0.08 });
-  createLfo(rain.gain.gain, 0.12, 0.035, 0.19);
-  createLfo(body.gain.gain, 0.19, 0.02, 0.07);
+  const rain = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 4700, q: 0.15, gain: 0.105 });
+  const windowBed = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 620, q: 0.45, gain: 0.030 });
+  createLfo(rain.gain.gain, 0.035, 0.010, 0.100);
+  createLfo(windowBed.gain.gain, 0.055, 0.006, 0.028);
 }
 
 function buildWaveSound() {
-  const sea = createFilteredNoise({ type: "lowpass", frequency: 650, q: 0.8, gain: 0.18 });
-  const foam = createFilteredNoise({ type: "bandpass", frequency: 1400, q: 0.8, gain: 0.055 });
-  createLfo(sea.gain.gain, 0.085, 0.12, 0.13);
-  createLfo(foam.gain.gain, 0.09, 0.04, 0.035);
+  const tide = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 880, q: 0.18, gain: 0.115 });
+  const foam = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 1250, q: 0.55, gain: 0.027 });
+  createLfo(tide.gain.gain, 0.060, 0.085, 0.095);
+  createLfo(foam.gain.gain, 0.061, 0.019, 0.022);
 }
 
 function buildFireplaceSound() {
-  const fire = createFilteredNoise({ type: "bandpass", frequency: 950, q: 0.9, gain: 0.12 });
-  const warmth = createFilteredNoise({ type: "lowpass", frequency: 260, q: 0.5, gain: 0.055 });
-  createLfo(fire.gain.gain, 1.7, 0.035, 0.10);
-  createLfo(warmth.gain.gain, 0.18, 0.015, 0.05);
+  const warmth = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 520, q: 0.20, gain: 0.095 });
+  const ember = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 760, q: 0.60, gain: 0.026 });
+  createLfo(warmth.gain.gain, 0.075, 0.009, 0.088);
+  createLfo(ember.gain.gain, 0.42, 0.008, 0.022);
 }
 
 function buildWindSound() {
-  const wind = createFilteredNoise({ type: "lowpass", frequency: 950, q: 0.9, gain: 0.12 });
-  createLfo(wind.filter.frequency, 0.07, 380, 760);
-  createLfo(wind.gain.gain, 0.095, 0.07, 0.10);
+  const breeze = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 1650, q: 0.20, gain: 0.078 });
+  const lowAir = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 330, q: 0.35, gain: 0.025 });
+  createLfo(breeze.filter.frequency, 0.032, 290, 1180);
+  createLfo(breeze.gain.gain, 0.045, 0.022, 0.068);
+  createLfo(lowAir.gain.gain, 0.030, 0.005, 0.023);
 }
 
 function buildForestSound() {
-  const air = createFilteredNoise({ type: "lowpass", frequency: 1200, q: 0.6, gain: 0.085 });
-  const insects = createFilteredNoise({ type: "bandpass", frequency: 3900, q: 2.2, gain: 0.018 });
-  createLfo(air.gain.gain, 0.06, 0.025, 0.075);
-  createLfo(insects.gain.gain, 0.45, 0.008, 0.015);
-  createSoftTone(2400, 0.0035, "sine");
+  const nightAir = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 1050, q: 0.20, gain: 0.060 });
+  const leaves = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 2350, q: 1.0, gain: 0.010 });
+  createLfo(nightAir.gain.gain, 0.028, 0.010, 0.055);
+  createLfo(leaves.gain.gain, 0.20, 0.003, 0.008);
 }
 
 function buildCafeSound() {
-  const room = createFilteredNoise({ type: "bandpass", frequency: 650, q: 0.5, gain: 0.08 });
-  const softHiss = createFilteredNoise({ type: "highpass", frequency: 2200, q: 0.4, gain: 0.018 });
-  createLfo(room.gain.gain, 0.11, 0.025, 0.07);
-  createSoftTone(110, 0.008, "sine");
-  createSoftTone(165, 0.004, "sine");
+  // "Cozy Room" keeps the old cafe ID for saved-preference compatibility.
+  const room = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 720, q: 0.22, gain: 0.068 });
+  const fabric = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 980, q: 0.45, gain: 0.014 });
+  createLfo(room.gain.gain, 0.027, 0.008, 0.064);
+  createLfo(fabric.gain.gain, 0.055, 0.003, 0.012);
 }
 
 function buildBrownNoise() {
-  // Low-pass filtered white noise approximates the deep spectrum of brown noise
-  // with far less CPU than per-sample realtime processing.
-  const brown = createFilteredNoise({ type: "lowpass", frequency: 380, q: 0.35, gain: 0.30 });
-  createLfo(brown.gain.gain, 0.025, 0.012, 0.285);
+  const hush = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 980, q: 0.12, gain: 0.145 });
+  createLfo(hush.gain.gain, 0.018, 0.005, 0.140);
 }
 
 function buildWhiteNoise() {
-  createFilteredNoise({ type: "allpass", frequency: 1000, q: 0.5, gain: 0.16 });
+  // Keep the legacy "white" key, but use a pink-noise veil so it is much
+  // gentler for sleep than raw white noise.
+  const air = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 3900, q: 0.10, gain: 0.095 });
+  const softness = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 600, q: 0.15, gain: 0.018 });
+  createLfo(air.gain.gain, 0.020, 0.004, 0.092);
+  createLfo(softness.gain.gain, 0.026, 0.003, 0.016);
 }
 
 function buildSelectedSleepSound() {
@@ -2994,7 +3059,7 @@ function renderSleepHome() {
     $("sleepHomeAction").textContent = "Resume →";
   } else {
     $("sleepHomeTitle").textContent = "Something soft to fall asleep to.";
-    $("sleepHomeText").textContent = "Rain, waves, fireplace, wind, forest night, café, brown noise, and white noise.";
+    $("sleepHomeText").textContent = "Gentle rain, ocean drift, warm hearth, breeze, quiet forest, cozy room, deep hush, and soft air.";
     $("sleepHomeAction").textContent = "Choose a sound →";
   }
 }
@@ -3053,10 +3118,12 @@ async function startSleepSound() {
       sleepFadeTimeout = null;
     }
 
+    const targetGain = Math.max(0.0001, state.sleepVolume / 100);
     sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
-    sleepMasterGain.gain.setValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime);
+    sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
 
     buildSelectedSleepSound();
+    sleepMasterGain.gain.linearRampToValueAtTime(targetGain, ctx.currentTime + 1.35);
 
     const minutes = selectedSleepMinutes();
     state.sleepMinutes = minutes;
@@ -3154,7 +3221,7 @@ async function selectSleepSound(sound) {
     const currentGain = sleepMasterGain.gain.value;
     sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
     sleepMasterGain.gain.setValueAtTime(currentGain, ctx.currentTime);
-    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.20);
+    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
 
     setTimeout(() => {
       if (!sleepIsPlaying) return;
@@ -3162,7 +3229,7 @@ async function selectSleepSound(sound) {
       buildSelectedSleepSound();
       sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
       sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 0.35);
+      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 0.90);
     }, 220);
   }
 
@@ -3205,7 +3272,7 @@ function setSleepVolume(value) {
   if (sleepMasterGain && sleepAudioContext) {
     const now = sleepAudioContext.currentTime;
     sleepMasterGain.gain.cancelScheduledValues(now);
-    sleepMasterGain.gain.setTargetAtTime(Math.max(0.0001, state.sleepVolume / 100), now, 0.04);
+    sleepMasterGain.gain.setTargetAtTime(Math.max(0.0001, state.sleepVolume / 100), now, 0.16);
   }
 
   renderSleepControls();
@@ -3358,8 +3425,10 @@ let cropDragStart = null;
 // Only one AudioContext and a small reusable noise buffer are kept alive.
 let sleepAudioContext = null;
 let sleepMasterGain = null;
+let sleepMasterFilter = null;
+let sleepCompressor = null;
 let sleepNodes = [];
-let sleepNoiseBuffer = null;
+let sleepNoiseBuffers = new Map();
 let sleepTimerInterval = null;
 let sleepTimerEndAt = 0;
 let sleepTimerStartedAt = 0;
@@ -5397,6 +5466,7 @@ function renderViewOnDemand(view = currentView) {
 }
 
 function renderAll() {
+  renderProfileName();
   $("todayLabel").textContent = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "short",
@@ -7632,6 +7702,7 @@ async function createFullLocalBackupPayload() {
       scrapbookPhotos,
       scrapbookBooks,
       selectedMood: state.selectedMood,
+      profileName: state.profileName,
       theme: state.theme,
       wallpaperEnabled: state.wallpaperEnabled,
       wallpaperOverlay: state.wallpaperOverlay,
@@ -7786,6 +7857,7 @@ async function applyCloudRestorePayload(payload) {
     moments: Array.isArray(incoming.moments) ? incoming.moments : [],
     randomThoughts: Array.isArray(incoming.randomThoughts) ? incoming.randomThoughts : [],
     selectedMood: incoming.selectedMood || defaultState.selectedMood,
+    profileName: typeof incoming.profileName === "string" && incoming.profileName.trim() ? normalizedProfileName(incoming.profileName) : normalizedProfileName(state.profileName),
     theme: incoming.theme || defaultState.theme,
     wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : defaultState.wallpaperEnabled,
     wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : defaultState.wallpaperOverlay,
@@ -7908,6 +7980,7 @@ function importBackup(file) {
         moments: Array.isArray(incoming.moments) ? incoming.moments : [],
         randomThoughts: Array.isArray(incoming.randomThoughts) ? incoming.randomThoughts : [],
         selectedMood: typeof incoming.selectedMood === "string" ? incoming.selectedMood : state.selectedMood,
+        profileName: typeof incoming.profileName === "string" && incoming.profileName.trim() ? normalizedProfileName(incoming.profileName) : normalizedProfileName(state.profileName),
         theme: typeof incoming.theme === "string" ? incoming.theme : state.theme,
         wallpaperEnabled: typeof incoming.wallpaperEnabled === "boolean" ? incoming.wallpaperEnabled : state.wallpaperEnabled,
         wallpaperOverlay: ["light", "medium", "strong"].includes(incoming.wallpaperOverlay) ? incoming.wallpaperOverlay : state.wallpaperOverlay,
@@ -8874,6 +8947,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("cancelLetterButton").addEventListener("click", () => toggleLetterComposer(false));
   $("saveLetterButton").addEventListener("click", saveLetter);
 
+
+  $("editProfileNameButton")?.addEventListener("click", editProfileName);
 
   $("appearanceCloseButton").addEventListener("click", closeAppearance);
   $("appearanceDoneButton").addEventListener("click", closeAppearance);

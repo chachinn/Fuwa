@@ -8990,3 +8990,41 @@ button,
   .journal-section-jump{padding-inline:10px}
   .release-stage{min-height:300px;padding-inline:12px}
 }
+
+
+/* =========================================================
+   FUWA V75 — CUSTOM PROFILE NAME + SOFTER SLEEP CORNER
+   ========================================================= */
+.profile-card-copy{
+  flex:1;
+  min-width:0;
+}
+.profile-name-row{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+.profile-name-row h2{
+  margin:3px 0;
+  overflow-wrap:anywhere;
+}
+.profile-name-edit{
+  min-height:28px;
+  padding:5px 9px;
+  border:1px solid rgba(231,201,213,.92);
+  border-radius:999px;
+  background:#fff6f9;
+  color:#ad627e;
+  font-size:8px;
+  font-weight:850;
+  white-space:nowrap;
+}
+.profile-name-edit:active{
+  transform:scale(.98);
+}
+
+/* Sound cards remain visually calm while the v75 engine does the audio work. */
+.sleep-sound-card small{
+  line-height:1.35;
+}
