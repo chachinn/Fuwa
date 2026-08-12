@@ -4854,43 +4854,42 @@ function renderCalendar() {
   const year = today.getFullYear();
   const month = today.getMonth();
 
-  $("monthTitle").textContent = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric"
-  }).format(today);
-
+  $("monthTitle").textContent = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(today);
   const grid = $("calendarGrid");
   grid.innerHTML = "";
+
+  const entryByDate = new Map();
+  for (const entry of state.entries) {
+    if (!entry?.date) continue;
+    const current = entryByDate.get(entry.date);
+    if (!current || Number(entry.updatedAt || entry.createdAt || 0) > Number(current.updatedAt || current.createdAt || 0)) {
+      entryByDate.set(entry.date, entry);
+    }
+  }
 
   const first = new Date(year, month, 1);
   const startOffset = (first.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const fragment = document.createDocumentFragment();
 
   for (let i = 0; i < startOffset; i++) {
     const blank = document.createElement("span");
     blank.className = "calendar-day empty";
-    grid.appendChild(blank);
+    fragment.appendChild(blank);
   }
 
   for (let day = 1; day <= daysInMonth; day++) {
     const date = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const hasEntry = state.entries.some(entry => entry.date === date);
-
+    const entry = entryByDate.get(date);
     const button = document.createElement("button");
     button.className = "calendar-day";
-    if (hasEntry) button.classList.add("has-entry");
+    if (entry) button.classList.add("has-entry");
     if (date === isoToday()) button.classList.add("today");
     button.textContent = day;
-
-    if (hasEntry) {
-      button.addEventListener("click", () => {
-        const entry = state.entries.find(item => item.date === date);
-        openEditor(entry.id);
-      });
-    }
-
-    grid.appendChild(button);
+    if (entry) button.addEventListener("click", () => openEditor(entry.id));
+    fragment.appendChild(button);
   }
+  grid.appendChild(fragment);
 }
 
 function entryCard(entry) {
@@ -4916,40 +4915,92 @@ function bindEntryCards(container) {
   bindSwipeActions(container);
 }
 
+const ENTRY_LIST_BATCH_SIZE = 40;
+let entryListRenderLimit = ENTRY_LIST_BATCH_SIZE;
+let entryListSearchQuery = "";
+let entryListResultsCache = [];
+let entrySearchDebounceTimer = 0;
+
+function compareEntryRecency(a, b) {
+  return String(b.date || "").localeCompare(String(a.date || "")) ||
+    Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0);
+}
+
+function getMostRecentEntries(limit = 3) {
+  const top = [];
+  for (const entry of state.entries) {
+    let insertAt = top.findIndex(existing => compareEntryRecency(entry, existing) < 0);
+    if (insertAt < 0) insertAt = top.length;
+    top.splice(insertAt, 0, entry);
+    if (top.length > limit) top.pop();
+  }
+  return top;
+}
+
 function renderRecentEntries() {
   const container = $("recentEntries");
-  const recent = [...state.entries]
-    .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt)
-    .slice(0, 3);
-
+  if (!container) return;
+  const recent = getMostRecentEntries(3);
   container.innerHTML = recent.length
     ? recent.map(entryCard).join("")
     : `<div class="empty-state">Your first memory will appear here 🌸</div>`;
-
   bindEntryCards(container);
 }
 
-function renderEntries(query = "") {
+function buildEntryListResults(query = "") {
   const normalized = query.trim().toLowerCase();
+  const entries = state.entries.filter(entry => {
+    if (!normalized) return true;
+    return [entry.title, entry.body, entry.mood, ...(entry.tags || [])]
+      .join(" ").toLowerCase().includes(normalized);
+  });
+  entries.sort(compareEntryRecency);
+  return entries;
+}
 
-  const entries = [...state.entries]
-    .filter(entry => {
-      if (!normalized) return true;
-      return [
-        entry.title,
-        entry.body,
-        entry.mood,
-        ...(entry.tags || [])
-      ].join(" ").toLowerCase().includes(normalized);
-    })
-    .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt);
+function renderEntries(query = "", { reset = true } = {}) {
+  const normalized = query.trim().toLowerCase();
+  if (reset || normalized !== entryListSearchQuery) {
+    entryListSearchQuery = normalized;
+    entryListRenderLimit = ENTRY_LIST_BATCH_SIZE;
+    entryListResultsCache = buildEntryListResults(query);
+  }
 
+  const entries = entryListResultsCache;
+  const visible = entries.slice(0, entryListRenderLimit);
   const container = $("entriesList");
-  container.innerHTML = entries.length
-    ? entries.map(entryCard).join("")
+  if (!container) return;
+  container.innerHTML = visible.length
+    ? visible.map(entryCard).join("")
     : `<div class="empty-state">No matching memories yet.</div>`;
-
   bindEntryCards(container);
+
+  const progress = $("entriesProgress");
+  const more = $("entriesLoadMore");
+  if (progress) {
+    progress.textContent = entries.length > visible.length
+      ? `Showing ${visible.length} of ${entries.length} memories`
+      : entries.length ? `${entries.length} ${entries.length === 1 ? "memory" : "memories"}` : "";
+    progress.classList.toggle("hidden", !entries.length);
+  }
+  if (more) {
+    const remaining = Math.max(0, entries.length - visible.length);
+    more.classList.toggle("hidden", remaining === 0);
+    more.textContent = remaining ? `Show more memories · ${remaining} left` : "Show more memories";
+  }
+}
+
+function showMoreEntries() {
+  entryListRenderLimit += ENTRY_LIST_BATCH_SIZE;
+  renderEntries(entryListSearchQuery, { reset: false });
+}
+
+function scheduleEntrySearch(query) {
+  clearTimeout(entrySearchDebounceTimer);
+  entrySearchDebounceTimer = window.setTimeout(() => {
+    if (currentView !== "entries") return;
+    renderEntries(query, { reset: true });
+  }, 140);
 }
 
 function littleThingDate(item) {
@@ -9143,6 +9194,7 @@ function goBackTutorialStep() {
 }
 
 function maybeOpenFirstUseTutorial() {
+  if (hasPendingFuwaReleaseNotes()) return;
   if (tutorialWasSeen()) return;
 
   // Existing journals upgrading to v55 should not suddenly get first-use onboarding.
@@ -9175,56 +9227,80 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
+const FUWA_RELEASE_KEY = "fuwa-v1-2026-08-13";
+const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
+const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 let pendingFuwaServiceWorker = null;
 let fuwaServiceWorkerRefreshing = false;
+let fuwaUpdateWatchdog = 0;
+
+function hasPendingFuwaReleaseNotes() {
+  try {
+    return localStorage.getItem(FUWA_PENDING_RELEASE_NOTES_KEY) === FUWA_RELEASE_KEY &&
+      localStorage.getItem(FUWA_SEEN_RELEASE_NOTES_KEY) !== FUWA_RELEASE_KEY;
+  } catch (_) { return false; }
+}
 
 function showFuwaUpdateBanner(worker) {
   if (!worker || !navigator.serviceWorker?.controller) return;
   pendingFuwaServiceWorker = worker;
+  const button = $("appUpdateButton");
+  if (button) { button.disabled = false; button.textContent = "Refresh"; }
   $("appUpdateBanner")?.classList.remove("hidden");
 }
 
-function hideFuwaUpdateBanner() {
-  $("appUpdateBanner")?.classList.add("hidden");
-}
+function hideFuwaUpdateBanner() { $("appUpdateBanner")?.classList.add("hidden"); }
 
 function applyFuwaUpdate() {
   const worker = pendingFuwaServiceWorker;
   if (!worker) return;
-
   const button = $("appUpdateButton");
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Updating…";
-  }
-
+  if (button) { button.disabled = true; button.textContent = "Refreshing…"; }
+  try { localStorage.setItem(FUWA_PENDING_RELEASE_NOTES_KEY, FUWA_RELEASE_KEY); } catch (_) {}
   worker.postMessage({ type: "SKIP_WAITING" });
+  clearTimeout(fuwaUpdateWatchdog);
+  fuwaUpdateWatchdog = window.setTimeout(() => {
+    if (fuwaServiceWorkerRefreshing) return;
+    if (button) { button.disabled = false; button.textContent = "Refresh"; }
+    toast("The update is still preparing. Tap Refresh again in a moment.");
+  }, 8000);
 }
 
 function watchFuwaServiceWorkerRegistration(registration) {
   if (!registration) return;
-
-  if (registration.waiting && navigator.serviceWorker.controller) {
-    showFuwaUpdateBanner(registration.waiting);
-  }
-
+  if (registration.waiting && navigator.serviceWorker.controller) showFuwaUpdateBanner(registration.waiting);
   registration.addEventListener("updatefound", () => {
     const worker = registration.installing;
     if (!worker) return;
-
     worker.addEventListener("statechange", () => {
-      if (
-        worker.state === "installed" &&
-        navigator.serviceWorker.controller
-      ) {
-        showFuwaUpdateBanner(worker);
-      }
+      if (worker.state === "installed" && navigator.serviceWorker.controller) showFuwaUpdateBanner(worker);
     });
   });
 }
 
+function showFuwaReleaseNotes() {
+  if (!hasPendingFuwaReleaseNotes()) return false;
+  $("fuwaReleaseNotesModal")?.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  return true;
+}
+
+function closeFuwaReleaseNotes() {
+  $("fuwaReleaseNotesModal")?.classList.add("hidden");
+  try {
+    localStorage.setItem(FUWA_SEEN_RELEASE_NOTES_KEY, FUWA_RELEASE_KEY);
+    localStorage.removeItem(FUWA_PENDING_RELEASE_NOTES_KEY);
+  } catch (_) {}
+  if (!privacyIsLocked && !$("fuwaDrawer")?.classList.contains("open")) document.body.style.overflow = "";
+  window.setTimeout(() => {
+    maybeOpenFirstUseTutorial();
+    window.setTimeout(() => {
+      if (!state.privacyLockEnabled && $("fuwaTutorial")?.classList.contains("hidden")) maybeShowDailyMoodCheckin();
+    }, 420);
+  }, 180);
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
-  setTimeout(() => sessionStorage.removeItem("fuwa-sw-reloaded"), 2500);
   installIOSZoomGuard();
 
   $("openSettingsButton")?.addEventListener("click", openSettingsSheet);
@@ -9278,10 +9354,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     if ("requestIdleCallback" in window) window.requestIdleCallback(runDeferredStartup, { timeout: 1200 });
     else window.setTimeout(runDeferredStartup, 60);
 
-    maybeOpenFirstUseTutorial();
+    if (!hasPendingFuwaReleaseNotes()) maybeOpenFirstUseTutorial();
 
     window.addEventListener("fuwa-auth-ready", () => {
-      maybeOpenFirstUseTutorial();
+      if (!hasPendingFuwaReleaseNotes()) maybeOpenFirstUseTutorial();
     }, { once: true });
   } catch (error) {
     console.error("Fuwa could not initialize its local database.", error);
@@ -9569,7 +9645,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("randomThoughtPageForm")?.addEventListener("submit", addRandomThought);
   $("randomThoughtSeeAllButton")?.addEventListener("click", () => navigate("thoughts"));
   $("tinyJoySeeAllButton")?.addEventListener("click", () => navigate("thoughts"));
-  $("entrySearch").addEventListener("input", event => renderEntries(event.target.value));
+  $("entrySearch").addEventListener("input", event => scheduleEntrySearch(event.target.value));
+  $("entriesLoadMore")?.addEventListener("click", showMoreEntries);
 
   $("newLetterButton").addEventListener("click", () => toggleLetterComposer(true));
   $("cancelLetterButton").addEventListener("click", () => toggleLetterComposer(false));
@@ -9623,7 +9700,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Open the daily check-in only after every control has its listener. This
   // avoids a slow-device race where the modal could appear during binding.
-  if (!state.privacyLockEnabled) maybeShowDailyMoodCheckin();
+  if (!state.privacyLockEnabled && !hasPendingFuwaReleaseNotes()) maybeShowDailyMoodCheckin();
 
   bindMoodJarOrientation();
   document.addEventListener("visibilitychange", () => {
@@ -9638,12 +9715,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 120);
   }, { passive: true });
 
+  $("fuwaReleaseNotesClose")?.addEventListener("click", closeFuwaReleaseNotes);
+  $("fuwaReleaseNotesGotIt")?.addEventListener("click", closeFuwaReleaseNotes);
   $("appUpdateButton")?.addEventListener("click", applyFuwaUpdate);
+  if (hasPendingFuwaReleaseNotes()) window.setTimeout(showFuwaReleaseNotes, 120);
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (fuwaServiceWorkerRefreshing) return;
       fuwaServiceWorkerRefreshing = true;
+      clearTimeout(fuwaUpdateWatchdog);
       hideFuwaUpdateBanner();
       window.location.reload();
     });

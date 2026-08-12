@@ -9533,3 +9533,27 @@ button,
   .app-update-banner{grid-template-columns:1fr auto;gap:7px;padding-left:11px}
   .app-update-copy{font-size:8px}
 }
+
+
+/* FUWA V81 — Hana-style updates + large-journal performance */
+.entries-progress{margin:10px 0 4px;color:#9b858e;font-size:8px;text-align:center}
+.entries-load-more{display:block;width:100%;min-height:42px;margin:10px 0 4px;border:1px dashed #dfb8c7;border-radius:15px;background:rgba(255,255,255,.68);color:#a15f78;font-size:9px;font-weight:850}
+.app-update-copy>span:last-child{display:grid;gap:2px;min-width:0}
+.app-update-copy strong{color:#5d4b53;font-size:9px;font-weight:900}
+.app-update-copy small{color:#9a858e;font-size:7.5px;line-height:1.35}
+.fuwa-release-modal{position:fixed;inset:0;z-index:190;display:grid;place-items:end center;padding:22px 16px calc(22px + env(safe-area-inset-bottom));background:rgba(73,57,64,.34);backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px)}
+.fuwa-release-modal.hidden{display:none!important}
+.fuwa-release-sheet{position:relative;width:min(100%,520px);max-height:min(88vh,760px);overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:20px 18px 18px;border:1px solid rgba(230,207,216,.96);border-radius:25px;background:#fffafb;box-shadow:0 24px 58px rgba(69,48,57,.2)}
+.fuwa-release-close{position:absolute;right:15px;top:15px;width:36px;height:36px;border:1px solid #ead6de;border-radius:50%;background:#fff;color:#8d6e7a;font-size:20px}
+.fuwa-release-sheet h2{margin:5px 44px 3px 0;color:#55434b;font-family:Georgia,"Times New Roman",serif;font-size:24px;line-height:1.15}
+.fuwa-release-date{margin:0;color:#a38c95;font-size:8px;font-weight:750}
+.fuwa-release-cloud{margin:8px 0 5px;text-align:center;font-size:35px}
+.fuwa-release-lead{max-width:390px;margin:5px auto 12px;color:#826c75;font-size:9px;line-height:1.5;text-align:center}
+.fuwa-release-list{display:grid;gap:8px}
+.fuwa-release-list article{display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;align-items:start;padding:11px 12px;border:1px solid #ecd9e1;border-radius:16px;background:rgba(255,255,255,.78)}
+.fuwa-release-list article>span{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#fff1f6;font-size:20px}
+.fuwa-release-list strong{display:block;margin:1px 0 3px;color:#5e4b54;font-size:9.5px}
+.fuwa-release-list p{margin:0;color:#927d86;font-size:8px;line-height:1.45}
+.fuwa-release-got-it{width:100%;min-height:46px;margin-top:12px;border:0;border-radius:16px;background:linear-gradient(135deg,#e88ead,#d77396);color:#fff;font-size:11px;font-weight:900;box-shadow:0 9px 20px rgba(197,105,139,.17)}
+@media(min-width:700px){.fuwa-release-modal{place-items:center}}
+@media(prefers-reduced-motion:reduce){.app-update-banner{animation:none!important}}
