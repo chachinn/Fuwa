@@ -1,4 +1,7 @@
-const CACHE_NAME = "fuwa-shell-v81";
+const CACHE_NAME = "fuwa-shell-v82";
+const RELEASE_MARKER_CACHE = "fuwa-release-state";
+const RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
+const RELEASE_KEY = "fuwa-v1-2026-08-13";
 
 const CORE_ASSETS = [
   "./",
@@ -21,12 +24,24 @@ const OPTIONAL_ASSETS = [
 ];
 
 self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(async cache => {
-      await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
-      await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));
-    })
-  );
+  event.waitUntil((async () => {
+    const existingKeys = await caches.keys();
+    const isUpgrade = existingKeys.some(key =>
+      /^fuwa-shell-v\d+$/.test(key) && key !== CACHE_NAME
+    );
+
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
+    await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));
+
+    if (isUpgrade) {
+      const markerCache = await caches.open(RELEASE_MARKER_CACHE);
+      await markerCache.put(
+        RELEASE_MARKER_REQUEST,
+        new Response(RELEASE_KEY, { headers: { "content-type": "text/plain" } })
+      );
+    }
+  })());
 });
 
 self.addEventListener("message", event => {
@@ -39,7 +54,11 @@ self.addEventListener("activate", event => {
   event.waitUntil(
     Promise.all([
       caches.keys().then(keys =>
-        Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)))
+        Promise.all(
+          keys
+            .filter(key => /^fuwa-shell-v\d+$/.test(key) && key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
       ),
       self.clients.claim()
     ])

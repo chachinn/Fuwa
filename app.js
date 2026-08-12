@@ -9230,6 +9230,8 @@ function closeSettingsSheet() {
 const FUWA_RELEASE_KEY = "fuwa-v1-2026-08-13";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
+const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
+const FUWA_RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
 let pendingFuwaServiceWorker = null;
 let fuwaServiceWorkerRefreshing = false;
 let fuwaUpdateWatchdog = 0;
@@ -9240,6 +9242,29 @@ function hasPendingFuwaReleaseNotes() {
       localStorage.getItem(FUWA_SEEN_RELEASE_NOTES_KEY) !== FUWA_RELEASE_KEY;
   } catch (_) { return false; }
 }
+
+async function adoptFuwaServiceWorkerReleaseMarker() {
+  if (!("caches" in window)) return false;
+
+  try {
+    const markerCache = await caches.open(FUWA_RELEASE_MARKER_CACHE);
+    const response = await markerCache.match(FUWA_RELEASE_MARKER_REQUEST);
+    if (!response) return false;
+
+    const releaseKey = (await response.text()).trim();
+    await markerCache.delete(FUWA_RELEASE_MARKER_REQUEST);
+
+    if (releaseKey !== FUWA_RELEASE_KEY) return false;
+    if (localStorage.getItem(FUWA_SEEN_RELEASE_NOTES_KEY) === FUWA_RELEASE_KEY) return false;
+
+    localStorage.setItem(FUWA_PENDING_RELEASE_NOTES_KEY, FUWA_RELEASE_KEY);
+    return true;
+  } catch (error) {
+    console.warn("Fuwa could not read its update handoff marker.", error);
+    return false;
+  }
+}
+
 
 function showFuwaUpdateBanner(worker) {
   if (!worker || !navigator.serviceWorker?.controller) return;
@@ -9329,6 +9354,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await diaryRepository.initialize();
     await diaryRepository.migrateLegacyData();
     await loadState();
+    await adoptFuwaServiceWorkerReleaseMarker();
 
     // If today's Mood Jar already has a check-in, it is the authoritative
     // Home mood after reopening the app.
