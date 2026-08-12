@@ -75,6 +75,8 @@ let bookmarkEditorEntryId = null;
 let editingLetterId = null;
 let editingNightlyId = null;
 let moodCheckinSaving = false;
+let homeMoodSyncRunning = false;
+let pendingHomeMoodSync = "";
 let moodJarPhysicsFrame = null;
 let moodJarOrientationBound = false;
 let moodJarOrientationPermissionRequested = false;
@@ -4290,30 +4292,119 @@ function closeMoodCheckin() {
   document.body.style.overflow = "";
 }
 
-async function saveMoodCheckin(mood) {
-  if (!moodEmoji[mood] || moodCheckinSaving) return;
-  moodCheckinSaving = true;
-  document.querySelectorAll("[data-checkin-mood]").forEach(button => {
-    button.disabled = true;
-  });
+async function persistTodayMoodCheckin(mood) {
+  if (!moodEmoji[mood]) throw new Error("Invalid mood.");
+
   const date = isoToday();
-  const existing = getTodayMoodCheckin();
+  const sameDay = state.moodCheckins.filter(item => item.date === date);
+  const existing = sameDay.find(item => item.id === date) || sameDay[0] || null;
+
   const record = {
-    id: date,
+    id: existing?.id || date,
     date,
     mood,
     createdAt: existing?.createdAt || Date.now(),
     updatedAt: Date.now()
   };
 
+  await diaryRepository.save("moodCheckins", record);
+
+  // v79 QA: older builds could theoretically leave more than one check-in
+  // for the same date if a legacy record used a non-date ID. Keep one bead/day.
+  const duplicateIds = sameDay
+    .filter(item => item.id !== record.id)
+    .map(item => item.id);
+
+  for (const duplicateId of duplicateIds) {
+    try {
+      await diaryRepository.remove("moodCheckins", duplicateId);
+    } catch (error) {
+      console.warn("Could not clean up a duplicate Mood Jar check-in.", error);
+    }
+  }
+
+  state.moodCheckins = state.moodCheckins.filter(item => item.date !== date);
+  state.moodCheckins.push(record);
+
+  // Home and Mood Jar should always describe the same mood for today.
+  state.selectedMood = mood;
+  savePreferences();
+
+  return { record, existed: !!existing };
+}
+
+async function syncHomeMoodToJar(mood) {
+  if (!moodEmoji[mood]) return;
+
+  // Update the visible Home selection immediately. The IndexedDB write can
+  // finish asynchronously without making the mood buttons feel sluggish.
+  state.selectedMood = mood;
+  savePreferences();
+  renderMoodPicker();
+  showMoodReaction(mood, true);
+
+  // Latest tap wins. If someone taps several moods quickly, Fuwa finishes the
+  // current write and then stores only the newest pending choice.
+  pendingHomeMoodSync = mood;
+  if (homeMoodSyncRunning) return;
+
+  homeMoodSyncRunning = true;
+  let savedAny = false;
+
   try {
-    await diaryRepository.save("moodCheckins", record);
-    const index = state.moodCheckins.findIndex(item => item.id === date);
-    if (index >= 0) state.moodCheckins[index] = record;
-    else state.moodCheckins.push(record);
+    while (pendingHomeMoodSync) {
+      const nextMood = pendingHomeMoodSync;
+      pendingHomeMoodSync = "";
+      await persistTodayMoodCheckin(nextMood);
+      savedAny = true;
+    }
+
+    // Refresh only the pieces affected by a mood check-in instead of doing a
+    // broad app rerender.
+    renderMoodPicker();
+    renderHomeMoodJar();
+    renderStats();
+    if (currentView === "moodjar") renderMoodJarView();
+
+    if (savedAny) toast("Today's mood is tucked into your jar ☁️");
+  } catch (error) {
+    console.error("Could not sync Home mood to Mood Jar.", error);
+    toast("Fuwa couldn't add that mood to the jar. Please try again.");
+  } finally {
+    homeMoodSyncRunning = false;
+
+    // A new tap may have arrived between the final loop check and cleanup.
+    if (pendingHomeMoodSync) {
+      const queuedMood = pendingHomeMoodSync;
+      pendingHomeMoodSync = "";
+      syncHomeMoodToJar(queuedMood);
+    }
+  }
+}
+
+async function saveMoodCheckin(mood) {
+  if (!moodEmoji[mood] || moodCheckinSaving) return;
+
+  moodCheckinSaving = true;
+  document.querySelectorAll("[data-checkin-mood]").forEach(button => {
+    button.disabled = true;
+  });
+
+  const existing = getTodayMoodCheckin();
+
+  try {
+    await persistTodayMoodCheckin(mood);
+
     $("moodCheckinModal").classList.add("hidden");
     document.body.style.overflow = "";
-    renderAll();
+
+    // Targeted renders keep the two mood surfaces synchronized without
+    // refreshing unrelated heavy views.
+    renderMoodPicker();
+    renderHomeMoodJar();
+    renderStats();
+    if (currentView === "moodjar") renderMoodJarView();
+
     toast(existing ? "Today's mood updated ☁️" : "A little mood tucked into your jar 🫙");
   } catch (error) {
     console.error("Could not save mood check-in.", error);
@@ -9143,6 +9234,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     await diaryRepository.initialize();
     await diaryRepository.migrateLegacyData();
     await loadState();
+
+    // If today's Mood Jar already has a check-in, it is the authoritative
+    // Home mood after reopening the app.
+    const todayMoodCheckin = getTodayMoodCheckin();
+    if (todayMoodCheckin && moodEmoji[todayMoodCheckin.mood]) {
+      state.selectedMood = todayMoodCheckin.mood;
+      savePreferences();
+    }
+
     renderAll();
     const requestedView = new URLSearchParams(window.location.search).get("view");
     if (requestedView === "life") { navigate("life"); history.replaceState(null, "", window.location.pathname); }
@@ -9176,10 +9276,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   document.querySelectorAll("#moodPicker button").forEach(button => {
     button.addEventListener("click", () => {
-      state.selectedMood = button.dataset.mood;
-      saveState();
-      renderMoodPicker();
-      showMoodReaction(state.selectedMood, true);
+      syncHomeMoodToJar(button.dataset.mood);
     });
     button.addEventListener("animationend", () => button.classList.remove("mood-button-pop"));
   });
