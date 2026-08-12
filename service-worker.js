@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v76";
+const CACHE_NAME = "fuwa-shell-v78";
 
 const CORE_ASSETS = [
   "./",
@@ -27,7 +27,12 @@ self.addEventListener("install", event => {
       await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));
     })
   );
-  self.skipWaiting();
+});
+
+self.addEventListener("message", event => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", event => {

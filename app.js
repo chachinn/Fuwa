@@ -3387,6 +3387,13 @@ async function saveNightlyReflection(event) {
     else state.nightlyReflections.push(record);
 
     editingNightlyId = null;
+
+    // The saved reflection now lives in history, so leave the capture area
+    // visually fresh instead of making it look like the form failed to clear.
+    $("nightlyGrateful").value = "";
+    $("nightlyRelease").value = "";
+    $("nightlyTomorrow").value = "";
+
     renderAll();
     renderNightlyHistory();
     toast(existing ? "Wind-down updated 🌙" : "Today can rest now 🌙");
@@ -9058,6 +9065,54 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
+let pendingFuwaServiceWorker = null;
+let fuwaServiceWorkerRefreshing = false;
+
+function showFuwaUpdateBanner(worker) {
+  if (!worker || !navigator.serviceWorker?.controller) return;
+  pendingFuwaServiceWorker = worker;
+  $("appUpdateBanner")?.classList.remove("hidden");
+}
+
+function hideFuwaUpdateBanner() {
+  $("appUpdateBanner")?.classList.add("hidden");
+}
+
+function applyFuwaUpdate() {
+  const worker = pendingFuwaServiceWorker;
+  if (!worker) return;
+
+  const button = $("appUpdateButton");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Updating…";
+  }
+
+  worker.postMessage({ type: "SKIP_WAITING" });
+}
+
+function watchFuwaServiceWorkerRegistration(registration) {
+  if (!registration) return;
+
+  if (registration.waiting && navigator.serviceWorker.controller) {
+    showFuwaUpdateBanner(registration.waiting);
+  }
+
+  registration.addEventListener("updatefound", () => {
+    const worker = registration.installing;
+    if (!worker) return;
+
+    worker.addEventListener("statechange", () => {
+      if (
+        worker.state === "installed" &&
+        navigator.serviceWorker.controller
+      ) {
+        showFuwaUpdateBanner(worker);
+      }
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   setTimeout(() => sessionStorage.removeItem("fuwa-sw-reloaded"), 2500);
   installIOSZoomGuard();
@@ -9467,17 +9522,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 120);
   }, { passive: true });
 
+  $("appUpdateButton")?.addEventListener("click", applyFuwaUpdate);
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (sessionStorage.getItem("fuwa-sw-reloaded") === "1") return;
-      sessionStorage.setItem("fuwa-sw-reloaded", "1");
+      if (fuwaServiceWorkerRefreshing) return;
+      fuwaServiceWorkerRefreshing = true;
+      hideFuwaUpdateBanner();
       window.location.reload();
     });
 
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("./service-worker.js", { updateViaCache: "none" })
-        .then(registration => registration.update())
+        .then(registration => {
+          watchFuwaServiceWorkerRegistration(registration);
+          return registration.update();
+        })
         .catch(console.error);
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) return;
+      navigator.serviceWorker.getRegistration()
+        .then(registration => registration?.update())
+        .catch(() => {});
     });
   }
 });

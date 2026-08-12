@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v76-journal-history-dashboard -->
+  <!-- FUWA_BUILD: v78-nightly-clear-after-save -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1595,6 +1595,15 @@
           </div>
         </div>
 
+        <section class="about-fuwa-card" aria-labelledby="aboutFuwaTitle">
+          <div class="about-fuwa-mark" aria-hidden="true">☁️</div>
+          <div class="about-fuwa-copy">
+            <p class="eyebrow">About Fuwa · ふわふわ</p>
+            <h3 id="aboutFuwaTitle">A soft place for little things.</h3>
+            <p><strong>Fuwa</strong> comes from <em>fuwafuwa (ふわふわ)</em>, meaning “soft” or “fluffy.” Fuwa is meant to feel like a soft, private place where you can put down your thoughts, memories, and feelings.</p>
+          </div>
+        </section>
+
 
         <section class="section-block">
           <div class="section-heading">
@@ -1627,6 +1636,14 @@
         </div>
       </section>
     </main>
+
+    <div class="app-update-banner hidden" id="appUpdateBanner" role="status" aria-live="polite">
+      <div class="app-update-copy">
+        <span class="app-update-dot" aria-hidden="true">☁️</span>
+        <span>An update is available. Refresh to update.</span>
+      </div>
+      <button type="button" id="appUpdateButton">Update</button>
+    </div>
 
     <nav class="bottom-nav" aria-label="Main navigation">
       <button class="nav-item active" data-nav="home"><span>⌂</span><small>Home</small></button>

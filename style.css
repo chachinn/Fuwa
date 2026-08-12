@@ -9425,3 +9425,111 @@ button,
   .life-history-answer{grid-template-columns:1fr;gap:3px}
   .life-dashboard-extra-grid{grid-template-columns:1fr}
 }
+
+
+/* =========================================================
+   FUWA V77 — ABOUT FUWA + UPDATE AVAILABLE BANNER
+   ========================================================= */
+
+.about-fuwa-card{
+  display:grid;
+  grid-template-columns:54px minmax(0,1fr);
+  gap:13px;
+  align-items:start;
+  margin:12px 0 24px;
+  padding:15px;
+  border:1px solid rgba(233,210,219,.9);
+  border-radius:21px;
+  background:
+    radial-gradient(circle at 12% 5%,rgba(248,211,226,.34),transparent 35%),
+    linear-gradient(145deg,rgba(255,251,253,.97),rgba(250,246,255,.92));
+  box-shadow:0 8px 20px rgba(103,70,83,.055);
+}
+.about-fuwa-mark{
+  display:grid;
+  place-items:center;
+  width:54px;
+  height:54px;
+  border-radius:18px;
+  background:linear-gradient(145deg,#fff,#fbe7f0);
+  font-size:26px;
+  box-shadow:inset 0 0 0 1px rgba(233,205,216,.7);
+}
+.about-fuwa-copy{min-width:0}
+.about-fuwa-copy h3{
+  margin:4px 0 7px;
+  color:#604a54;
+  font-family:Georgia,"Times New Roman",serif;
+  font-size:17px;
+  line-height:1.2;
+}
+.about-fuwa-copy>p:last-child{
+  margin:0;
+  color:#8d7881;
+  font-size:9px;
+  line-height:1.62;
+}
+.about-fuwa-copy strong{color:#71535f}
+.about-fuwa-copy em{
+  color:#a45e79;
+  font-style:normal;
+  font-weight:800;
+}
+
+/* Similar to Sakura's update card, but kept in Fuwa's softer styling. */
+.app-update-banner{
+  position:fixed;
+  z-index:80;
+  left:50%;
+  bottom:calc(88px + var(--safe-bottom));
+  transform:translateX(-50%);
+  width:min(calc(100% - 28px),490px);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:11px 11px 11px 14px;
+  border:1px solid rgba(232,207,217,.94);
+  border-radius:19px;
+  background:rgba(255,253,253,.97);
+  box-shadow:0 14px 34px rgba(87,59,70,.14);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  animation:fuwaUpdateIn .22s ease-out both;
+}
+.app-update-banner.hidden{display:none!important}
+.app-update-copy{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  min-width:0;
+  color:#66535b;
+  font-size:9px;
+  font-weight:650;
+  line-height:1.35;
+}
+.app-update-dot{
+  flex:0 0 auto;
+  font-size:17px;
+}
+.app-update-banner button{
+  min-height:38px;
+  padding:8px 14px;
+  border:1px solid rgba(222,141,171,.55);
+  border-radius:13px;
+  background:#fff0f5;
+  color:#b45f7e;
+  font-size:9px;
+  font-weight:900;
+}
+.app-update-banner button:disabled{opacity:.62}
+@keyframes fuwaUpdateIn{
+  from{opacity:0;transform:translate(-50%,10px)}
+  to{opacity:1;transform:translate(-50%,0)}
+}
+@media(max-width:370px){
+  .about-fuwa-card{grid-template-columns:44px minmax(0,1fr);padding:13px}
+  .about-fuwa-mark{width:44px;height:44px;border-radius:15px;font-size:22px}
+  .app-update-banner{grid-template-columns:1fr auto;gap:7px;padding-left:11px}
+  .app-update-copy{font-size:8px}
+}
