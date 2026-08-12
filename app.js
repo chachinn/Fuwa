@@ -77,6 +77,7 @@ let editingNightlyId = null;
 let moodCheckinSaving = false;
 let homeMoodSyncRunning = false;
 let pendingHomeMoodSync = "";
+let moodPersistenceChain = Promise.resolve();
 let moodJarPhysicsFrame = null;
 let moodJarOrientationBound = false;
 let moodJarOrientationPermissionRequested = false;
@@ -4333,18 +4334,27 @@ async function persistTodayMoodCheckin(mood) {
   return { record, existed: !!existing };
 }
 
+function queueTodayMoodPersistence(mood) {
+  const run = () => persistTodayMoodCheckin(mood);
+  const queued = moodPersistenceChain.catch(() => {}).then(run);
+  moodPersistenceChain = queued.catch(() => {});
+  return queued;
+}
+
 async function syncHomeMoodToJar(mood) {
   if (!moodEmoji[mood]) return;
 
-  // Update the visible Home selection immediately. The IndexedDB write can
-  // finish asynchronously without making the mood buttons feel sluggish.
+  const previousCheckin = getTodayMoodCheckin();
+  const previousMood = previousCheckin?.mood || state.selectedMood || defaultState.selectedMood;
+
+  // Update Home immediately, but serialize the actual IndexedDB write
+  // with Mood Jar writes so both surfaces cannot race each other.
   state.selectedMood = mood;
   savePreferences();
   renderMoodPicker();
   showMoodReaction(mood, true);
 
-  // Latest tap wins. If someone taps several moods quickly, Fuwa finishes the
-  // current write and then stores only the newest pending choice.
+  // Latest Home tap wins instead of queueing every intermediate tap.
   pendingHomeMoodSync = mood;
   if (homeMoodSyncRunning) return;
 
@@ -4355,12 +4365,10 @@ async function syncHomeMoodToJar(mood) {
     while (pendingHomeMoodSync) {
       const nextMood = pendingHomeMoodSync;
       pendingHomeMoodSync = "";
-      await persistTodayMoodCheckin(nextMood);
+      await queueTodayMoodPersistence(nextMood);
       savedAny = true;
     }
 
-    // Refresh only the pieces affected by a mood check-in instead of doing a
-    // broad app rerender.
     renderMoodPicker();
     renderHomeMoodJar();
     renderStats();
@@ -4369,11 +4377,19 @@ async function syncHomeMoodToJar(mood) {
     if (savedAny) toast("Today's mood is tucked into your jar ☁️");
   } catch (error) {
     console.error("Could not sync Home mood to Mood Jar.", error);
-    toast("Fuwa couldn't add that mood to the jar. Please try again.");
+
+    // Never leave Home showing a mood that failed to reach IndexedDB.
+    const authoritative = getTodayMoodCheckin()?.mood || previousMood;
+    state.selectedMood = authoritative;
+    savePreferences();
+    renderMoodPicker();
+    renderHomeMoodJar();
+    if (currentView === "moodjar") renderMoodJarView();
+
+    toast("Fuwa couldn't add that mood to the jar. Your previous mood was kept.");
   } finally {
     homeMoodSyncRunning = false;
 
-    // A new tap may have arrived between the final loop check and cleanup.
     if (pendingHomeMoodSync) {
       const queuedMood = pendingHomeMoodSync;
       pendingHomeMoodSync = "";
@@ -4393,7 +4409,7 @@ async function saveMoodCheckin(mood) {
   const existing = getTodayMoodCheckin();
 
   try {
-    await persistTodayMoodCheckin(mood);
+    await queueTodayMoodPersistence(mood);
 
     $("moodCheckinModal").classList.add("hidden");
     document.body.style.overflow = "";
@@ -4418,8 +4434,11 @@ async function saveMoodCheckin(mood) {
 }
 
 function maybeShowDailyMoodCheckin() {
-  if (getTodayMoodCheckin()) return;
-  setTimeout(() => openMoodCheckin(), 350);
+  if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
+  setTimeout(() => {
+    if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
+    openMoodCheckin();
+  }, 350);
 }
 
 function toast(message) {
