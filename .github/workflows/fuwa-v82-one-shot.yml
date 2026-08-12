@@ -1,0 +1,37 @@
+name: Fuwa v82 update handoff QA
+
+on:
+  push:
+    branches: [fuwa-v82-update-handoff-qa]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fuwa-v82-update-handoff-qa
+          fetch-depth: 0
+      - name: Apply v82 handoff patch
+        shell: python
+        run: |
+          import base64,zlib
+          exec(zlib.decompress(base64.b64decode("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")).decode())
+      - name: Run release QA
+        shell: python
+        run: |
+          import base64,zlib
+          exec(zlib.decompress(base64.b64decode("eNqVVety2kYU/q+n2OxkBilBqh33h0urZDAmY0+w6wKOpwHKLNIK1gitsrsCE49n+hp9vT5Jz1lxS01tlz/s0bl/55YoOSM5M5NUjIiY5VIZcgWks3orXo1kmvLICJnp6q2WWVUXo1zJiGvtOIlUJCEiIz3K8jy41bRKNVdzEXF/IdWUq/JbzAz7QUeK5SMppz6SyBjUHAI/FW5tBqrI3B7NZMxBz/ejCY+mtJoMqhHLTaH4UBYmL0zYVQWvGn5XvjxrSCREBYqDWBaBgRpRTGhOOktt+Kx5J4yrAm1irpTnYC5BKlnsypxnLp2xTCRcmwAZ1PMcBzIKEQx3nZsHtlk8RKcuRw8iG4e0MIl/TD1nYmbpSl5kMb8L8MMzOpHWKxVtlikPgH5GQy/WCo9gflrREbEOFQ8SCI6lqasq/ZGIwx7tVwZu7w/8e+tZqlLFyD0nLnId3k9rc4JlnlbnWOiddggassgMVy5Y9gIBEGvXwxrM3x8+OOBDLngc3tOxYrHPZuwbxAM1teRYynj9znhhFEvXpBGKb3iabZ4sG6slfXCKjN/lEALY1ty4GKXnr7w54H3L31P/hF5v2ARUUxExw8n5qa6Rew0tz2N3a8B7QOCSIoseQed+qDG9zKK+fut9QAmEBAi3V/e/MP/b8PWg11+8Hrzx+vpN361UoYc8J3kxptbpY1Th39rYm9rpJp91QJiVlcdEQBf6K4jQg0vvqfcq3KFBYo9R2uh0yEgxGE0AdsRSlkVQHUBF8a8FVirswehVTuvd+km90xx+brY7579ekpAcHlWqyGpedtu/D1vnne7wpN5tnA0751+awP/xoOTPoBWuuNICnILxxoQBJCG5gtUEwUBPa5nOueuV0iyWuflYLFin7P8b2/5tnnKm+QVDohT8eH1TH7abrSZGdVFvf2q2h4164wxd0wQM+KpU8rUByChoDew+Q8ixKusEa+vVYhmZNMiEau4twYXQGtoc+WRmo4EKoGLZSTvme5sgT67PW6c1Mj9+5xc5rEbuT1gWyyTxv7Iyl5sJM3//+ZcmGV+gLuZP5oclE4aY8swowXUL1tmFVGUye+PGyX4y8LPuReslkUfQXIZYQIeX9YstqnrC09SHZOjPZXz/rwYb00Jf5zj3HGT5HTQHRPeJL3Wg5Yz/Z3568WR2nZs9uQlwB2Md6kVPLwK7u92K5mkSsDhuzgHblu1NmEq6kqUVr/as7AzOGRtDVt4AZ4/qqchvmMBEKMa6srVv6s5LFpkVgASmxgoj/V0DdpwrUwQkESluDHiT8D3Bv1dhuFMar7JCpjy2j5zVYVXMcWtYbzkMHIwWB7dZWcwVZCRicIwRsByy0mEKV/O7pfiLLpcYiVIGd43eSrjDLPVRnBK8+f7up3B1Z2wm1uSr8Ohgb/ma6419dEBOmUiXpAW3ulSqkjHgc2/ftpxzwRfanobvosMxWS/nA/+noQ/n7jOI0k0YGZvv0bNxA+ux9lYzAtE9qqAlxgBs3917ZfEi2OTRsW/DfrJ5QYyspNanaqvprTc8hvIyYza2f1vc0S+vX64Enody5Ry/I6uJJb/VAX+t7TH4B1GddGU=")).decode())
+      - name: Commit verified v82 build
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fuwa-v82-one-shot.yml
+          git config user.name "ChatGPT Fuwa QA"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js index.html service-worker.js .github/workflows/fuwa-v82-one-shot.yml
+          git commit -m "Guarantee Fuwa update handoff and release notes v82"
+          git push origin HEAD:fuwa-v82-update-handoff-qa
