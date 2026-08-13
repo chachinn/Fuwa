@@ -8678,10 +8678,10 @@ const FUWA_FEATURE_TUTORIALS = {
     icon: "☁️",
     eyebrow: "YOUR GARDEN GATE",
     title: "Home is your gentle daily starting point",
-    copy: "Use Home for the things you may want most often: a mood check-in, recent memories, Tiny Joys, Random Thoughts, and little pieces of your day.",
+    copy: "Home keeps your daily essentials first. Your mood and Mood Jar stay visible, while the deeper pieces of your garden wait under one calm More section.",
     how: [
       "Tap a mood cloud when you want a quick emotional check-in.",
-      "Use Little Things for Tiny Joys and passing Random Thoughts.",
+      "Open More from your garden for memories, calendar, Nightly Wind-Down, Tiny Joys, and Random Thoughts.",
       "Open ☰ for the deeper corners of Fuwa."
     ]
   },
@@ -9227,7 +9227,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1-2026-08-13";
+const FUWA_RELEASE_KEY = "fuwa-v1.0.1-2026-08-13";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";

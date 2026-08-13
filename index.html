@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v82-update-handoff-qa -->
+  <!-- FUWA_BUILD: v83-calm-polish-qa -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -307,14 +307,15 @@
           <p class="drawer-section-label">Start Here</p>
           <div class="drawer-menu-list">
             <button class="drawer-menu-item" data-nav="life" type="button"><span class="drawer-item-icon life-pages-icon">✦</span><span><strong>Daily Life Pages</strong><small>Choose a few pages or use all 30.</small></span><b>›</b></button>
-            <button class="drawer-menu-item" data-nav="scrapbook" type="button"><span class="drawer-item-icon scrapbook-drawer-icon">🎀</span><span><strong>Scrapbook</strong><small>Make little pages from photos, stickers, and memories.</small></span><b>›</b></button>
+            <button class="drawer-menu-item" data-nav="nightly" type="button"><span class="drawer-item-icon drawer-night-icon"></span><span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="moodjar" type="button"><span class="drawer-item-icon drawer-mood-icon"></span><span><strong>Mood Jar</strong><small>A tiny check-in when that is enough.</small></span><b>›</b></button>
           </div>
         </section>
 
         <details class="drawer-group drawer-collapsible">
-          <summary><span>Journal & Memories</span><small>7 tools</small></summary>
+          <summary><span>Journal & Memories</span><small>8 tools</small></summary>
           <div class="drawer-menu-list">
+            <button class="drawer-menu-item" data-nav="scrapbook" type="button"><span class="drawer-item-icon scrapbook-drawer-icon">🎀</span><span><strong>Scrapbook</strong><small>Make little pages from photos, stickers, and memories.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="threads" type="button"><span class="drawer-item-icon drawer-thread-icon"></span><span><strong>Memory Threads</strong><small>Stories that keep returning.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="bookmarks" type="button"><span class="drawer-item-icon drawer-bookmark-icon"></span><span><strong>Fuwa Bookmarks</strong><small>Save thoughts for Future You.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="thenNow" type="button"><span class="drawer-item-icon mirror-icon"></span><span><strong>Then & Now</strong><small>Meet an older version of you.</small></span><b>›</b></button>
@@ -326,9 +327,8 @@
         </details>
 
         <details class="drawer-group drawer-collapsible">
-          <summary><span>Comfort & Rest</span><small>5 tools</small></summary>
+          <summary><span>Comfort & Rest</span><small>4 tools</small></summary>
           <div class="drawer-menu-list">
-            <button class="drawer-menu-item" data-nav="nightly" type="button"><span class="drawer-item-icon drawer-night-icon"></span><span><strong>Nightly Wind-Down</strong><small>Put the day down gently.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="sleep" type="button"><span class="drawer-item-icon drawer-sleep-icon"></span><span><strong>Sleep Corner</strong><small>Soft sounds with a timer.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="comfort" type="button"><span class="drawer-item-icon comfort-icon"></span><span><strong>Comfort Corner</strong><small>Keep soft things and future joys close.</small></span><b>›</b></button>
             <button class="drawer-menu-item" data-nav="release" type="button"><span class="drawer-item-icon release-ritual-icon">✦</span><span><strong>Release Ritual</strong><small>Write down what is weighing on you, then let it go.</small></span><b>›</b></button>
@@ -407,6 +407,13 @@
           </button>
         </section>
 
+
+        <details class="home-more-panel" id="homeMorePanel">
+          <summary>
+            <span><strong>More from your garden</strong><small>Memories, calendar, wind-down & little things</small></span>
+            <b aria-hidden="true">⌄</b>
+          </summary>
+          <div class="home-more-content">
 
         <section class="section-block">
           <div class="section-heading">
@@ -536,6 +543,8 @@
             </article>
           </div>
         </section>
+          </div>
+        </details>
       </section>
 
 
@@ -1642,7 +1651,7 @@
     <div class="app-update-banner hidden" id="appUpdateBanner" role="status" aria-live="polite">
       <div class="app-update-copy">
         <span class="app-update-dot" aria-hidden="true">☁️</span>
-        <span><strong>Update available</strong><small>Fuwa 1.0 is ready. Refresh to update.</small></span>
+        <span><strong>Update available</strong><small>Fuwa 1.0.1 is ready. Refresh to update.</small></span>
       </div>
       <button type="button" id="appUpdateButton">Refresh</button>
     </div>
@@ -1666,15 +1675,15 @@
     <div class="fuwa-release-sheet">
       <button class="fuwa-release-close" id="fuwaReleaseNotesClose" type="button" aria-label="Close what’s new">×</button>
       <p class="eyebrow">Fuwa update</p>
-      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa v1</h2>
+      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.0.1</h2>
       <p class="fuwa-release-date">August 13, 2026</p>
       <div class="fuwa-release-cloud" aria-hidden="true">☁️</div>
-      <p class="fuwa-release-lead">A softer update flow, steadier mood check-ins, and lighter journal browsing.</p>
+      <p class="fuwa-release-lead">No new features this time — just a calmer Fuwa that is easier to find your way around.</p>
       <div class="fuwa-release-list">
-        <article><span>🌸</span><div><strong>Refresh when you’re ready</strong><p>Fuwa now waits for you to tap Refresh, then tells you what changed after the update opens.</p></div></article>
-        <article><span>🫙</span><div><strong>One mood, everywhere</strong><p>Your Home mood and Mood Jar stay synchronized with safer same-day saving.</p></div></article>
-        <article><span>📖</span><div><strong>Big journals feel lighter</strong><p>Entries render in small batches and search waits for you to finish typing before doing more work.</p></div></article>
-        <article><span>🛡️</span><div><strong>Stability polish</strong><p>Calendar lookups, update states, and background work were tightened without changing your data or Firebase setup.</p></div></article>
+        <article><span>☁️</span><div><strong>A calmer Home</strong><p>Your daily essentials stay up front. Secondary sections are still there, tucked under More from your garden.</p></div></article>
+        <article><span>🧭</span><div><strong>A clearer menu</strong><p>Daily Life, Mood Jar, and Nightly Wind-Down now lead Start Here. Scrapbook lives with Journal & Memories.</p></div></article>
+        <article><span>🌷</span><div><strong>Gentler navigation</strong><p>Focus states, tap targets, and the information hierarchy are more consistent without adding another feature.</p></div></article>
+        <article><span>🛡️</span><div><strong>QA cleanup</strong><p>Duplicate SVG IDs and structural checks were cleaned up while your database, Firebase setup, and existing content stayed unchanged.</p></div></article>
       </div>
       <button class="fuwa-release-got-it" id="fuwaReleaseNotesGotIt" type="button">Got it ☁️</button>
     </div>
@@ -2159,12 +2168,12 @@
       <h2 id="moodCheckinTitle">How are you feeling today?</h2>
       <p class="muted">One tap is enough. You don't have to write anything.</p>
       <div class="mood-checkin-options" id="moodCheckinOptions">
-        <button type="button" data-checkin-mood="amazing"><span class="fuwa-mood-svg mood-amazing" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-amazing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8fb"/><stop offset="1" stop-color="#f6cbd9"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-amazing)" stroke="#e894ad" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M33 39 Q40 46 47 39" class="mood-mouth-line"/><path d="M61 13 C61 9 67 8 69 12 C71 8 77 9 77 14 C77 18 69 23 69 23 C69 23 61 18 61 13Z" class="mood-heart"/></svg></span><small>Amazing</small></button>
-        <button type="button" data-checkin-mood="good"><span class="fuwa-mood-svg mood-good" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-good" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffafb"/><stop offset="1" stop-color="#f4d6e0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-good)" stroke="#dda0b4" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M34 39 Q40 44 46 39" class="mood-mouth-line"/></svg></span><small>Good</small></button>
-        <button type="button" data-checkin-mood="neutral"><span class="fuwa-mood-svg mood-neutral" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-neutral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf3"/><stop offset="1" stop-color="#f3dfc2"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-neutral)" stroke="#d5ad78" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M36 41 H44" class="mood-mouth-line"/></svg></span><small>Neutral</small></button>
-        <button type="button" data-checkin-mood="tired"><span class="fuwa-mood-svg mood-tired" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-tired" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf8ff"/><stop offset="1" stop-color="#ded4ef"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-tired)" stroke="#a997c8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 34 Q31 31 35 34" class="mood-eye-line"/><path d="M45 34 Q49 31 53 34" class="mood-eye-line"/><path d="M37 41 Q40 39 43 41" class="mood-mouth-line"/><text x="60" y="18" class="mood-z">z</text></svg></span><small>Tired</small></button>
-        <button type="button" data-checkin-mood="sad"><span class="fuwa-mood-svg mood-sad" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-sad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fcff"/><stop offset="1" stop-color="#d6e8f5"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-sad)" stroke="#8eb8d8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M34 43 Q40 37 46 43" class="mood-mouth-line"/><path d="M53 38 C58 43 58 47 54 49 C50 47 50 43 53 38Z" class="mood-tear"/></svg></span><small>Sad</small></button>
-        <button type="button" data-checkin-mood="angry"><span class="fuwa-mood-svg mood-angry" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-angry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8f7"/><stop offset="1" stop-color="#f4d2d0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-angry)" stroke="#dd9598" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/></svg></span><small>Angry</small></button>
+        <button type="button" data-checkin-mood="amazing"><span class="fuwa-mood-svg mood-amazing" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-amazing" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8fb"/><stop offset="1" stop-color="#f6cbd9"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-amazing)" stroke="#e894ad" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M33 39 Q40 46 47 39" class="mood-mouth-line"/><path d="M61 13 C61 9 67 8 69 12 C71 8 77 9 77 14 C77 18 69 23 69 23 C69 23 61 18 61 13Z" class="mood-heart"/></svg></span><small>Amazing</small></button>
+        <button type="button" data-checkin-mood="good"><span class="fuwa-mood-svg mood-good" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-good" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffafb"/><stop offset="1" stop-color="#f4d6e0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-good)" stroke="#dda0b4" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 32 Q31 36 35 32" class="mood-eye-line"/><path d="M45 32 Q49 36 53 32" class="mood-eye-line"/><path d="M34 39 Q40 44 46 39" class="mood-mouth-line"/></svg></span><small>Good</small></button>
+        <button type="button" data-checkin-mood="neutral"><span class="fuwa-mood-svg mood-neutral" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-neutral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffaf3"/><stop offset="1" stop-color="#f3dfc2"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-neutral)" stroke="#d5ad78" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M36 41 H44" class="mood-mouth-line"/></svg></span><small>Neutral</small></button>
+        <button type="button" data-checkin-mood="tired"><span class="fuwa-mood-svg mood-tired" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-tired" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf8ff"/><stop offset="1" stop-color="#ded4ef"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-tired)" stroke="#a997c8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M27 34 Q31 31 35 34" class="mood-eye-line"/><path d="M45 34 Q49 31 53 34" class="mood-eye-line"/><path d="M37 41 Q40 39 43 41" class="mood-mouth-line"/><text x="60" y="18" class="mood-z">z</text></svg></span><small>Tired</small></button>
+        <button type="button" data-checkin-mood="sad"><span class="fuwa-mood-svg mood-sad" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-sad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f8fcff"/><stop offset="1" stop-color="#d6e8f5"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-sad)" stroke="#8eb8d8" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><circle cx="31" cy="34" r="1.8" class="mood-face-fill"/><circle cx="49" cy="34" r="1.8" class="mood-face-fill"/><path d="M34 43 Q40 37 46 43" class="mood-mouth-line"/><path d="M53 38 C58 43 58 47 54 49 C50 47 50 43 53 38Z" class="mood-tear"/></svg></span><small>Sad</small></button>
+        <button type="button" data-checkin-mood="angry"><span class="fuwa-mood-svg mood-angry" aria-hidden="true"><svg viewBox="0 0 80 56" focusable="false"><defs><linearGradient id="grad-checkin-angry" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8f7"/><stop offset="1" stop-color="#f4d2d0"/></linearGradient></defs><path d="M18 48C9 48 4 42 4 34C4 25 10 19 19 19C22 10 30 6 39 7C48 7 54 13 56 20C66 19 75 26 75 35C75 43 69 48 60 48Z" fill="url(#grad-checkin-angry)" stroke="#dd9598" stroke-width="1.7"/><ellipse cx="24" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><ellipse cx="56" cy="39" rx="4" ry="2.2" class="mood-cheek-svg"/><path d="M26 29 L35 33" class="mood-brow-line"/><path d="M54 29 L45 33" class="mood-brow-line"/><circle cx="31" cy="35" r="1.8" class="mood-face-fill"/><circle cx="49" cy="35" r="1.8" class="mood-face-fill"/><path d="M34 44 Q40 38 46 44" class="mood-mouth-line"/></svg></span><small>Angry</small></button>
       </div>
       <button type="button" class="text-btn mood-skip-btn" id="skipMoodCheckin">Skip for now</button>
     </div>
