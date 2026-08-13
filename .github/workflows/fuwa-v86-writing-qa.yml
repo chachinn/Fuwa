@@ -1,0 +1,66 @@
+name: Fuwa v86 Writing UI QA
+
+on:
+  push:
+    branches: [fuwa-v86-writing-qa]
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fuwa-v86-writing-qa
+          fetch-depth: 0
+      - name: Apply v86 patch
+        run: python .github/fuwa_v86_patch.py
+      - name: Syntax and protected-file QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check service-worker.js
+          node --check data/scrapbook-data.js
+          python -m json.tool manifest.json >/dev/null
+          grep -q 'FUWA_BUILD: v86-writing-ui-stability-qa' index.html
+          grep -q 'fuwa-shell-v86' service-worker.js
+          grep -q 'fuwa-v1.1.1-2026-08-14' app.js
+          grep -q 'lifeListEditorModal' index.html
+          grep -q 'function openLifeListEditor' app.js
+          grep -q 'function saveLifeListEditor' app.js
+          grep -q 'life-list-editor-modal' style.css
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          git diff --exit-code origin/main -- firebase-fuwa.js manifest.json data/scrapbook-data.js
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          app=Path('app.js').read_text()
+          html=Path('index.html').read_text()
+          css=Path('style.css').read_text()
+          funcs=re.findall(r'function\s+([A-Za-z_$][\w$]*)\s*\(',app)
+          assert len(funcs)==len(set(funcs)), 'duplicate functions'
+          ids=re.findall(r'\bid="([^"]+)"',html)
+          assert len(ids)==len(set(ids)), 'duplicate ids'
+          views=set(re.findall(r'id="([A-Za-z0-9_-]+)View"',html))
+          nav=set(re.findall(r'data-nav="([A-Za-z0-9_-]+)"',html))
+          assert not (nav-views), 'missing navigation target'
+          assert css.count('{')==css.count('}'), 'CSS brace imbalance'
+          latest=re.search(r'function sanctuaryV3Latest\(items\)\{.*?\n\}',app,re.S)
+          assert latest and '.sort(' not in latest.group(0), 'Sanctuary latest lookup still sorts'
+          ensure=re.search(r'function ensureLifeHabits\(\)\{.*?\n\}',app,re.S)
+          assert ensure and 'LIFE_DEFAULT_HABITS' not in ensure.group(0), 'habit seeding still active'
+          print('Fuwa v86 structural QA PASS')
+          PY
+      - name: Commit verified v86
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/fuwa_v86_patch.py .github/workflows/fuwa-v86-writing-qa.yml
+          git config user.name 'chachinn'
+          git config user.email '140357822+chachinn@users.noreply.github.com'
+          git add app.js index.html style.css service-worker.js .github
+          git commit -m 'Fuwa v86: easier Daily Life writing and stability polish'
+          git push origin HEAD:fuwa-v86-writing-qa
