@@ -1,0 +1,267 @@
+name: Fuwa v84 compact disclosure QA
+
+on:
+  push:
+    branches: [fuwa-v84-ui-qa]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fuwa-v84-ui-qa
+          fetch-depth: 0
+
+      - name: Apply compact Home disclosure fix
+        shell: python
+        run: |
+          from pathlib import Path
+
+          index = Path("index.html")
+          app = Path("app.js")
+          css = Path("style.css")
+          sw = Path("service-worker.js")
+
+          html = index.read_text(encoding="utf-8")
+          js = app.read_text(encoding="utf-8")
+          styles = css.read_text(encoding="utf-8")
+          worker = sw.read_text(encoding="utf-8")
+
+          html = html.replace(
+              "<!-- FUWA_BUILD: v83-calm-polish-qa -->",
+              "<!-- FUWA_BUILD: v84-home-disclosure-ui-qa -->",
+              1,
+          )
+          html = html.replace(
+              "What’s new in Fuwa 1.0.1",
+              "What’s new in Fuwa 1.0.2",
+              1,
+          )
+          html = html.replace(
+              "No new features this time — just a calmer Fuwa that is easier to find your way around.",
+              "A small UI polish so Home has more breathing room on iPhone.",
+              1,
+          )
+          html = html.replace(
+              "<article><span>☁️</span><div><strong>A calmer Home</strong><p>Your daily essentials stay up front. Secondary sections are still there, tucked under More from your garden.</p></div></article>",
+              "<article><span>☁️</span><div><strong>More breathing room</strong><p>More from your garden now has a clean title, subtitle, and chevron layout instead of squeezing everything into one line.</p></div></article>",
+              1,
+          )
+
+          js = js.replace(
+              'const FUWA_RELEASE_KEY = "fuwa-v1.0.1-2026-08-13";',
+              'const FUWA_RELEASE_KEY = "fuwa-v1.0.2-2026-08-13";',
+              1,
+          )
+
+          worker = worker.replace(
+              'const CACHE_NAME = "fuwa-shell-v83";',
+              'const CACHE_NAME = "fuwa-shell-v84";',
+              1,
+          )
+          worker = worker.replace(
+              'const RELEASE_KEY = "fuwa-v1.0.1-2026-08-13";',
+              'const RELEASE_KEY = "fuwa-v1.0.2-2026-08-13";',
+              1,
+          )
+
+          patch = r'''
+
+          /* =========================================================
+             FUWA V84 — COMPACT HOME DISCLOSURE / IPHONE UI POLISH
+             ========================================================= */
+          .home-more-panel {
+            margin: 18px 0 22px;
+            border: 1px solid rgba(231, 199, 211, .74);
+            border-radius: 22px;
+            background: rgba(255, 253, 253, .74);
+            box-shadow: 0 8px 24px rgba(107, 72, 87, .045);
+            overflow: hidden;
+          }
+
+          .home-more-panel > summary {
+            list-style: none;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 34px;
+            align-items: center;
+            gap: 12px;
+            min-height: 76px;
+            padding: 14px 16px 14px 18px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .home-more-panel > summary::-webkit-details-marker {
+            display: none;
+          }
+
+          .home-more-panel > summary > span {
+            min-width: 0;
+            display: grid;
+            gap: 4px;
+          }
+
+          .home-more-panel > summary strong {
+            display: block;
+            margin: 0;
+            color: #5d4a52;
+            font-size: 15px;
+            line-height: 1.22;
+            letter-spacing: -.01em;
+          }
+
+          .home-more-panel > summary small {
+            display: block;
+            margin: 0;
+            color: #a28e96;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.38;
+            white-space: normal;
+          }
+
+          .home-more-panel > summary > b {
+            justify-self: end;
+            display: grid;
+            place-items: center;
+            width: 32px;
+            height: 32px;
+            margin: 0;
+            border: 1px solid rgba(225, 189, 203, .78);
+            border-radius: 999px;
+            background: rgba(255, 248, 251, .9);
+            color: #b76d88;
+            font-size: 16px;
+            line-height: 1;
+            transition: transform .18s ease;
+          }
+
+          .home-more-panel[open] > summary > b {
+            transform: rotate(180deg);
+          }
+
+          .home-more-panel > summary:focus-visible {
+            outline: 2px solid rgba(223, 117, 155, .48);
+            outline-offset: -3px;
+            border-radius: 20px;
+          }
+
+          .home-more-content {
+            padding: 0 14px 18px;
+          }
+
+          .home-more-content > .section-block:first-child {
+            margin-top: 4px;
+          }
+
+          @media (max-width: 390px) {
+            .home-more-panel {
+              margin-top: 16px;
+              border-radius: 20px;
+            }
+
+            .home-more-panel > summary {
+              min-height: 72px;
+              padding: 13px 14px 13px 16px;
+              gap: 10px;
+            }
+
+            .home-more-panel > summary strong {
+              font-size: 14px;
+            }
+
+            .home-more-panel > summary small {
+              font-size: 9px;
+            }
+          }
+          '''
+
+          if "FUWA V84 — COMPACT HOME DISCLOSURE" not in styles:
+              styles += patch
+
+          for value, label in [
+              ("v84-home-disclosure-ui-qa", "index build marker"),
+              ("What’s new in Fuwa 1.0.2", "release title"),
+              ("fuwa-v1.0.2-2026-08-13", "app release key"),
+              ("fuwa-shell-v84", "service worker cache"),
+          ]:
+              combined = html + js + worker + styles
+              if value not in combined:
+                  raise SystemExit(f"Missing expected {label}: {value}")
+
+          index.write_text(html, encoding="utf-8")
+          app.write_text(js, encoding="utf-8")
+          css.write_text(styles, encoding="utf-8")
+          sw.write_text(worker, encoding="utf-8")
+
+      - name: Run release QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check service-worker.js
+          node --check data/scrapbook-data.js
+          python - <<'PY'
+          from html.parser import HTMLParser
+          from collections import Counter
+          from pathlib import Path
+          import json, re
+
+          html = Path('index.html').read_text(encoding='utf-8')
+          css = Path('style.css').read_text(encoding='utf-8')
+          js = Path('app.js').read_text(encoding='utf-8')
+          sw = Path('service-worker.js').read_text(encoding='utf-8')
+          json.loads(Path('manifest.json').read_text(encoding='utf-8'))
+
+          class Audit(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = []
+                  self.navs = []
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if attrs.get('id'): self.ids.append(attrs['id'])
+                  if attrs.get('data-nav'): self.navs.append(attrs['data-nav'])
+
+          audit = Audit(); audit.feed(html)
+          dupes = [k for k,v in Counter(audit.ids).items() if v > 1]
+          assert not dupes, f'duplicate ids: {dupes}'
+
+          views = set(re.findall(r'id="([A-Za-z0-9_-]+)View"', html))
+          missing = sorted({nav for nav in audit.navs if nav not in views})
+          assert not missing, f'missing nav views: {missing}'
+
+          assert css.count('{') == css.count('}'), 'CSS brace imbalance'
+          assert 'FUWA V84 — COMPACT HOME DISCLOSURE' in css
+          assert 'grid-template-columns: minmax(0, 1fr) 34px' in css
+          assert 'v84-home-disclosure-ui-qa' in html
+          assert 'What’s new in Fuwa 1.0.2' in html
+          assert 'fuwa-v1.0.2-2026-08-13' in js
+          assert 'fuwa-shell-v84' in sw
+          assert 'fuwa-v1.0.2-2026-08-13' in sw
+          assert re.search(r'const DATABASE_VERSION\s*=\s*13\s*;', js), 'IndexedDB version changed'
+
+          funcs = re.findall(r'\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(', js)
+          duplicate_funcs = [k for k,v in Counter(funcs).items() if v > 1]
+          assert not duplicate_funcs, f'duplicate named functions: {duplicate_funcs}'
+
+          print('Fuwa v84 UI QA passed')
+          PY
+
+          changed="$(git diff --name-only HEAD~1 2>/dev/null || true)"
+          echo "$changed"
+
+      - name: Commit verified v84 build
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/fuwa-v84-ui-qa.yml
+          git config user.name "ChatGPT Fuwa QA"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js index.html style.css service-worker.js .github/workflows/fuwa-v84-ui-qa.yml
+          git commit -m "Fix crowded Fuwa Home disclosure UI v84"
+          git push origin HEAD:fuwa-v84-ui-qa
