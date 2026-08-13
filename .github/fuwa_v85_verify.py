@@ -9,8 +9,8 @@ sw = Path('service-worker.js').read_text(encoding='utf-8')
 
 assert '<!-- FUWA_BUILD: v85-sanctuary-expansion-qa -->' in html
 assert 'const DATABASE_VERSION = 13;' in app
-assert app.count('function renderSanctuaryLegacy(force=false) {') == 1
-assert app.count('function renderSanctuary(force=false) {') == 1
+assert len(re.findall(r'function\s+renderSanctuaryLegacy\s*\(\s*force\s*=\s*false\s*\)\s*\{', app)) == 1
+assert len(re.findall(r'function\s+renderSanctuary\s*\(\s*force\s*=\s*false\s*\)\s*\{', app)) == 1
 assert 'function sanctuaryV3MomentCount()' in app
 assert 'function sanctuaryV3RenderShelf()' in app
 assert 'renderMonthlyStory();\n  renderEmotionalWeather();\n  renderSanctuary();\n}' not in app
