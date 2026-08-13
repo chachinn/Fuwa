@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v84-home-disclosure-ui-qa -->
+  <!-- FUWA_BUILD: v85-sanctuary-expansion-qa -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -995,42 +995,18 @@
         <div class="feature-list" id="dreamList"></div>
       </section>
 
-      <section class="view" id="sanctuaryView">
-        <div class="page-title-row">
-          <div><p class="eyebrow">Your little room</p><h2>Fuwa Sanctuary</h2></div>
-          <span class="page-cute-icon sanctuary-icon"></span>
-        </div>
-        <p class="muted feature-intro">No coins, no streaks, no grinding. Your room quietly becomes more lived-in as Fuwa fills with your days.</p>
-
-        <div class="sanctuary-progress-card">
-          <div><span class="sanctuary-stage-kicker">Your room is becoming</span><strong id="sanctuaryStageName">A Quiet Corner</strong></div>
-          <span class="sanctuary-stage-count" id="sanctuaryStageCount">0 moments</span>
-          <div class="sanctuary-progress-track"><span id="sanctuaryProgressBar"></span></div>
-          <small id="sanctuaryProgressCopy">Every memory leaves something soft behind.</small>
-        </div>
-
+      <section class="view sanctuary-v3-view" id="sanctuaryView">
+        <div class="page-title-row sanctuary-v3-title-row"><div><p class="eyebrow">Your little room</p><h2>Fuwa Sanctuary</h2></div><span class="page-cute-icon sanctuary-icon"></span></div>
+        <p class="muted feature-intro">No coins, no streaks, no grinding. Your room changes because you have lived in Fuwa — not because you completed chores.</p>
+        <div class="sanctuary-companion-card"><div class="sanctuary-companion-mini" aria-hidden="true"><span></span></div><div><strong id="sanctuaryCompanionGreeting">Your room kept your place.</strong><small id="sanctuaryCompanionNote">Nothing needs to happen here.</small></div><button type="button" id="sanctuarySurpriseMemoryButton">Surprise me</button></div>
+        <div class="sanctuary-progress-card"><div><span class="sanctuary-stage-kicker">Your room is becoming</span><strong id="sanctuaryStageName">A Quiet Corner</strong></div><span class="sanctuary-stage-count" id="sanctuaryStageCount">0 moments</span><div class="sanctuary-progress-track"><span id="sanctuaryProgressBar"></span></div><small id="sanctuaryProgressCopy">Every memory leaves something soft behind.</small></div>
+        <div class="sanctuary-atmosphere-card"><div><small>Room light</small><strong id="sanctuaryAtmosphereLabel">Auto</strong></div><span></span><div><small>Seasonal feeling</small><strong id="sanctuarySeasonLabel">Auto</strong></div></div>
         <div class="sanctuary-room" id="sanctuaryRoom"></div>
-
-        <div class="sanctuary-memory-card hidden" id="sanctuaryMemoryCard">
-          <div class="sanctuary-memory-top">
-            <span class="sanctuary-memory-icon" id="sanctuaryMemoryIcon" aria-hidden="true"></span>
-            <div><small id="sanctuaryMemoryLabel">Something your room remembered</small><strong id="sanctuaryMemoryTitle">A memory</strong></div>
-            <button type="button" id="sanctuaryMemoryClose" aria-label="Close memory">×</button>
-          </div>
-          <p id="sanctuaryMemoryText"></p>
-          <button class="text-btn strong hidden" id="sanctuaryMemoryOpenEntry" type="button">Open memory →</button>
-        </div>
-
-        <div class="sanctuary-customize">
-          <div class="sanctuary-customize-heading"><div><p class="eyebrow">Make it yours</p><h3>Room feeling</h3></div><small>Only unlocked things can be placed.</small></div>
-          <div class="sanctuary-theme-options" id="sanctuaryThemeOptions"></div>
-          <div class="sanctuary-object-options" id="sanctuaryObjectOptions"></div>
-        </div>
-
-        <div class="sanctuary-unlocks-wrap">
-          <div class="sanctuary-customize-heading"><div><p class="eyebrow">Room story</p><h3>Things that found their way home</h3></div></div>
-          <div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div>
-        </div>
+        <div class="sanctuary-memory-card hidden" id="sanctuaryMemoryCard"><div class="sanctuary-memory-top"><span class="sanctuary-memory-icon" id="sanctuaryMemoryIcon" aria-hidden="true">☁️</span><div><small id="sanctuaryMemoryLabel">Something your room remembered</small><strong id="sanctuaryMemoryTitle">A memory</strong></div><button type="button" id="sanctuaryMemoryClose" aria-label="Close memory">×</button></div><p id="sanctuaryMemoryText"></p><button class="text-btn strong hidden" id="sanctuaryMemoryOpenEntry" type="button">Open memory →</button></div>
+        <div class="sanctuary-v3-tabs" role="tablist" aria-label="Sanctuary sections"><button class="selected" type="button" role="tab" aria-selected="true" data-sanctuary-panel="memories">Memories</button><button type="button" role="tab" aria-selected="false" data-sanctuary-panel="customize">Make it mine</button><button type="button" role="tab" aria-selected="false" data-sanctuary-panel="story">Room story</button></div>
+        <div class="sanctuary-v3-panel" id="sanctuaryPanelMemories"><div class="sanctuary-v3-section-head"><div><p class="eyebrow">Resting on the shelf</p><h3>Room memories</h3></div><button type="button" id="sanctuaryMemoryShelfRefresh">Shuffle</button></div><div class="sanctuary-memory-shelf" id="sanctuaryMemoryShelf"></div><div class="sanctuary-v3-section-head sanctuary-room-noticed-head"><div><p class="eyebrow">The room has noticed</p><h3>Little traces of you</h3></div></div><div class="sanctuary-room-stats" id="sanctuaryRoomStats"></div><p class="sanctuary-soft-note">These are not scores. They simply help the room know what kinds of things have become part of it.</p></div>
+        <div class="sanctuary-v3-panel hidden" id="sanctuaryPanelCustomize"><div class="sanctuary-v3-section-head"><div><p class="eyebrow">One tap</p><h3>Room presets</h3></div></div><div class="sanctuary-preset-options" id="sanctuaryPresetOptions"></div><div class="sanctuary-customize sanctuary-v3-customize"><div class="sanctuary-customize-heading"><div><p class="eyebrow">Light outside the window</p><h3>Atmosphere</h3></div><small>Auto follows the time on your phone.</small></div><div class="sanctuary-ambience-options" id="sanctuaryAmbienceOptions"></div><div class="sanctuary-customize-heading sanctuary-v3-subhead"><div><p class="eyebrow">A little seasonal magic</p><h3>Season</h3></div></div><div class="sanctuary-season-options" id="sanctuarySeasonOptions"></div><div class="sanctuary-customize-heading sanctuary-v3-subhead"><div><p class="eyebrow">Walls & softness</p><h3>Room feeling</h3></div></div><div class="sanctuary-theme-options" id="sanctuaryThemeOptions"></div><div class="sanctuary-customize-heading sanctuary-v3-subhead"><div><p class="eyebrow">Your little cloud</p><h3>Companion name</h3></div><small>Saved only on this device.</small></div><div class="sanctuary-companion-name-row"><input id="sanctuaryCompanionName" maxlength="18" autocomplete="off" aria-label="Sanctuary cloud name" /><button type="button" id="sanctuaryCompanionNameSave">Save</button></div><details class="sanctuary-decor-details"><summary><span><strong>Decor pieces</strong><small>Show or tuck away anything you have unlocked.</small></span><b>⌄</b></summary><div class="sanctuary-object-options" id="sanctuaryObjectOptions"></div></details></div></div>
+        <div class="sanctuary-v3-panel hidden" id="sanctuaryPanelStory"><div class="sanctuary-v3-section-head"><div><p class="eyebrow">How the room grows</p><h3>Your room chapters</h3></div></div><div class="sanctuary-stage-timeline" id="sanctuaryStageTimeline"></div><div class="sanctuary-unlocks-wrap sanctuary-v3-unlocks-wrap"><div class="sanctuary-customize-heading"><div><p class="eyebrow">Keepsakes</p><h3>Things that find their way home</h3></div></div><div class="sanctuary-unlocks" id="sanctuaryUnlocks"></div></div></div>
       </section>
 
       <section class="view" id="lifeView">
@@ -1675,15 +1651,15 @@
     <div class="fuwa-release-sheet">
       <button class="fuwa-release-close" id="fuwaReleaseNotesClose" type="button" aria-label="Close what’s new">×</button>
       <p class="eyebrow">Fuwa update</p>
-      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.0.2</h2>
+      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1</h2>
       <p class="fuwa-release-date">August 13, 2026</p>
       <div class="fuwa-release-cloud" aria-hidden="true">☁️</div>
-      <p class="fuwa-release-lead">A small UI polish so Home has more breathing room on iPhone.</p>
+      <p class="fuwa-release-lead">Sanctuary grew from a cute room into a little place that actually reflects the Fuwa you have been building.</p>
       <div class="fuwa-release-list">
-        <article><span>☁️</span><div><strong>More breathing room</strong><p>More from your garden now has a clean title, subtitle, and chevron layout instead of squeezing everything into one line.</p></div></article>
-        <article><span>🧭</span><div><strong>A clearer menu</strong><p>Daily Life, Mood Jar, and Nightly Wind-Down now lead Start Here. Scrapbook lives with Journal & Memories.</p></div></article>
-        <article><span>🌷</span><div><strong>Gentler navigation</strong><p>Focus states, tap targets, and the information hierarchy are more consistent without adding another feature.</p></div></article>
-        <article><span>🛡️</span><div><strong>QA cleanup</strong><p>Duplicate SVG IDs and structural checks were cleaned up while your database, Firebase setup, and existing content stayed unchanged.</p></div></article>
+        <article><span>🏡</span><div><strong>A living Sanctuary</strong><p>Your room now changes with time of day, seasonal atmosphere, your mood, and the things you have saved across Fuwa.</p></div></article>
+        <article><span>📚</span><div><strong>Memories on the shelf</strong><p>Journal pages, tiny joys, dreams, comfort keepsakes, quiet nights and more can rest inside the room and drift back to you.</p></div></article>
+        <article><span>🎀</span><div><strong>Much more room personality</strong><p>Choose presets, light, seasons, room colors, decor pieces, and even give your little cloud companion a name.</p></div></article>
+        <article><span>☁️</span><div><strong>Still gentle, still light</strong><p>No coins or streak pressure. Sanctuary now renders only when you open it, and its motion stays CSS-lightweight and respects reduced-motion settings.</p></div></article>
       </div>
       <button class="fuwa-release-got-it" id="fuwaReleaseNotesGotIt" type="button">Got it ☁️</button>
     </div>

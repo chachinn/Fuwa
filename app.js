@@ -281,21 +281,42 @@ function bindNotificationSettings() {
 }
 
 const SANCTUARY_PREFS_KEY = "fuwaSanctuaryPreferencesV2";
-const defaultSanctuaryPreferences = { theme: "rose", visibleObjects: ["lamp","plant","books","stars","cushion","tea","garland","frame"] };
+const SANCTUARY_V3_NEW_OBJECT_IDS = ["desk","blanket","flowers","moon","notes","album"];
+const defaultSanctuaryPreferences = {
+  version: 3,
+  theme: "rose",
+  ambience: "auto",
+  season: "auto",
+  companionName: "Fuwa",
+  visibleObjects: ["lamp","plant","books","stars","cushion","tea","garland","frame",...SANCTUARY_V3_NEW_OBJECT_IDS]
+};
 let sanctuaryPreferences = (() => {
   try {
     const saved = JSON.parse(localStorage.getItem(SANCTUARY_PREFS_KEY) || "{}");
+    const allowedObjects = defaultSanctuaryPreferences.visibleObjects;
+    const savedObjects = Array.isArray(saved.visibleObjects)
+      ? saved.visibleObjects.filter(id => allowedObjects.includes(id))
+      : [...allowedObjects];
+    const upgradedObjects = Number(saved.version) >= 3
+      ? savedObjects
+      : [...new Set([...savedObjects, ...SANCTUARY_V3_NEW_OBJECT_IDS])];
     return {
+      version: 3,
       theme: ["rose","lavender","sky"].includes(saved.theme) ? saved.theme : "rose",
-      visibleObjects: Array.isArray(saved.visibleObjects)
-        ? saved.visibleObjects.filter(id => defaultSanctuaryPreferences.visibleObjects.includes(id))
-        : [...defaultSanctuaryPreferences.visibleObjects]
+      ambience: ["auto","morning","day","golden","night","rain"].includes(saved.ambience) ? saved.ambience : "auto",
+      season: ["auto","spring","summer","autumn","winter"].includes(saved.season) ? saved.season : "auto",
+      companionName: typeof saved.companionName === "string" && saved.companionName.trim()
+        ? saved.companionName.replace(/[<>]/g, "").trim().slice(0, 18)
+        : "Fuwa",
+      visibleObjects: upgradedObjects
     };
   } catch (_) {
     return structuredClone(defaultSanctuaryPreferences);
   }
 })();
 let activeSanctuaryMemoryEntryId = null;
+let sanctuaryActivePanel = "memories";
+let sanctuaryMemoryShelfOffset = 0;
 
 function saveSanctuaryPreferences() {
   try { localStorage.setItem(SANCTUARY_PREFS_KEY, JSON.stringify(sanctuaryPreferences)); }
@@ -2701,7 +2722,7 @@ function showSanctuaryMemory(type) {
   card.classList.remove("hidden");
 }
 
-function renderSanctuary(force=false) {
+function renderSanctuaryLegacy(force=false) {
   const host=$("sanctuaryRoom"), unlocks=$("sanctuaryUnlocks"), objectOptions=$("sanctuaryObjectOptions"), themeOptions=$("sanctuaryThemeOptions");
   if(!host||!unlocks||!objectOptions||!themeOptions) return;
   const signature=sanctuarySignature();
@@ -2768,7 +2789,6 @@ function renderExpansionFeatures() {
   renderDreams();
   renderMonthlyStory();
   renderEmotionalWeather();
-  renderSanctuary();
 }
 
 
@@ -6090,6 +6110,109 @@ function renderViewOnDemand(view = currentView) {
   if (view === "memoryDrift") return renderMemoryDriftDetail();
 }
 
+
+
+// =========================================================
+// FUWA V85 — SANCTUARY: A LIVING ROOM MADE FROM YOUR FUWA
+// Derived from existing Fuwa content. No new database store or grind economy.
+// =========================================================
+const SANCTUARY_V3_STAGES = [
+  { min:0, name:"A Quiet Corner", copy:"The room is here. It does not need anything from you." },
+  { min:8, name:"A Soft Glow", copy:"A little warmth has begun to collect here." },
+  { min:20, name:"A Lived-In Nook", copy:"Small traces of your days are starting to stay." },
+  { min:40, name:"A Story Room", copy:"The room has learned how to hold your stories." },
+  { min:70, name:"A Dreamy Hideaway", copy:"There is enough of you here for the room to feel familiar." },
+  { min:110, name:"A Gentle Home", copy:"Fuwa has become somewhere your days know how to return to." },
+  { min:170, name:"Your Sanctuary", copy:"This room has grown around the life you have been leaving here." },
+  { min:260, name:"A Room with Seasons", copy:"The room has watched enough days pass to have a rhythm of its own." },
+  { min:400, name:"A Place That Knows You", copy:"So many small pieces of your life have found somewhere to stay." },
+  { min:650, name:"A Little World of Your Own", copy:"Fuwa feels less like a room now and more like somewhere you have lived." }
+];
+
+const SANCTUARY_V3_OBJECTS = [
+  { id:"lamp", min:8, label:"Warm lamp", memory:"nightly" },
+  { id:"plant", min:20, label:"Little plant", memory:"joy" },
+  { id:"books", min:40, label:"Story shelf", memory:"entry" },
+  { id:"stars", min:70, label:"Star lights", memory:"dream" },
+  { id:"cushion", min:90, label:"Soft cushion", memory:"comfort" },
+  { id:"tea", min:110, label:"Tea corner", memory:"mood" },
+  { id:"garland", min:140, label:"Paper garland", memory:"bubble" },
+  { id:"frame", min:170, label:"Memory frame", memory:"entry" },
+  { id:"desk", min:190, label:"Writing desk", memory:"entry", metric:"entries", metricMin:20, metricLabel:"journal entries" },
+  { id:"blanket", min:220, label:"Cloud blanket", memory:"comfort", metric:"comfortItems", metricMin:8, metricLabel:"comfort keepsakes" },
+  { id:"flowers", min:260, label:"Joy flowers", memory:"joy", metric:"tinyJoys", metricMin:20, metricLabel:"tiny joys" },
+  { id:"moon", min:310, label:"Dream mobile", memory:"dream", metric:"dreams", metricMin:10, metricLabel:"dreams" },
+  { id:"notes", min:360, label:"Floating notes", memory:"bubble", metric:"thoughtBubbles", metricMin:12, metricLabel:"thought bubbles" },
+  { id:"album", min:430, label:"Memory album", memory:"entry", metric:"entries", metricMin:40, metricLabel:"journal entries" }
+];
+const SANCTUARY_V3_THEMES = [{id:"rose",label:"Rose"},{id:"lavender",label:"Lavender"},{id:"sky",label:"Morning Sky"}];
+const SANCTUARY_V3_AMBIENCES = [
+  {id:"auto",label:"Auto",icon:"◌"},{id:"morning",label:"Morning",icon:"☼"},{id:"day",label:"Daylight",icon:"◇"},
+  {id:"golden",label:"Golden",icon:"✦"},{id:"night",label:"Night",icon:"☾"},{id:"rain",label:"Rainy",icon:"⌇"}
+];
+const SANCTUARY_V3_SEASONS = [{id:"auto",label:"Auto"},{id:"spring",label:"Spring"},{id:"summer",label:"Summer"},{id:"autumn",label:"Autumn"},{id:"winter",label:"Winter"}];
+const SANCTUARY_V3_PRESETS = [
+  {id:"cozy",label:"Soft & Cozy",note:"Warm light, tea and soft corners."},{id:"dreamy",label:"Dreamy Night",note:"Lavender, stars and quieter light."},
+  {id:"fresh",label:"Fresh Morning",note:"Sky tones, plants and spring air."},{id:"lived",label:"Lived In",note:"Put every unlocked keepsake back."}
+];
+
+function sanctuaryV3MomentCount() {
+  return [state.entries,state.moodCheckins,state.nightlyReflections,state.dreams,state.thoughtBubbles,state.tinyJoys,state.comfortItems,state.randomThoughts,state.moments,state.dailyCheckins,state.thenNow,state.unsentLetters,state.bookmarks,state.letters]
+    .reduce((total,items)=>total+(Array.isArray(items)?items.length:0),0);
+}
+function sanctuaryV3StageIndex(total=sanctuaryV3MomentCount()){let index=0;SANCTUARY_V3_STAGES.forEach((stage,i)=>{if(total>=stage.min)index=i;});return index;}
+function sanctuaryV3ResolvedAmbience(){if(sanctuaryPreferences.ambience!=="auto")return sanctuaryPreferences.ambience;const hour=new Date().getHours();if(hour>=5&&hour<11)return"morning";if(hour>=11&&hour<16)return"day";if(hour>=16&&hour<19)return"golden";return"night";}
+function sanctuaryV3ResolvedSeason(){if(sanctuaryPreferences.season!=="auto")return sanctuaryPreferences.season;const month=new Date().getMonth();if(month>=2&&month<=4)return"spring";if(month>=5&&month<=7)return"summer";if(month>=8&&month<=10)return"autumn";return"winter";}
+function sanctuaryV3MetricCount(metric){const items=state[metric];return Array.isArray(items)?items.length:0;}
+function sanctuaryV3ObjectUnlocked(object,total=sanctuaryV3MomentCount()){if(total>=object.min)return true;return!!(object.metric&&sanctuaryV3MetricCount(object.metric)>=Number(object.metricMin||Infinity));}
+function sanctuaryV3ObjectVisible(object,total=sanctuaryV3MomentCount()){return sanctuaryV3ObjectUnlocked(object,total)&&sanctuaryPreferences.visibleObjects.includes(object.id);}
+function sanctuaryV3UnlockCopy(object,total){if(sanctuaryV3ObjectUnlocked(object,total))return"Found its way into your room.";const momentRemaining=Math.max(0,object.min-total);if(object.metric){const metricRemaining=Math.max(0,object.metricMin-sanctuaryV3MetricCount(object.metric));return`${metricRemaining} more ${object.metricLabel} or ${momentRemaining} room moments`;}return`${momentRemaining} room moment${momentRemaining===1?"":"s"} away`;}
+function sanctuaryV3Latest(items){if(!Array.isArray(items)||!items.length)return null;const score=item=>{const numeric=Number(item?.updatedAt||item?.createdAt||0);if(Number.isFinite(numeric)&&numeric>0)return numeric;if(item?.date){const parsed=new Date(`${item.date}T12:00:00`).getTime();if(Number.isFinite(parsed))return parsed;}return 0;};return[...items].sort((a,b)=>score(b)-score(a))[0]||null;}
+
+function sanctuaryV3ShelfMemories(){
+  const memories=[];
+  const entry=sanctuaryV3Latest(state.entries);if(entry)memories.push({label:"Latest journal page",title:entry.title||"A memory",text:memoryDriftPreviewText(entry,210),entryId:entry.id,icon:"📖",type:"entry"});
+  const joy=sanctuaryV3Latest(state.tinyJoys);if(joy)memories.push({label:"A tiny joy",title:"Something small that stayed",text:joy.text||"A little bright thing.",icon:"🌷",type:"joy"});
+  const dream=sanctuaryV3Latest(state.dreams);if(dream)memories.push({label:"From Dream Pocket",title:dream.title||"A dream",text:dream.body||"A dream that stayed long enough to write down.",icon:"☾",type:"dream"});
+  const comfort=sanctuaryV3Latest(state.comfortItems);if(comfort)memories.push({label:"From Comfort Corner",title:comfort.title||"Something soft",text:comfort.body||"Something you wanted to keep close.",icon:"♡",type:"comfort"});
+  const nightly=sanctuaryV3Latest(state.nightlyReflections);if(nightly)memories.push({label:"A quiet night",title:nightly.date?formatDate(nightly.date):"Nightly Wind-Down",text:nightly.grateful||nightly.release||nightly.tomorrow||"A night you put down gently.",icon:"✦",type:"nightly"});
+  const bubble=sanctuaryV3Latest(state.thoughtBubbles);if(bubble)memories.push({label:"A thought floating nearby",title:bubble.date?formatDate(bubble.date):"Thought Bubble",text:bubble.text||"A thought you wanted to meet again.",icon:"◌",type:"bubble"});
+  const mood=sanctuaryV3Latest(state.moodCheckins);if(mood)memories.push({label:"A feeling the room remembers",title:`${moodLabels[mood.mood]||"A day"}${mood.date?` · ${formatDate(mood.date)}`:""}`,text:mood.note||"You checked in with yourself on this day.",icon:"☁️",type:"mood"});
+  return memories;
+}
+function sanctuaryV3ShowMemoryValue(memory){const card=$("sanctuaryMemoryCard");if(!card||!memory)return;activeSanctuaryMemoryEntryId=memory.entryId||null;if($("sanctuaryMemoryIcon"))$("sanctuaryMemoryIcon").textContent=memory.icon||"☁️";if($("sanctuaryMemoryLabel"))$("sanctuaryMemoryLabel").textContent=memory.label||"Something your room remembered";if($("sanctuaryMemoryTitle"))$("sanctuaryMemoryTitle").textContent=memory.title||"A memory";if($("sanctuaryMemoryText"))$("sanctuaryMemoryText").textContent=memory.text||"A small piece of your Fuwa.";$("sanctuaryMemoryOpenEntry")?.classList.toggle("hidden",!memory.entryId);card.classList.remove("hidden");}
+function sanctuaryV3MemoryTypesAvailable(){const types=[];if(state.entries.length)types.push("entry");if(state.nightlyReflections.length)types.push("nightly");if(state.dreams.length)types.push("dream");if(state.tinyJoys.length)types.push("joy");if(state.comfortItems.length)types.push("comfort");if(state.thoughtBubbles.length)types.push("bubble");if(state.moodCheckins.length)types.push("mood");return types;}
+function sanctuaryV3CompanionCopy(){const name=sanctuaryPreferences.companionName||"Fuwa",hour=new Date().getHours(),todayMood=state.moodCheckins.find(item=>item.date===isoToday())?.mood||state.selectedMood;const greeting=hour<12?`Good morning from ${name}.`:hour<18?`${name} kept your corner warm.`:`It is quiet in here with ${name}.`;const moodCopy={amazing:"The room feels a little brighter with you here.",good:"There is a soft kind of ease in the room today.",neutral:"Nothing needs to happen here. You can simply be.",tired:"You can just sit here for a while. The room can stay quiet.",sad:"A heavy day can have somewhere gentle to land.",angry:"You do not have to soften anything before coming in."}[todayMood]||"Your room is here exactly as you left it.";return{greeting,moodCopy,mood:todayMood};}
+function sanctuaryV3Signature(){return[collectionSignature(state.entries),collectionSignature(state.moodCheckins),collectionSignature(state.nightlyReflections),collectionSignature(state.dreams),collectionSignature(state.thoughtBubbles),collectionSignature(state.tinyJoys),collectionSignature(state.comfortItems),collectionSignature(state.randomThoughts),collectionSignature(state.moments),collectionSignature(state.dailyCheckins),collectionSignature(state.thenNow),collectionSignature(state.unsentLetters),collectionSignature(state.bookmarks),collectionSignature(state.letters),sanctuaryPreferences.theme,sanctuaryPreferences.ambience,sanctuaryPreferences.season,sanctuaryPreferences.companionName,[...sanctuaryPreferences.visibleObjects].sort().join(","),sanctuaryV3ResolvedAmbience(),sanctuaryV3ResolvedSeason(),isoToday()].join("|");}
+
+function sanctuaryV3SetPanel(panel){if(!["memories","customize","story"].includes(panel))panel="memories";sanctuaryActivePanel=panel;document.querySelectorAll("[data-sanctuary-panel]").forEach(button=>{const selected=button.dataset.sanctuaryPanel===panel;button.classList.toggle("selected",selected);button.setAttribute("aria-selected",selected?"true":"false");});["memories","customize","story"].forEach(key=>{$("sanctuaryPanel"+key[0].toUpperCase()+key.slice(1))?.classList.toggle("hidden",key!==panel);});}
+function sanctuaryV3ApplyPreset(id){const allIds=SANCTUARY_V3_OBJECTS.map(object=>object.id),presets={cozy:{theme:"rose",ambience:"golden",season:"auto",visibleObjects:["lamp","plant","cushion","tea","blanket","flowers","books"]},dreamy:{theme:"lavender",ambience:"night",season:"winter",visibleObjects:["lamp","stars","garland","frame","moon","album","cushion"]},fresh:{theme:"sky",ambience:"morning",season:"spring",visibleObjects:["plant","books","desk","flowers","frame","tea"]},lived:{theme:sanctuaryPreferences.theme,ambience:"auto",season:"auto",visibleObjects:allIds}};const preset=presets[id];if(!preset)return;sanctuaryPreferences={...sanctuaryPreferences,...preset,version:3};saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);toast("Your Sanctuary shifted softly ☁️");}
+
+function sanctuaryV3RenderShelf(){const host=$("sanctuaryMemoryShelf");if(!host)return;const all=sanctuaryV3ShelfMemories();if(!all.length){host.innerHTML=`<div class="sanctuary-shelf-empty">As you use Fuwa, little memories will begin resting on this shelf.</div>`;return;}const offset=all.length?sanctuaryMemoryShelfOffset%all.length:0,rotated=[...all.slice(offset),...all.slice(0,offset)].slice(0,4);host.innerHTML=rotated.map((memory,index)=>`<button class="sanctuary-shelf-memory" type="button" data-sanctuary-shelf-index="${index}"><span>${escapeHtml(memory.icon||"☁️")}</span><small>${escapeHtml(memory.label)}</small><strong>${escapeHtml(memory.title)}</strong><p>${escapeHtml(String(memory.text||"").replace(/\s+/g," ").slice(0,105))}${String(memory.text||"").length>105?"…":""}</p></button>`).join("");host.querySelectorAll("[data-sanctuary-shelf-index]").forEach(button=>{button.onclick=()=>sanctuaryV3ShowMemoryValue(rotated[Number(button.dataset.sanctuaryShelfIndex)]);});}
+
+function renderSanctuary(force=false){
+  const host=$("sanctuaryRoom"),unlocks=$("sanctuaryUnlocks"),objectOptions=$("sanctuaryObjectOptions"),themeOptions=$("sanctuaryThemeOptions"),ambienceOptions=$("sanctuaryAmbienceOptions"),seasonOptions=$("sanctuarySeasonOptions"),presetOptions=$("sanctuaryPresetOptions"),stageTimeline=$("sanctuaryStageTimeline"),statsHost=$("sanctuaryRoomStats");
+  if(!host||!unlocks||!objectOptions||!themeOptions||!ambienceOptions||!seasonOptions||!presetOptions||!stageTimeline||!statsHost)return;
+  const signature=sanctuaryV3Signature();if(!force&&renderCache.sanctuary===signature){sanctuaryV3SetPanel(sanctuaryActivePanel);return;}renderCache.sanctuary=signature;
+  const total=sanctuaryV3MomentCount(),stageIndex=sanctuaryV3StageIndex(total),stage=SANCTUARY_V3_STAGES[stageIndex],next=SANCTUARY_V3_STAGES[stageIndex+1]||null,ambience=sanctuaryV3ResolvedAmbience(),season=sanctuaryV3ResolvedSeason(),companion=sanctuaryV3CompanionCopy();
+  if($("sanctuaryStageName"))$("sanctuaryStageName").textContent=stage.name;if($("sanctuaryStageCount"))$("sanctuaryStageCount").textContent=`${total} ${total===1?"moment":"moments"}`;if($("sanctuaryProgressCopy"))$("sanctuaryProgressCopy").textContent=next?`${Math.max(0,next.min-total)} more gentle moment${next.min-total===1?"":"s"} and the room may change again.`:stage.copy;const progress=next?Math.max(0,Math.min(100,((total-stage.min)/Math.max(1,next.min-stage.min))*100)):100;if($("sanctuaryProgressBar"))$("sanctuaryProgressBar").style.width=`${progress}%`;
+  if($("sanctuaryCompanionGreeting"))$("sanctuaryCompanionGreeting").textContent=companion.greeting;if($("sanctuaryCompanionNote"))$("sanctuaryCompanionNote").textContent=companion.moodCopy;if($("sanctuaryAtmosphereLabel"))$("sanctuaryAtmosphereLabel").textContent=ambience==="golden"?"Golden hour":ambience[0].toUpperCase()+ambience.slice(1);if($("sanctuarySeasonLabel"))$("sanctuarySeasonLabel").textContent=season[0].toUpperCase()+season.slice(1);
+  const visible=Object.fromEntries(SANCTUARY_V3_OBJECTS.map(object=>[object.id,sanctuaryV3ObjectVisible(object,total)])),particles='<i></i><i></i><i></i><i></i><i></i><i></i>';
+  host.innerHTML=`<div class="room-scene sanctuary-v3-scene sanctuary-theme-${escapeHtml(sanctuaryPreferences.theme)} ambience-${escapeHtml(ambience)} season-${escapeHtml(season)} level-${stageIndex+1}"><div class="room-window"><div class="room-sky"><span class="room-sun"></span><span class="room-moon-sky"></span><span class="room-rain-lines"></span></div></div><div class="room-curtain room-curtain-left"></div><div class="room-curtain room-curtain-right"></div><div class="room-season-particles" aria-hidden="true">${particles}</div><div class="room-rug"></div><div class="room-bed"><span></span></div><button class="room-cloud-pet sanctuary-memory-object mood-${escapeHtml(companion.mood||"good")}" type="button" data-sanctuary-memory="mood" aria-label="${escapeHtml(sanctuaryPreferences.companionName||"Fuwa")} cloud memory"><span></span><small>${escapeHtml(sanctuaryPreferences.companionName||"Fuwa")}</small></button>${visible.lamp?'<button class="room-lamp sanctuary-memory-object" type="button" data-sanctuary-memory="nightly" aria-label="Lamp memory"></button>':""}${visible.plant?'<button class="room-plant sanctuary-memory-object" type="button" data-sanctuary-memory="joy" aria-label="Plant memory"></button>':""}${visible.books?'<button class="room-books sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Bookshelf memory"></button>':""}${visible.stars?'<button class="room-stars sanctuary-memory-object" type="button" data-sanctuary-memory="dream" aria-label="Star memory"></button>':""}${visible.cushion?'<button class="room-cushion sanctuary-memory-object" type="button" data-sanctuary-memory="comfort" aria-label="Cushion memory"></button>':""}${visible.tea?'<button class="room-tea sanctuary-memory-object" type="button" data-sanctuary-memory="mood" aria-label="Tea memory"></button>':""}${visible.garland?'<button class="room-garland sanctuary-memory-object" type="button" data-sanctuary-memory="bubble" aria-label="Garland memory"></button>':""}${visible.frame?'<button class="room-frame sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Frame memory"></button>':""}${visible.desk?'<button class="room-desk sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Writing desk memory"></button>':""}${visible.blanket?'<button class="room-blanket sanctuary-memory-object" type="button" data-sanctuary-memory="comfort" aria-label="Blanket memory"></button>':""}${visible.flowers?'<button class="room-flowers sanctuary-memory-object" type="button" data-sanctuary-memory="joy" aria-label="Flower memory"></button>':""}${visible.moon?'<button class="room-dream-mobile sanctuary-memory-object" type="button" data-sanctuary-memory="dream" aria-label="Dream mobile memory"></button>':""}${visible.notes?'<button class="room-floating-notes sanctuary-memory-object" type="button" data-sanctuary-memory="bubble" aria-label="Floating note memory"></button>':""}${visible.album?'<button class="room-album sanctuary-memory-object" type="button" data-sanctuary-memory="entry" aria-label="Memory album"></button>':""}<div class="sanctuary-room-hint">Tap anything with a little memory in it.</div></div>`;
+  host.querySelectorAll("[data-sanctuary-memory]").forEach(button=>{button.onclick=()=>showSanctuaryMemory(button.dataset.sanctuaryMemory);});
+  themeOptions.innerHTML=SANCTUARY_V3_THEMES.map(theme=>`<button class="sanctuary-theme-choice ${sanctuaryPreferences.theme===theme.id?"selected":""}" type="button" data-sanctuary-theme="${theme.id}"><span class="sanctuary-theme-swatch ${theme.id}"></span><strong>${theme.label}</strong></button>`).join("");themeOptions.querySelectorAll("[data-sanctuary-theme]").forEach(button=>{button.onclick=()=>{sanctuaryPreferences.theme=button.dataset.sanctuaryTheme;saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);};});
+  ambienceOptions.innerHTML=SANCTUARY_V3_AMBIENCES.map(option=>`<button class="sanctuary-v3-option ${sanctuaryPreferences.ambience===option.id?"selected":""}" type="button" data-sanctuary-ambience="${option.id}"><span>${option.icon}</span><strong>${option.label}</strong></button>`).join("");ambienceOptions.querySelectorAll("[data-sanctuary-ambience]").forEach(button=>{button.onclick=()=>{sanctuaryPreferences.ambience=button.dataset.sanctuaryAmbience;saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);};});
+  seasonOptions.innerHTML=SANCTUARY_V3_SEASONS.map(option=>`<button class="sanctuary-season-choice ${sanctuaryPreferences.season===option.id?"selected":""}" type="button" data-sanctuary-season="${option.id}">${option.label}</button>`).join("");seasonOptions.querySelectorAll("[data-sanctuary-season]").forEach(button=>{button.onclick=()=>{sanctuaryPreferences.season=button.dataset.sanctuarySeason;saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);};});
+  presetOptions.innerHTML=SANCTUARY_V3_PRESETS.map(preset=>`<button class="sanctuary-preset-card" type="button" data-sanctuary-preset="${preset.id}"><strong>${preset.label}</strong><small>${preset.note}</small></button>`).join("");presetOptions.querySelectorAll("[data-sanctuary-preset]").forEach(button=>{button.onclick=()=>sanctuaryV3ApplyPreset(button.dataset.sanctuaryPreset);});
+  objectOptions.innerHTML=SANCTUARY_V3_OBJECTS.map(object=>{const unlocked=sanctuaryV3ObjectUnlocked(object,total),shown=sanctuaryPreferences.visibleObjects.includes(object.id);return`<button class="sanctuary-object-choice ${unlocked?"unlocked":"locked"} ${unlocked&&shown?"selected":""}" type="button" data-sanctuary-object="${object.id}" ${unlocked?"":"disabled"}><span class="sanctuary-object-dot ${object.id}"></span><strong>${object.label}</strong><small>${unlocked?(shown?"In room":"Tucked away"):sanctuaryV3UnlockCopy(object,total)}</small></button>`;}).join("");objectOptions.querySelectorAll("[data-sanctuary-object]:not(:disabled)").forEach(button=>{button.onclick=()=>{const id=button.dataset.sanctuaryObject,set=new Set(sanctuaryPreferences.visibleObjects);set.has(id)?set.delete(id):set.add(id);sanctuaryPreferences.visibleObjects=[...set];saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);};});
+  unlocks.innerHTML=SANCTUARY_V3_OBJECTS.map(object=>{const unlocked=sanctuaryV3ObjectUnlocked(object,total);return`<div class="sanctuary-unlock ${unlocked?"unlocked":""}"><span>${unlocked?"♡":"○"}</span><div><strong>${object.label}</strong><small>${sanctuaryV3UnlockCopy(object,total)}</small></div></div>`;}).join("");
+  stageTimeline.innerHTML=SANCTUARY_V3_STAGES.map((item,index)=>{const reached=total>=item.min,current=index===stageIndex;return`<div class="sanctuary-stage-step ${reached?"reached":""} ${current?"current":""}"><span>${reached?"♡":item.min}</span><div><strong>${item.name}</strong><small>${current?item.copy:reached?"This chapter already lives in your room.":`${Math.max(0,item.min-total)} moments away`}</small></div></div>`;}).join("");
+  statsHost.innerHTML=[["Journal pages",state.entries.length],["Tiny joys",state.tinyJoys.length],["Dreams",state.dreams.length],["Quiet nights",state.nightlyReflections.length]].map(([label,value])=>`<div><strong>${value}</strong><span>${label}</span></div>`).join("");
+  sanctuaryV3RenderShelf();
+  document.querySelectorAll("[data-sanctuary-panel]").forEach(button=>{button.onclick=()=>sanctuaryV3SetPanel(button.dataset.sanctuaryPanel);});if($("sanctuaryMemoryShelfRefresh"))$("sanctuaryMemoryShelfRefresh").onclick=()=>{sanctuaryMemoryShelfOffset+=1;sanctuaryV3RenderShelf();};if($("sanctuarySurpriseMemoryButton"))$("sanctuarySurpriseMemoryButton").onclick=()=>{const types=sanctuaryV3MemoryTypesAvailable();if(!types.length)return toast("Your room is still waiting for its first memory ☁️");showSanctuaryMemory(types[Math.floor(Math.random()*types.length)]);};if($("sanctuaryCompanionName"))$("sanctuaryCompanionName").value=sanctuaryPreferences.companionName||"Fuwa";if($("sanctuaryCompanionNameSave"))$("sanctuaryCompanionNameSave").onclick=()=>{const input=$("sanctuaryCompanionName"),next=String(input?.value||"Fuwa").replace(/[<>]/g,"").replace(/\s+/g," ").trim().slice(0,18)||"Fuwa";sanctuaryPreferences.companionName=next;saveSanctuaryPreferences();renderCache.sanctuary="";renderSanctuary(true);toast(`${next} knows its name now ☁️`);};
+  sanctuaryV3SetPanel(sanctuaryActivePanel);
+}
+
 function renderAll() {
   renderProfileName();
   $("todayLabel").textContent = new Intl.DateTimeFormat("en-US", {
@@ -9227,7 +9350,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.0.2-2026-08-13";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.0-2026-08-13";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
