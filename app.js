@@ -5293,22 +5293,22 @@ function applyMovementLabels(){
   });
 }
 
-function editMovementLabels(){
-  const order=["none","walk","cardio","strength","yoga"];
-  const current=order.map(key=>lifeMovementLabels[key]).join(", ");
-  const value=window.prompt("Edit your 5 movement choices — separate each with a comma.",current);
-  if(value===null)return;
-  const labels=value.split(",").map(item=>item.trim()).filter(Boolean).slice(0,5);
-  if(labels.length!==5)return toast("Please enter exactly 5 movement choices.");
-  lifeMovementLabels=Object.fromEntries(order.map((key,index)=>[key,labels[index].slice(0,24)]));
-  try{localStorage.setItem(LIFE_MOVEMENT_LABELS_KEY,JSON.stringify(lifeMovementLabels))}catch(error){console.warn("Could not save movement labels.",error)}
-  applyMovementLabels();
-  lifeSetChoice("movement",lifeDraft.movement||"");
-  toast("Movement choices updated ♡");
-}
+function editMovementLabels(){ openLifeListEditor("movement"); }
 
 function enabledJournalPages(){return JOURNAL_PAGES.filter(p=>journalPreferences.enabledPages.includes(p.id))}
-function ensureLifeHabits(){if(!state.habitDefinitions.length){state.habitDefinitions=LIFE_DEFAULT_HABITS.map((name,i)=>({id:`adult_${i+1}`,name,kind:"adulting",active:true,createdAt:Date.now()+i}));state.habitDefinitions.push(...LIFE_DEFAULT_CUSTOM_HABITS.map((name,i)=>({id:`habit_${i+1}`,name,kind:"habit",active:true,createdAt:Date.now()+100+i})));Promise.all(state.habitDefinitions.map(r=>diaryRepository.save("habitDefinitions",r))).catch(console.error)}else if(!state.habitDefinitions.some(h=>h.kind==="habit")){const add=LIFE_DEFAULT_CUSTOM_HABITS.map((name,i)=>({id:uid("habit"),name,kind:"habit",active:true,createdAt:Date.now()+i}));state.habitDefinitions=state.habitDefinitions.map(h=>({...h,kind:h.kind||"adulting"})).concat(add);Promise.all(state.habitDefinitions.map(r=>diaryRepository.save("habitDefinitions",r))).catch(console.error)}}
+function ensureLifeHabits(){
+  const legacy=state.habitDefinitions.filter(h=>!h.kind);
+  if(!legacy.length)return;
+  const now=Date.now();
+  const changed=[];
+  state.habitDefinitions=state.habitDefinitions.map(h=>{
+    if(h.kind)return h;
+    const normalized={...h,kind:"adulting",updatedAt:now};
+    changed.push(normalized);
+    return normalized;
+  });
+  Promise.all(changed.map(record=>diaryRepository.save("habitDefinitions",record))).catch(error=>console.warn("Could not normalize older Fuwa habits.",error));
+}
 function lifeRecordForDate(date=activeLifeJournalDate){return state.dailyCheckins.find(r=>r.date===date)||null}
 function lifeTodayRecord(){return lifeRecordForDate(isoToday())}
 function lifeSetChoice(group,value){lifeDraft[group]=value;document.querySelectorAll(`[data-life-choice="${group}"]`).forEach(b=>b.classList.toggle("selected",b.dataset.value===value))}
@@ -5381,9 +5381,136 @@ function loadLifeTodayForm(){
   loadLifeJournalForm(activeLifeJournalDate);
 }
 
-function renderLifeHabits(){const a=$("lifeHabitGrid"),h=$("lifeCustomHabitGrid");if(a){const items=state.habitDefinitions.filter(x=>(x.kind||"adulting")==="adulting"&&x.active!==false);a.innerHTML=items.map(x=>`<button type="button" class="${lifeDraft.habits?.[x.id]?"done":""}" data-adult-habit="${escapeHtml(x.id)}"><span>${lifeDraft.habits?.[x.id]?"✓":"○"}</span><strong>${escapeHtml(x.name)}</strong></button>`).join("");a.querySelectorAll("[data-adult-habit]").forEach(b=>b.addEventListener("click",()=>{const id=b.dataset.adultHabit;lifeDraft.habits[id]=!lifeDraft.habits[id];renderLifeHabits()}))}if(h){const items=state.habitDefinitions.filter(x=>x.kind==="habit"&&x.active!==false);h.innerHTML=items.map(x=>`<button type="button" class="${lifeDraft.customHabits?.[x.id]?"done":""}" data-custom-habit="${escapeHtml(x.id)}"><span>${lifeDraft.customHabits?.[x.id]?"✓":"○"}</span><strong>${escapeHtml(x.name)}</strong></button>`).join("");h.querySelectorAll("[data-custom-habit]").forEach(b=>b.addEventListener("click",()=>{const id=b.dataset.customHabit;lifeDraft.customHabits[id]=!lifeDraft.customHabits[id];renderLifeHabits()}))}}
-async function editHabitKind(kind,label){const current=state.habitDefinitions.filter(h=>(h.kind||"adulting")===kind&&h.active!==false).map(h=>h.name).join(", ");const value=window.prompt(`${label} — separate each with a comma.`,current);if(value===null)return;const names=value.split(",").map(v=>v.trim()).filter(Boolean).slice(0,12);if(!names.length)return toast("Keep at least one item.");const existing=state.habitDefinitions.filter(h=>(h.kind||"adulting")===kind),byName=new Map(existing.map(h=>[h.name.toLowerCase(),h]));const next=names.map((name,i)=>{const f=byName.get(name.toLowerCase());return f?{...f,name,kind,active:true,updatedAt:Date.now()}:{id:uid(kind),name,kind,active:true,createdAt:Date.now()+i}}),keep=new Set(next.map(h=>h.id)),removed=existing.filter(h=>!keep.has(h.id)).map(h=>({...h,active:false,updatedAt:Date.now()}));state.habitDefinitions=state.habitDefinitions.filter(h=>(h.kind||"adulting")!==kind).concat(next,removed);await Promise.all([...next,...removed].map(r=>diaryRepository.save("habitDefinitions",r)));renderLifeHabits();toast(`${label} updated ♡`)}
-function manageLifeHabits(){return editHabitKind("adulting","Adulting list")}function manageCustomLifeHabits(){return editHabitKind("habit","Personal habits")}
+function renderLifeHabits(){
+  const renderGroup=(host,items,draftKey,dataAttr,emptyCopy)=>{
+    if(!host)return;
+    if(!items.length){host.innerHTML=`<p class="life-habit-empty">${escapeHtml(emptyCopy)}</p>`;return;}
+    host.innerHTML=items.map(item=>`<button type="button" class="${lifeDraft[draftKey]?.[item.id]?"done":""}" ${dataAttr}="${escapeHtml(item.id)}"><span>${lifeDraft[draftKey]?.[item.id]?"✓":"○"}</span><strong>${escapeHtml(item.name)}</strong></button>`).join("");
+    host.querySelectorAll(`[${dataAttr}]`).forEach(button=>button.addEventListener("click",()=>{
+      const id=button.getAttribute(dataAttr);
+      lifeDraft[draftKey]=lifeDraft[draftKey]||{};
+      lifeDraft[draftKey][id]=!lifeDraft[draftKey][id];
+      renderLifeHabits();
+    }));
+  };
+  const adultItems=state.habitDefinitions.filter(item=>(item.kind||"adulting")==="adulting"&&item.active!==false);
+  const personalItems=state.habitDefinitions.filter(item=>item.kind==="habit"&&item.active!==false);
+  renderGroup($("lifeHabitGrid"),adultItems,"habits","data-adult-habit","Nothing here yet. Add the everyday things you actually want to track.");
+  renderGroup($("lifeCustomHabitGrid"),personalItems,"customHabits","data-custom-habit","No personal habits yet. Add only the ones that matter to you.");
+}
+
+let lifeListEditorMode="";
+let lifeListEditorPreviousOverflow="";
+
+function parseLifeListEditor(value,limit=12){
+  const names=[];
+  const seen=new Set();
+  String(value||"").split(/[\n,]+/).forEach(raw=>{
+    const name=raw.replace(/\s+/g," ").trim().slice(0,48);
+    const key=name.toLowerCase();
+    if(!name||seen.has(key)||names.length>=limit)return;
+    seen.add(key);
+    names.push(name);
+  });
+  return names;
+}
+
+function lifeListEditorConfig(mode){
+  if(mode==="movement"){
+    const order=["none","walk","cardio","strength","yoga"];
+    return {mode,title:"Movement choices",help:"Keep exactly five choices. Put one on each line, or separate them with commas.",max:5,exact:5,items:order.map(key=>lifeMovementLabels[key]),order};
+  }
+  const label=mode==="adulting"?"Adulting list":"Personal habits";
+  const items=state.habitDefinitions.filter(item=>(item.kind||"adulting")===mode&&item.active!==false).map(item=>item.name);
+  return {mode,title:label,help:"Write one item per line, or separate items with commas. You can also leave this list empty.",max:12,items};
+}
+
+function renderLifeListEditorPreview(){
+  const config=lifeListEditorConfig(lifeListEditorMode);
+  const input=$("lifeListEditorInput"),preview=$("lifeListEditorPreview"),count=$("lifeListEditorCount"),save=$("lifeListEditorSave");
+  if(!input||!preview||!count||!save)return;
+  const names=parseLifeListEditor(input.value,config.max);
+  preview.innerHTML=names.length?names.map(name=>`<span>${escapeHtml(name)}</span>`).join(""):'<em>No items yet — that is okay.</em>';
+  count.textContent=config.exact?`${names.length}/${config.exact} choices`:`${names.length}/${config.max} items`;
+  save.disabled=!!config.exact&&names.length!==config.exact;
+}
+
+function closeLifeListEditor(){
+  const modal=$("lifeListEditorModal");
+  if(modal)modal.classList.add("hidden");
+  document.body.classList.remove("life-list-editor-open");
+  document.body.style.overflow=lifeListEditorPreviousOverflow;
+  lifeListEditorMode="";
+}
+
+function openLifeListEditor(mode){
+  const config=lifeListEditorConfig(mode);
+  const modal=$("lifeListEditorModal"),input=$("lifeListEditorInput");
+  if(!modal||!input)return;
+  lifeListEditorMode=mode;
+  lifeListEditorPreviousOverflow=document.body.style.overflow;
+  $("lifeListEditorTitle").textContent=config.title;
+  $("lifeListEditorHelp").textContent=config.help;
+  input.value=config.items.join("\n");
+  input.oninput=renderLifeListEditorPreview;
+  $("lifeListEditorClose").onclick=closeLifeListEditor;
+  $("lifeListEditorCancel").onclick=closeLifeListEditor;
+  $("lifeListEditorSave").onclick=saveLifeListEditor;
+  modal.onclick=event=>{if(event.target===modal)closeLifeListEditor();};
+  modal.classList.remove("hidden");
+  document.body.classList.add("life-list-editor-open");
+  document.body.style.overflow="hidden";
+  renderLifeListEditorPreview();
+  window.setTimeout(()=>{try{input.focus({preventScroll:true});input.setSelectionRange(input.value.length,input.value.length);}catch(_){input.focus();}},120);
+}
+
+async function saveLifeListEditor(){
+  const config=lifeListEditorConfig(lifeListEditorMode);
+  const input=$("lifeListEditorInput");
+  if(!input)return;
+  const names=parseLifeListEditor(input.value,config.max);
+  if(config.exact&&names.length!==config.exact)return toast(`Please keep exactly ${config.exact} movement choices.`);
+  const saveButton=$("lifeListEditorSave");
+  if(saveButton)saveButton.disabled=true;
+  try{
+    if(config.mode==="movement"){
+      lifeMovementLabels=Object.fromEntries(config.order.map((key,index)=>[key,names[index].slice(0,24)]));
+      try{localStorage.setItem(LIFE_MOVEMENT_LABELS_KEY,JSON.stringify(lifeMovementLabels));}catch(error){console.warn("Could not save movement labels.",error);}
+      applyMovementLabels();
+      lifeSetChoice("movement",lifeDraft.movement||"");
+      closeLifeListEditor();
+      toast("Movement choices updated ♡");
+      return;
+    }
+    const kind=config.mode;
+    const existing=state.habitDefinitions.filter(item=>(item.kind||"adulting")===kind);
+    const byName=new Map(existing.map(item=>[String(item.name||"").toLowerCase(),item]));
+    const now=Date.now();
+    const next=names.map((name,index)=>{
+      const found=byName.get(name.toLowerCase());
+      return found?{...found,name,kind,active:true,updatedAt:now}:{id:uid(kind),name,kind,active:true,createdAt:now+index,updatedAt:now};
+    });
+    const keep=new Set(next.map(item=>item.id));
+    const removed=existing.filter(item=>!keep.has(item.id)).map(item=>({...item,active:false,updatedAt:now}));
+    state.habitDefinitions=state.habitDefinitions.filter(item=>(item.kind||"adulting")!==kind).concat(next,removed);
+    await Promise.all([...next,...removed].map(record=>diaryRepository.save("habitDefinitions",record)));
+    renderLifeHabits();
+    closeLifeListEditor();
+    toast(names.length?`${config.title} updated ♡`:`${config.title} cleared ♡`);
+  }catch(error){
+    console.error("Could not save Daily Life list.",error);
+    toast("Fuwa couldn't save that list. Please try again.");
+    renderLifeListEditorPreview();
+  }finally{
+    if(saveButton&&!lifeListEditorMode)saveButton.disabled=false;
+    else renderLifeListEditorPreview();
+  }
+}
+
+function editHabitKind(kind){openLifeListEditor(kind);}
+function manageLifeHabits(){return editHabitKind("adulting");}
+function manageCustomLifeHabits(){return editHabitKind("habit");}
+
 function renderJournalSectionNavigation(pages,currentPage){
   const sectionTabs=$("journalSectionTabs");
   const pageList=$("journalPageJumpList");
@@ -6167,7 +6294,18 @@ function sanctuaryV3MetricCount(metric){const items=state[metric];return Array.i
 function sanctuaryV3ObjectUnlocked(object,total=sanctuaryV3MomentCount()){if(total>=object.min)return true;return!!(object.metric&&sanctuaryV3MetricCount(object.metric)>=Number(object.metricMin||Infinity));}
 function sanctuaryV3ObjectVisible(object,total=sanctuaryV3MomentCount()){return sanctuaryV3ObjectUnlocked(object,total)&&sanctuaryPreferences.visibleObjects.includes(object.id);}
 function sanctuaryV3UnlockCopy(object,total){if(sanctuaryV3ObjectUnlocked(object,total))return"Found its way into your room.";const momentRemaining=Math.max(0,object.min-total);if(object.metric){const metricRemaining=Math.max(0,object.metricMin-sanctuaryV3MetricCount(object.metric));return`${metricRemaining} more ${object.metricLabel} or ${momentRemaining} room moments`;}return`${momentRemaining} room moment${momentRemaining===1?"":"s"} away`;}
-function sanctuaryV3Latest(items){if(!Array.isArray(items)||!items.length)return null;const score=item=>{const numeric=Number(item?.updatedAt||item?.createdAt||0);if(Number.isFinite(numeric)&&numeric>0)return numeric;if(item?.date){const parsed=new Date(`${item.date}T12:00:00`).getTime();if(Number.isFinite(parsed))return parsed;}return 0;};return[...items].sort((a,b)=>score(b)-score(a))[0]||null;}
+function sanctuaryV3Latest(items){
+  if(!Array.isArray(items)||!items.length)return null;
+  const score=item=>{
+    const numeric=Number(item?.updatedAt||item?.createdAt||0);
+    if(Number.isFinite(numeric)&&numeric>0)return numeric;
+    if(item?.date){const parsed=new Date(`${item.date}T12:00:00`).getTime();if(Number.isFinite(parsed))return parsed;}
+    return 0;
+  };
+  let latest=null,latestScore=-1;
+  for(const item of items){const itemScore=score(item);if(latest===null||itemScore>=latestScore){latest=item;latestScore=itemScore;}}
+  return latest;
+}
 
 function sanctuaryV3ShelfMemories(){
   const memories=[];
@@ -9350,7 +9488,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.0-2026-08-13";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.1-2026-08-14";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
