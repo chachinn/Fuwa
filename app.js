@@ -2803,221 +2803,105 @@ const sleepSoundNames = {
   white: "Soft Air"
 };
 
-function ensureSleepAudioContext() {
-  if (!sleepAudioContext) {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) throw new Error("Web Audio is not supported on this device.");
+const sleepAudioFiles = {
+  rain: "./audio/sleep/gentle-rain.mp3",
+  waves: "./audio/sleep/ocean-drift.mp3",
+  fireplace: "./audio/sleep/warm-hearth.mp3",
+  wind: "./audio/sleep/evening-breeze.mp3",
+  forest: "./audio/sleep/quiet-forest.mp3",
+  cafe: "./audio/sleep/cozy-room.mp3",
+  brown: "./audio/sleep/deep-hush.mp3",
+  white: "./audio/sleep/soft-air.mp3"
+};
 
-    sleepAudioContext = new AudioCtx({ latencyHint: "playback" });
-    sleepMasterGain = sleepAudioContext.createGain();
-    sleepMasterFilter = sleepAudioContext.createBiquadFilter();
-    sleepCompressor = sleepAudioContext.createDynamicsCompressor();
-
-    sleepMasterGain.gain.value = Math.max(0, Math.min(1, state.sleepVolume / 100));
-    sleepMasterFilter.type = "lowpass";
-    sleepMasterFilter.frequency.value = 4300;
-    sleepMasterFilter.Q.value = 0.08;
-
-    sleepCompressor.threshold.value = -24;
-    sleepCompressor.knee.value = 30;
-    sleepCompressor.ratio.value = 1.8;
-    sleepCompressor.attack.value = 0.12;
-    sleepCompressor.release.value = 0.62;
-
-    sleepMasterGain.connect(sleepMasterFilter);
-    sleepMasterFilter.connect(sleepCompressor);
-    sleepCompressor.connect(sleepAudioContext.destination);
-  }
-  return sleepAudioContext;
+function sleepBaseVolume() {
+  return Math.max(0, Math.min(1, Number(state.sleepVolume || 0) / 100));
 }
 
-function getSleepNoiseBuffer(color = "pink") {
-  const ctx = ensureSleepAudioContext();
-  const key = `${color}-${ctx.sampleRate}`;
-  if (sleepNoiseBuffers.has(key)) return sleepNoiseBuffers.get(key);
+function cancelSleepAudioTransition() {
+  sleepAudioTransitionToken += 1;
+  if (sleepAudioTransitionFrame !== null) {
+    cancelAnimationFrame(sleepAudioTransitionFrame);
+    sleepAudioTransitionFrame = null;
+  }
+}
 
-  // Longer, colored-noise beds avoid the short harsh white-noise loop that
-  // made older Fuwa soundscapes feel synthetic. Buffers are created lazily.
-  const seconds = 10;
-  const length = ctx.sampleRate * seconds;
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
+function ensureSleepAudioElement() {
+  if (!sleepAudioElement) {
+    sleepAudioElement = new Audio();
+    sleepAudioElement.loop = true;
+    sleepAudioElement.preload = "metadata";
+    sleepAudioElement.playsInline = true;
+    sleepAudioElement.setAttribute("playsinline", "");
+    sleepAudioElement.setAttribute("webkit-playsinline", "");
+    sleepAudioElement.addEventListener("error", () => {
+      const now = Date.now();
+      if (sleepIsPlaying && now - sleepAudioErrorToastAt > 5000) {
+        sleepAudioErrorToastAt = now;
+        toast("Fuwa couldn't load this sound.");
+      }
+    });
+  }
+  return sleepAudioElement;
+}
 
-  let brown = 0;
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-
-  for (let i = 0; i < length; i++) {
-    const white = Math.random() * 2 - 1;
-    let sample = white;
-
-    if (color === "brown") {
-      brown = (brown + 0.018 * white) / 1.018;
-      sample = brown * 3.1;
-    } else if (color === "pink") {
-      b0 = 0.99886 * b0 + white * 0.0555179;
-      b1 = 0.99332 * b1 + white * 0.0750759;
-      b2 = 0.96900 * b2 + white * 0.1538520;
-      b3 = 0.86650 * b3 + white * 0.3104856;
-      b4 = 0.55000 * b4 + white * 0.5329522;
-      b5 = -0.7616 * b5 - white * 0.0168980;
-      sample = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-      b6 = white * 0.115926;
+function loadSleepAudio(sound = state.sleepSound, { reset = true } = {}) {
+  const path = sleepAudioFiles[sound] || sleepAudioFiles.rain;
+  const audio = ensureSleepAudioElement();
+  if (audio.dataset.sleepSound !== sound) {
+    audio.pause();
+    audio.src = path;
+    audio.dataset.sleepSound = sound;
+    audio.load();
+    if (reset) {
+      try { audio.currentTime = 0; } catch (_) {}
     }
-
-    data[i] = Math.max(-0.92, Math.min(0.92, sample));
   }
-
-  // Blend the tail toward the head so the 10-second loop has no hard seam.
-  const crossfade = Math.min(Math.floor(ctx.sampleRate * 0.35), Math.floor(length / 4));
-  for (let i = 0; i < crossfade; i++) {
-    const t = i / Math.max(1, crossfade - 1);
-    const tailIndex = length - crossfade + i;
-    data[tailIndex] = data[tailIndex] * (1 - t) + data[i] * t;
-  }
-
-  sleepNoiseBuffers.set(key, buffer);
-  return buffer;
+  return audio;
 }
 
-function createNoiseSource(color = "pink") {
-  const ctx = ensureSleepAudioContext();
-  const source = ctx.createBufferSource();
-  source.buffer = getSleepNoiseBuffer(color);
-  source.loop = true;
-  return source;
+function setSleepAudioVolume(volume) {
+  const audio = ensureSleepAudioElement();
+  audio.volume = Math.max(0, Math.min(1, volume));
 }
 
-function trackSleepNode(node) {
-  sleepNodes.push(node);
-  return node;
-}
+function rampSleepAudioVolume(target, duration = 450) {
+  const audio = ensureSleepAudioElement();
+  cancelSleepAudioTransition();
+  const token = sleepAudioTransitionToken;
+  const from = Number(audio.volume || 0);
+  const to = Math.max(0, Math.min(1, target));
+  const start = performance.now();
 
-function connectSleepNode(source, destination = sleepMasterGain) {
-  source.connect(destination);
-  trackSleepNode(source);
-  return source;
-}
-
-function createFilteredNoise({ color = "pink", type = "lowpass", frequency = 1000, q = 0.35, gain = 0.1 } = {}) {
-  const ctx = ensureSleepAudioContext();
-  const source = createNoiseSource(color);
-  const filter = ctx.createBiquadFilter();
-  filter.type = type;
-  filter.frequency.value = frequency;
-  filter.Q.value = q;
-
-  const localGain = ctx.createGain();
-  localGain.gain.value = gain;
-
-  source.connect(filter);
-  filter.connect(localGain);
-  localGain.connect(sleepMasterGain);
-
-  trackSleepNode(source);
-  trackSleepNode(filter);
-  trackSleepNode(localGain);
-  source.start(0, Math.random() * Math.max(0.1, source.buffer.duration - 0.1));
-
-  return { source, filter, gain: localGain };
-}
-
-function createLfo(targetParam, frequency, depth, center) {
-  const ctx = ensureSleepAudioContext();
-  const lfo = ctx.createOscillator();
-  const lfoGain = ctx.createGain();
-  lfo.type = "sine";
-  lfo.frequency.value = frequency;
-  lfoGain.gain.value = depth;
-  targetParam.value = center;
-  lfo.connect(lfoGain);
-  lfoGain.connect(targetParam);
-  lfo.start();
-
-  trackSleepNode(lfo);
-  trackSleepNode(lfoGain);
-  return { lfo, lfoGain };
-}
-
-function buildRainSound() {
-  const rain = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 2800, q: 0.10, gain: 0.074 });
-  const windowBed = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 430, q: 0.35, gain: 0.017 });
-  createLfo(rain.gain.gain, 0.024, 0.006, 0.070);
-  createLfo(windowBed.gain.gain, 0.031, 0.003, 0.016);
-}
-
-function buildWaveSound() {
-  const tide = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 650, q: 0.12, gain: 0.084 });
-  const foam = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 900, q: 0.42, gain: 0.014 });
-  createLfo(tide.gain.gain, 0.044, 0.055, 0.066);
-  createLfo(foam.gain.gain, 0.045, 0.008, 0.010);
-}
-
-function buildFireplaceSound() {
-  const warmth = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 360, q: 0.12, gain: 0.062 });
-  const ember = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 520, q: 0.38, gain: 0.010 });
-  createLfo(warmth.gain.gain, 0.042, 0.004, 0.059);
-  createLfo(ember.gain.gain, 0.18, 0.0025, 0.0085);
-}
-
-function buildWindSound() {
-  const breeze = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 1150, q: 0.12, gain: 0.048 });
-  const lowAir = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 260, q: 0.25, gain: 0.013 });
-  createLfo(breeze.filter.frequency, 0.020, 140, 960);
-  createLfo(breeze.gain.gain, 0.027, 0.010, 0.043);
-  createLfo(lowAir.gain.gain, 0.020, 0.0025, 0.012);
-}
-
-function buildForestSound() {
-  const nightAir = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 760, q: 0.12, gain: 0.043 });
-  const leaves = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 1650, q: 0.72, gain: 0.005 });
-  createLfo(nightAir.gain.gain, 0.020, 0.005, 0.040);
-  createLfo(leaves.gain.gain, 0.11, 0.0015, 0.0042);
-}
-
-function buildCafeSound() {
-  const room = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 560, q: 0.14, gain: 0.050 });
-  const fabric = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 720, q: 0.32, gain: 0.007 });
-  createLfo(room.gain.gain, 0.019, 0.004, 0.047);
-  createLfo(fabric.gain.gain, 0.032, 0.0015, 0.006);
-}
-
-function buildBrownNoise() {
-  const hush = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 700, q: 0.08, gain: 0.094 });
-  createLfo(hush.gain.gain, 0.012, 0.003, 0.091);
-}
-
-function buildWhiteNoise() {
-  const air = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 2450, q: 0.08, gain: 0.058 });
-  const softness = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 480, q: 0.10, gain: 0.010 });
-  createLfo(air.gain.gain, 0.014, 0.0025, 0.056);
-  createLfo(softness.gain.gain, 0.018, 0.0015, 0.009);
-}
-
-function buildSelectedSleepSound() {
-  stopSleepNodesOnly();
-  switch (state.sleepSound) {
-    case "waves": buildWaveSound(); break;
-    case "fireplace": buildFireplaceSound(); break;
-    case "wind": buildWindSound(); break;
-    case "forest": buildForestSound(); break;
-    case "cafe": buildCafeSound(); break;
-    case "brown": buildBrownNoise(); break;
-    case "white": buildWhiteNoise(); break;
-    default: buildRainSound();
-  }
-}
-
-function stopSleepNodesOnly() {
-  sleepNodes.forEach(node => {
-    try {
-      if (typeof node.stop === "function") node.stop();
-    } catch (_) {}
-    try {
-      node.disconnect();
-    } catch (_) {}
+  return new Promise(resolve => {
+    const tick = now => {
+      if (token !== sleepAudioTransitionToken) {
+        resolve(false);
+        return;
+      }
+      const progress = Math.min(1, Math.max(0, (now - start) / Math.max(1, duration)));
+      audio.volume = from + (to - from) * progress;
+      if (progress < 1) {
+        sleepAudioTransitionFrame = requestAnimationFrame(tick);
+      } else {
+        sleepAudioTransitionFrame = null;
+        resolve(true);
+      }
+    };
+    sleepAudioTransitionFrame = requestAnimationFrame(tick);
   });
-  sleepNodes = [];
 }
+
+async function playSelectedSleepAudio({ fadeIn = true } = {}) {
+  const audio = loadSleepAudio(state.sleepSound);
+  const target = sleepBaseVolume();
+  cancelSleepAudioTransition();
+  audio.volume = fadeIn ? 0 : target;
+  await audio.play();
+  if (fadeIn) await rampSleepAudioVolume(target, 900);
+  return audio;
+}
+
 
 function selectedSleepMinutes() {
   const custom = Number($("sleepCustomMinutes")?.value || 0);
@@ -3102,12 +2986,8 @@ function updateSleepCountdown() {
   if (!sleepIsPlaying) return;
   sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
 
-  if (sleepRemainingMs <= 20000 && sleepMasterGain && sleepRemainingMs > 0) {
-    const ctx = sleepAudioContext;
-    const now = ctx.currentTime;
-    sleepMasterGain.gain.cancelScheduledValues(now);
-    sleepMasterGain.gain.setValueAtTime(sleepMasterGain.gain.value, now);
-    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, now + Math.max(0.5, sleepRemainingMs / 1000));
+  if (sleepAudioElement && sleepRemainingMs <= 20000 && sleepRemainingMs > 0) {
+    sleepAudioElement.volume = sleepBaseVolume() * Math.max(0, sleepRemainingMs / 20000);
   }
 
   if (sleepRemainingMs <= 0) {
@@ -3130,68 +3010,61 @@ function startSleepTimer(minutes) {
 
 async function startSleepSound() {
   try {
-    const ctx = ensureSleepAudioContext();
-    if (ctx.state === "suspended") await ctx.resume();
-
     if (sleepFadeTimeout) {
       clearTimeout(sleepFadeTimeout);
       sleepFadeTimeout = null;
     }
 
-    const targetGain = Math.max(0.0001, state.sleepVolume / 100);
-    sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
-    sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-
-    buildSelectedSleepSound();
-    sleepMasterGain.gain.linearRampToValueAtTime(targetGain, ctx.currentTime + 1.35);
-
     const minutes = selectedSleepMinutes();
     state.sleepMinutes = minutes;
     savePreferences();
 
+    await playSelectedSleepAudio({ fadeIn: true });
     sleepIsPlaying = true;
     sleepIsPaused = false;
     startSleepTimer(minutes);
     renderSleepControls();
   } catch (error) {
     console.error("Could not start Fuwa sleep sound.", error);
+    sleepIsPlaying = false;
+    sleepIsPaused = false;
+    renderSleepControls();
     toast("Fuwa couldn't start audio on this device.");
   }
 }
 
 async function pauseSleepSound() {
-  if (!sleepAudioContext || !sleepIsPlaying) return;
+  if (!sleepAudioElement || !sleepIsPlaying) return;
 
   sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
   sleepIsPlaying = false;
   sleepIsPaused = true;
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = null;
-
-  try {
-    await sleepAudioContext.suspend();
-  } catch (_) {}
-
+  cancelSleepAudioTransition();
+  sleepAudioElement.pause();
   renderSleepControls();
 }
 
 async function resumeSleepSound() {
-  if (!sleepAudioContext || !sleepIsPaused) {
+  if (!sleepAudioElement || !sleepIsPaused) {
     await startSleepSound();
     return;
   }
 
   try {
-    await sleepAudioContext.resume();
-  } catch (_) {}
-
-  sleepMasterGain.gain.cancelScheduledValues(sleepAudioContext.currentTime);
-  sleepMasterGain.gain.setValueAtTime(Math.max(0.0001, state.sleepVolume / 100), sleepAudioContext.currentTime);
+    cancelSleepAudioTransition();
+    sleepAudioElement.volume = sleepBaseVolume();
+    await sleepAudioElement.play();
+  } catch (error) {
+    console.error("Could not resume Fuwa sleep sound.", error);
+    toast("Fuwa couldn't resume this sound.");
+    return;
+  }
 
   sleepIsPaused = false;
   sleepIsPlaying = true;
   sleepTimerEndAt = Date.now() + sleepRemainingMs;
-
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = setInterval(updateSleepCountdown, 1000);
   renderSleepControls();
@@ -3201,14 +3074,12 @@ async function stopSleepSound(fromTimer = false) {
   sleepSoundSwitchToken += 1;
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = null;
+  cancelSleepAudioTransition();
 
-  stopSleepNodesOnly();
-
-  if (sleepAudioContext && sleepAudioContext.state === "running") {
-    try {
-      sleepMasterGain.gain.cancelScheduledValues(sleepAudioContext.currentTime);
-      sleepMasterGain.gain.value = Math.max(0.0001, state.sleepVolume / 100);
-    } catch (_) {}
+  if (sleepAudioElement) {
+    sleepAudioElement.pause();
+    try { sleepAudioElement.currentTime = 0; } catch (_) {}
+    sleepAudioElement.volume = sleepBaseVolume();
   }
 
   sleepIsPlaying = false;
@@ -3216,7 +3087,6 @@ async function stopSleepSound(fromTimer = false) {
   sleepRemainingMs = 0;
   sleepTimerDurationMs = 0;
   sleepTimerEndAt = 0;
-
   renderSleepControls();
 
   if (fromTimer) toast("Sleep timer finished. Good night ☁️");
@@ -3239,20 +3109,26 @@ async function selectSleepSound(sound) {
   savePreferences();
 
   if (sleepIsPlaying) {
-    const ctx = ensureSleepAudioContext();
-    const currentGain = Math.max(0.0001, sleepMasterGain.gain.value);
-    sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
-    sleepMasterGain.gain.setValueAtTime(currentGain, ctx.currentTime);
-    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.50);
+    const audio = ensureSleepAudioElement();
+    await rampSleepAudioVolume(0, 320);
+    if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) return;
 
-    setTimeout(() => {
-      if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) return;
-      stopSleepNodesOnly();
-      buildSelectedSleepSound();
-      sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
-      sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 1.15);
-    }, 420);
+    audio.pause();
+    loadSleepAudio(sound);
+    audio.volume = 0;
+    try {
+      await audio.play();
+      if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) {
+        audio.pause();
+        return;
+      }
+      await rampSleepAudioVolume(sleepBaseVolume(), 650);
+    } catch (error) {
+      console.error("Could not switch Fuwa sleep sound.", error);
+      sleepIsPlaying = false;
+      sleepIsPaused = false;
+      toast("Fuwa couldn't switch to this sound.");
+    }
   }
 
   renderSleepControls();
@@ -3291,10 +3167,13 @@ function setSleepVolume(value) {
   state.sleepVolume = Math.max(0, Math.min(100, Number(value) || 0));
   savePreferences();
 
-  if (sleepMasterGain && sleepAudioContext) {
-    const now = sleepAudioContext.currentTime;
-    sleepMasterGain.gain.cancelScheduledValues(now);
-    sleepMasterGain.gain.setTargetAtTime(Math.max(0.0001, state.sleepVolume / 100), now, 0.16);
+  if (sleepAudioElement) {
+    const baseVolume = sleepBaseVolume();
+    if (sleepIsPlaying && sleepRemainingMs > 0 && sleepRemainingMs <= 20000) {
+      sleepAudioElement.volume = baseVolume * (sleepRemainingMs / 20000);
+    } else if (sleepAudioTransitionFrame === null) {
+      sleepAudioElement.volume = baseVolume;
+    }
   }
 
   renderSleepControls();
@@ -3450,14 +3329,12 @@ let cropX = 0;
 let cropY = 0;
 let cropDragStart = null;
 
-// Sleep audio is generated locally with Web Audio so Fuwa does not ship large audio files.
-// Only one AudioContext and a small reusable noise buffer are kept alive.
-let sleepAudioContext = null;
-let sleepMasterGain = null;
-let sleepMasterFilter = null;
-let sleepCompressor = null;
-let sleepNodes = [];
-let sleepNoiseBuffers = new Map();
+// Sleep Corner uses local recorded audio files. Nothing is generated at app startup;
+// the audio element is created lazily only after the user opens/plays Sleep Corner.
+let sleepAudioElement = null;
+let sleepAudioTransitionFrame = null;
+let sleepAudioTransitionToken = 0;
+let sleepAudioErrorToastAt = 0;
 let sleepTimerInterval = null;
 let sleepTimerEndAt = 0;
 let sleepTimerStartedAt = 0;
@@ -9488,7 +9365,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.5-2026-08-14";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.6-2026-08-14";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
@@ -10035,23 +9912,5 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 
-/* FUWA V87 — SLEEP PLAYER INTEGRATION */
-(function mountSleepPlayerWithSoundscapeV87() {
-  function mount() {
-    const soundGrid = document.getElementById("sleepSoundGrid");
-    const player = document.getElementById("sleepPlayerCard");
-    const soundSection = soundGrid?.closest(".sleep-section");
-    if (!soundGrid || !player || !soundSection) return;
-
-    if (player.parentElement !== soundSection) {
-      soundSection.appendChild(player);
-    }
-    player.classList.add("sleep-player-inline");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mount, { once: true });
-  } else {
-    mount();
-  }
-})();
+/* FUWA V91: legacy v87 player re-parenting removed.
+   Now Playing stays above Soundscape in the Sleep Corner source order. */

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v90-home-sleep-nav-ui-qa -->
+  <!-- FUWA_BUILD: v91-hq-recorded-sleep-audio-qa -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -723,6 +723,33 @@
           <p class="muted">Choose a sound, set a timer, and Fuwa will gently fade it out when time is up.</p>
         </div>
 
+<section class="sleep-player-card" id="sleepPlayerCard">
+          <div class="sleep-player-top">
+            <div class="sleep-now-art" aria-hidden="true">
+              <div class="sleep-now-cloud"><span></span></div>
+            </div>
+            <div>
+              <p class="eyebrow">Now playing</p>
+              <h3 id="sleepNowPlaying">Gentle Rain</h3>
+              <span id="sleepCountdown">30:00 remaining</span>
+            </div>
+          </div>
+
+          <div class="sleep-progress">
+            <span id="sleepProgressBar"></span>
+          </div>
+
+          <div class="sleep-player-actions">
+            <button class="sleep-play-btn" id="sleepPlayPauseButton" type="button">
+              <span id="sleepPlayPauseIcon">▶</span>
+              <span id="sleepPlayPauseText">Play</span>
+            </button>
+            <button class="sleep-stop-btn" id="sleepStopButton" type="button">Stop</button>
+          </div>
+
+          <p class="sleep-player-note">When the timer ends, Fuwa fades the sound out gently instead of stopping suddenly.</p>
+        </section>
+
         <section class="sleep-section">
           <div class="sleep-section-heading">
             <div>
@@ -774,35 +801,7 @@
             </button>
           </div>
         </section>
-
-        <section class="sleep-player-card" id="sleepPlayerCard">
-          <div class="sleep-player-top">
-            <div class="sleep-now-art" aria-hidden="true">
-              <div class="sleep-now-cloud"><span></span></div>
-            </div>
-            <div>
-              <p class="eyebrow">Now playing</p>
-              <h3 id="sleepNowPlaying">Gentle Rain</h3>
-              <span id="sleepCountdown">30:00 remaining</span>
-            </div>
-          </div>
-
-          <div class="sleep-progress">
-            <span id="sleepProgressBar"></span>
-          </div>
-
-          <div class="sleep-player-actions">
-            <button class="sleep-play-btn" id="sleepPlayPauseButton" type="button">
-              <span id="sleepPlayPauseIcon">▶</span>
-              <span id="sleepPlayPauseText">Play</span>
-            </button>
-            <button class="sleep-stop-btn" id="sleepStopButton" type="button">Stop</button>
-          </div>
-
-          <p class="sleep-player-note">When the timer ends, Fuwa fades the sound out gently instead of stopping suddenly.</p>
-        </section>
-
-        <section class="sleep-section">
+<section class="sleep-section">
           <div class="sleep-section-heading">
             <div>
               <p class="eyebrow">How long?</p>
@@ -1669,11 +1668,13 @@
     <div class="fuwa-release-sheet">
       <button class="fuwa-release-close" id="fuwaReleaseNotesClose" type="button" aria-label="Close what’s new">×</button>
       <p class="eyebrow">Fuwa update</p>
-      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.5</h2>
+      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.6</h2>
       <p class="fuwa-release-date">August 14, 2026</p>
       <div class="fuwa-release-cloud" aria-hidden="true">☁️</div>
-      <p class="fuwa-release-lead">Home feels softer and more cloud-like, Sleep Corner is calmer and easier to use, and the bottom navigation now sits naturally at the bottom of the app.</p>
+      <p class="fuwa-release-lead">Sleep Corner now uses local recorded ambience instead of live synthetic noise, and Now Playing sits where it belongs—above the sound choices.</p>
       <div class="fuwa-release-list">
+        <article><span>🎧</span><div><strong>Recorded sleep soundscapes</strong><p>Natural Sleep Corner sounds now use local recorded ambience prepared for gentle looping, with softer mastering and no live noise synthesis.</p></div></article>
+        <article><span>☁️</span><div><strong>Now Playing moved to the top</strong><p>The player now appears before Soundscape so the active sound and timer controls stay visible before you browse other sounds.</p></div></article>
         <article><span>☁️</span><div><strong>Circular cloud mood choices</strong><p>Home mood buttons are now compact circles that fit Fuwa’s cloud language without the tall card look.</p></div></article>
         <article><span>🌙</span><div><strong>A calmer Sleep Corner</strong><p>Now Playing sits directly below the sound choices, while all eight synthesized soundscapes use softer filtering, lower harsh-frequency energy, and gentler movement.</p></div></article>
         <article><span>⌂</span><div><strong>Navigation grounded at the bottom</strong><p>The five main tabs now attach to the bottom edge instead of appearing like a floating card.</p></div></article>

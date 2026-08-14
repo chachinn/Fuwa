@@ -1,7 +1,7 @@
-const CACHE_NAME = "fuwa-shell-v90";
+const CACHE_NAME = "fuwa-shell-v91";
 const RELEASE_MARKER_CACHE = "fuwa-release-state";
 const RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
-const RELEASE_KEY = "fuwa-v1.1.5-2026-08-14";
+const RELEASE_KEY = "fuwa-v1.1.6-2026-08-14";
 
 const CORE_ASSETS = [
   "./",
@@ -19,6 +19,17 @@ const STATIC_ASSETS = [
   "./icon/favicon-32.png"
 ];
 
+const SLEEP_AUDIO_ASSETS = [
+  "./audio/sleep/gentle-rain.mp3",
+  "./audio/sleep/ocean-drift.mp3",
+  "./audio/sleep/warm-hearth.mp3",
+  "./audio/sleep/evening-breeze.mp3",
+  "./audio/sleep/quiet-forest.mp3",
+  "./audio/sleep/cozy-room.mp3",
+  "./audio/sleep/deep-hush.mp3",
+  "./audio/sleep/soft-air.mp3"
+];
+
 const OPTIONAL_ASSETS = [
   "./data/scrapbook-data.js"
 ];
@@ -32,7 +43,7 @@ self.addEventListener("install", event => {
 
     const cache = await caches.open(CACHE_NAME);
     await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
-    await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));
+    await Promise.all([...OPTIONAL_ASSETS, ...SLEEP_AUDIO_ASSETS].map(asset => cache.add(asset).catch(() => null)));
 
     if (isUpgrade) {
       const markerCache = await caches.open(RELEASE_MARKER_CACHE);
@@ -78,7 +89,8 @@ function isCoreRequest(request) {
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/firebase-fuwa.js") ||
     url.pathname.endsWith("/data/scrapbook-data.js") ||
-    url.pathname.endsWith("/manifest.json")
+    url.pathname.endsWith("/manifest.json") ||
+    url.pathname.includes("/audio/sleep/")
   );
 }
 
