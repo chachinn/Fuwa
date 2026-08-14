@@ -1,5 +1,6 @@
 const { chromium } = require(process.cwd() + '/node_modules/playwright');
 
+const BASE_URL = 'http://127.0.0.1:4187/index.html';
 const sizes = [
   { name: 'iPhone small', width: 320, height: 568 },
   { name: 'iPhone standard', width: 390, height: 844, audio: true },
@@ -26,7 +27,8 @@ const sizes = [
       localStorage.setItem('fuwaTutorialSeenV1', '1');
     });
 
-    await page.goto('http://127.0.0.1:4173/index.html', { waitUntil: 'domcontentloaded' });
+    const response = await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+    if (!response || response.status() !== 200) throw new Error(`${spec.name} HTTP ${response?.status()}`);
     await page.waitForTimeout(900);
 
     const structure = await page.evaluate(() => {
@@ -51,14 +53,12 @@ const sizes = [
             stopButton: !stopButton,
             sleepView: !document.getElementById('sleepView')
           },
-          htmlHasSleepView: document.documentElement.outerHTML.includes('id="sleepView"'),
-          bodyTextHead: document.body.innerText.slice(0, 300)
+          htmlChars: document.documentElement.outerHTML.length,
+          bodyChars: document.body.innerHTML.length,
+          title: document.title
         };
       }
 
-      // Reveal only the Sleep Corner components under test. This avoids relying
-      // on Fuwa's private navigation function while still exercising the real DOM,
-      // CSS, event bindings, and audio controls.
       [player, soundGrid.closest('.sleep-section'), timerOptions.closest('.sleep-section')]
         .filter(Boolean)
         .forEach(el => {
@@ -67,7 +67,7 @@ const sizes = [
           el.style.visibility = 'visible';
           el.style.position = 'relative';
         });
-      player.parentElement?.style && (player.parentElement.style.display = 'block');
+      if (player.parentElement) player.parentElement.style.display = 'block';
 
       const soundSection = soundGrid.closest('.sleep-section');
       const timerSection = timerOptions.closest('.sleep-section');
@@ -92,9 +92,7 @@ const sizes = [
       };
     });
 
-    if (structure.missing) {
-      throw new Error(`${spec.name} Sleep DOM missing ${JSON.stringify(structure)}`);
-    }
+    if (structure.missing) throw new Error(`${spec.name} Sleep DOM missing ${JSON.stringify(structure)}`);
     if (!structure.orderPlayerBeforeSound || !structure.orderSoundBeforeTimer) {
       throw new Error(`${spec.name} Sleep Corner source order wrong ${JSON.stringify(structure)}`);
     }
@@ -134,7 +132,6 @@ const sizes = [
         throw new Error(`play failed ${JSON.stringify(audioState)}`);
       }
 
-      // Latest selection must win during rapid switching.
       await page.locator('[data-sleep-sound="waves"]').click({ force: true });
       await page.locator('[data-sleep-sound="forest"]').click({ force: true });
       await page.locator('[data-sleep-sound="cafe"]').click({ force: true });
