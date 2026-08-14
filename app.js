@@ -8497,6 +8497,47 @@ async function createRestoreSafetyBackup() {
   return createFullLocalBackupPayload();
 }
 
+async function restoreSafetyBackup(payload) {
+  if (!payload || payload.app !== "Fuwa" || !payload.data) {
+    throw new Error("invalid-restore-safety-backup");
+  }
+
+  const incoming = normalizeCloudValue(payload.data);
+  validateContentData(incoming);
+  incoming.moodCheckins = validateMoodCheckins(incoming.moodCheckins);
+  incoming.threads = validateThreads(incoming.threads);
+  incoming.bookmarks = validateBookmarks(incoming.bookmarks);
+  incoming.nightlyReflections = validateNightlyReflections(incoming.nightlyReflections);
+  incoming.thenNow = validateSimpleStore(incoming.thenNow, "thenNow");
+  incoming.comfortItems = validateSimpleStore(incoming.comfortItems, "comfortItems");
+  incoming.unsentLetters = validateSimpleStore(incoming.unsentLetters, "unsentLetters");
+  incoming.thoughtBubbles = validateSimpleStore(incoming.thoughtBubbles, "thoughtBubbles");
+  incoming.dreams = validateSimpleStore(incoming.dreams, "dreams");
+  incoming.dailyCheckins = validateSimpleStore(incoming.dailyCheckins, "dailyCheckins");
+  incoming.lifeCollections = validateSimpleStore(incoming.lifeCollections, "lifeCollections");
+  incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
+  incoming.moments = validateSimpleStore(incoming.moments, "moments");
+  incoming.randomThoughts = validateSimpleStore(incoming.randomThoughts, "randomThoughts");
+
+  const existingMedia = await diaryRepository.readAllMedia();
+  await diaryRepository.replaceContent(incoming, existingMedia);
+
+  const verification = await verifyRestoredContent(incoming);
+  const expectedCount = restoredRecordCount(incoming);
+  if (verification.recordCount !== expectedCount) {
+    throw new Error(`safety-rollback-verification-failed:${verification.recordCount}/${expectedCount}`);
+  }
+
+  try {
+    await loadState();
+    renderAll();
+  } catch (renderError) {
+    console.error("Fuwa restored the safety snapshot but could not refresh the interface immediately.", renderError);
+  }
+
+  return { ok: true, recordCount: verification.recordCount };
+}
+
 function downloadRestoreSafetyBackup(payload) {
   if (!payload) return;
   downloadBackupPayload(payload, `fuwa-before-cloud-restore-${isoToday()}.json`);
@@ -8528,19 +8569,29 @@ function normalizeCloudValue(value) {
 }
 
 function restoredRecordCount(data) {
-  return [
-    "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
-    "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
-    "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"
-  ].reduce((total, key) => total + (Array.isArray(data?.[key]) ? data[key].length : 0), 0);
+  return cloudBackupRecordCount(data);
 }
 
 async function verifyRestoredContent(expected) {
   const actual = await diaryRepository.readCurrentData();
   const storeNames = [
-    "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
-    "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
-    "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections", "habitDefinitions"
+    "entries",
+    "tinyJoys",
+    "letters",
+    "moodCheckins",
+    "threads",
+    "bookmarks",
+    "nightlyReflections",
+    "thenNow",
+    "comfortItems",
+    "unsentLetters",
+    "thoughtBubbles",
+    "dreams",
+    "dailyCheckins",
+    "lifeCollections",
+    "habitDefinitions",
+    "moments",
+    "randomThoughts"
   ];
 
   for (const storeName of storeNames) {
@@ -8588,6 +8639,12 @@ async function applyCloudRestorePayload(payload) {
   incoming.habitDefinitions = validateSimpleStore(incoming.habitDefinitions, "habitDefinitions");
   incoming.moments = validateSimpleStore(incoming.moments, "moments");
   incoming.randomThoughts = validateSimpleStore(incoming.randomThoughts, "randomThoughts");
+
+  const incomingRecordCount = cloudBackupRecordCount(incoming);
+  const declaredRecordCount = Number(payload.recordCount);
+  if (Number.isFinite(declaredRecordCount) && declaredRecordCount !== incomingRecordCount) {
+    throw new Error(`invalid-cloud-backup:record-count:${incomingRecordCount}/${declaredRecordCount}`);
+  }
 
   const existingMedia = await diaryRepository.readAllMedia();
 
@@ -8644,6 +8701,7 @@ async function applyCloudRestorePayload(payload) {
 }
 
 window.fuwaCreateRestoreSafetyBackup = createRestoreSafetyBackup;
+window.fuwaRestoreSafetyBackup = restoreSafetyBackup;
 window.fuwaDownloadRestoreSafetyBackup = downloadRestoreSafetyBackup;
 window.fuwaApplyCloudRestorePayload = applyCloudRestorePayload;
 
@@ -9365,7 +9423,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.8-2026-08-14";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.9-2026-08-14";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";

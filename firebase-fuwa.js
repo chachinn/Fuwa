@@ -985,6 +985,8 @@ async function openCloudRestoreModal() {
 async function handleCloudRestoreConfirm() {
   const button = $auth("cloudRestoreConfirmButton");
   const cancel = $auth("cloudRestoreCancelButton");
+  let safetyBackup = null;
+  let restoreStarted = false;
   if (button?.disabled) return;
 
   if (button) {
@@ -998,14 +1000,16 @@ async function handleCloudRestoreConfirm() {
     const backup = await getVerifiedCloudBackup();
 
     if (typeof window.fuwaCreateRestoreSafetyBackup !== "function"
+      || typeof window.fuwaRestoreSafetyBackup !== "function"
       || typeof window.fuwaApplyCloudRestorePayload !== "function") {
       throw new Error("restore-engine-not-ready");
     }
 
-    const safetyBackup = await window.fuwaCreateRestoreSafetyBackup();
+    safetyBackup = await window.fuwaCreateRestoreSafetyBackup();
     suppressAutoSyncUntil = Date.now() + 5000;
 
     if (button) button.textContent = "Restoring & verifying…";
+    restoreStarted = true;
 
     const result = await window.fuwaApplyCloudRestorePayload(backup);
     if (!result?.ok) throw new Error("restore-verification-failed");
@@ -1025,7 +1029,38 @@ async function handleCloudRestoreConfirm() {
     window.setTimeout(() => window.location.reload(), 250);
   } catch (error) {
     console.error("Fuwa cloud restore failed.", error?.name || "Error", error?.message || error);
-    window.alert("Fuwa couldn't complete the restore. Your existing device data was kept as safely as possible. Please don't clear Fuwa data.");
+
+    let rollbackOk = false;
+    let safetyDownloadAttempted = false;
+
+    if (restoreStarted && safetyBackup && typeof window.fuwaRestoreSafetyBackup === "function") {
+      if (button) button.textContent = "Restoring device safety copy…";
+      try {
+        const rollback = await window.fuwaRestoreSafetyBackup(safetyBackup);
+        rollbackOk = rollback?.ok === true;
+      } catch (rollbackError) {
+        console.error("Fuwa safety rollback failed.", rollbackError?.name || "Error", rollbackError?.message || rollbackError);
+      }
+    }
+
+    if (restoreStarted && safetyBackup && !rollbackOk && typeof window.fuwaDownloadRestoreSafetyBackup === "function") {
+      try {
+        await window.fuwaDownloadRestoreSafetyBackup(safetyBackup);
+        safetyDownloadAttempted = true;
+      } catch (downloadError) {
+        console.error("Fuwa could not download the restore safety copy.", downloadError);
+      }
+    }
+
+    const message = !restoreStarted
+      ? "Fuwa couldn't start the restore. Nothing on this device was changed."
+      : rollbackOk
+        ? "Fuwa couldn't complete the restore, so your previous device data was restored from Fuwa's safety snapshot. Please don't clear Fuwa data."
+        : safetyDownloadAttempted
+          ? "Fuwa couldn't complete the restore or automatically roll back the device copy. Fuwa prepared your pre-restore safety backup for download. Please don't clear or reload Fuwa until you've kept that file."
+          : "Fuwa couldn't complete the restore or automatically roll back the device copy. Please don't clear or reload Fuwa data.";
+
+    window.alert(message);
     if (button) {
       button.disabled = false;
       button.textContent = "Restore safely";
