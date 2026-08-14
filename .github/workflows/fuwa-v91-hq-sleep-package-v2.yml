@@ -23,7 +23,9 @@ jobs:
           ffprobe -version | head -1
 
       - name: Apply Fuwa v91 production patch
-        run: python3 tools/fuwa_v91_hq_sleep_patch.py
+        run: |
+          python3 tools/fuwa_v91_hq_sleep_patch.py
+          python3 tools/fuwa_v91_remove_legacy_sleep_mount.py
 
       - name: Build and validate HQ local audio
         run: bash tools/build_fuwa_v91_sleep_audio.sh
@@ -59,7 +61,7 @@ jobs:
           paths=('gentle-rain.mp3','ocean-drift.mp3','warm-hearth.mp3','evening-breeze.mp3','quiet-forest.mp3','cozy-room.mp3','deep-hush.mp3','soft-air.mp3')
           for path in paths:
               assert path in js and path in sw and Path('audio/sleep',path).is_file()
-          for old in ('AudioContext','sleepAudioContext','sleepMasterGain','buildRainSound','stopSleepNodesOnly'):
+          for old in ('AudioContext','sleepAudioContext','sleepMasterGain','buildRainSound','stopSleepNodesOnly','mountSleepPlayerWithSoundscapeV87','soundSection.appendChild(player)'):
               assert old not in js, old
           assert 'new Audio()' in js and 'preload = "metadata"' in js
           print('static/data-safety QA passed')
