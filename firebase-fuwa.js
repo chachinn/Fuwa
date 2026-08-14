@@ -35,6 +35,13 @@ const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";
 const FUWA_LOCAL_MODE_KEY = "fuwaLocalModeV1";
 let firebaseInitialized = false;
 
+/* FUWA V87 — LOCAL MODE AUTO-SYNC SAFETY */
+function stopAutoSync() {
+  window.clearTimeout(autoSyncTimer);
+  autoSyncTimer = null;
+  autoSyncQueued = false;
+}
+
 function isLocalModeChosen(){try{return localStorage.getItem(FUWA_LOCAL_MODE_KEY)==="1"}catch(_){return false}}
 function setLocalModeChosen(value){try{if(value)localStorage.setItem(FUWA_LOCAL_MODE_KEY,"1");else localStorage.removeItem(FUWA_LOCAL_MODE_KEY)}catch(_){}}
 
@@ -646,6 +653,9 @@ async function performAutomaticCloudSync() {
 }
 
 function scheduleAutomaticCloudSync() {
+  // Local-only mode must never start cloud timers. Once a user signs in,
+  // auth.currentUser becomes available and normal automatic backup resumes.
+  if (isLocalModeChosen() || !auth?.currentUser?.uid) return;
   if (Date.now() < suppressAutoSyncUntil) return;
 
   setPendingCloudSync(true);
