@@ -15,8 +15,10 @@ jobs:
           ref: qa/v96-cloud-restore-hardening
           fetch-depth: 0
 
-      - name: Apply v96 production patch
-        run: python3 tools/fuwa_v96_restore_hardening.py
+      - name: Apply complete v96 production patch
+        run: |
+          python3 tools/fuwa_v96_restore_hardening.py
+          python3 tools/fuwa_v96_modal_guard.py
 
       - name: Static syntax and data-safety QA
         run: |
@@ -38,10 +40,14 @@ jobs:
           assert 'const DATABASE_VERSION = 13;' in app
           assert 'fuwa-v1.1.11-2026-08-14' in app
           assert 'FUWA_BUILD: v96-cloud-restore-hardening-qa' in html
-          assert 'fuwa-shell-v96' in sw
+          assert 'What’s new in Fuwa 1.1.11' in html
+          assert 'fuwa-shell-v96' in sw and 'fuwa-v1.1.11-2026-08-14' in sw
           assert 'CLOUD_RESTORE_READ_TIMEOUT_MS = 12000' in fb
           assert 'setCloudRestoreInteractionLayer(true)' in fb
+          assert 'fuwaMoodCheckinBlockedByActiveModal' in app
+          assert 'settings && !settings.classList.contains("hidden")' in app
           assert 'body.cloud-restore-open .settings-sheet' in css
+          assert 'body.cloud-restore-open .feature-tutorial' in css
           assert 'z-index: 2147482000 !important' in css
           assert 'return cloudBackupRecordCount(data);' in app
           assert 'window.fuwaRestoreSafetyBackup = restoreSafetyBackup;' in app
@@ -60,147 +66,22 @@ jobs:
           PY
           git diff --check
 
-      - name: Install Chromium QA runtime
+      - name: Install browser QA runtime
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0 >/dev/null
           npx playwright install chromium >/dev/null
 
-      - name: Restore interaction-layer regression QA
+      - name: Full browser restore and responsive QA
         run: |
           set -euo pipefail
-          python3 -m http.server 4311 --bind 127.0.0.1 >/tmp/fuwa-v96-http.log 2>&1 &
+          python3 -m http.server 4321 --bind 127.0.0.1 >/tmp/fuwa-v96-http.log 2>&1 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           sleep .4
-          node - <<'JS'
-          const { chromium } = require('playwright');
-          const assert=(x,m)=>{if(!x)throw new Error(m)};
-          (async()=>{
-            const b=await chromium.launch({headless:true});
-            const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
-            const p=await c.newPage(); const errors=[];
-            p.on('pageerror',e=>errors.push(String(e)));
-            await p.addInitScript(()=>{
-              localStorage.setItem('fuwaLocalModeV1','1');
-              localStorage.setItem('fuwaTutorialSeenV1','1');
-              localStorage.setItem('fuwaFeatureTutorial:v1:me','1');
-              window.alert=()=>{}; window.confirm=()=>true;
-            });
-            await p.goto('http://127.0.0.1:4311/index.html',{waitUntil:'domcontentloaded'});
-            await p.waitForTimeout(220);
-            assert(!errors.length,`startup errors ${errors.join('|')}`);
-            await p.locator('.bottom-nav [data-nav="me"]').click();
-            await p.waitForTimeout(80);
-            await p.locator('#openSettingsButton').click();
-            await p.waitForTimeout(80);
-            await p.evaluate(()=>document.getElementById('cloudBackupCard')?.classList.remove('local-hidden'));
-            const outer=p.locator('#cloudRestoreButton');
-            assert(await outer.isVisible(),'outer restore button not visible');
-            assert(await outer.isEnabled(),'outer restore button disabled');
-            await outer.click();
-            await p.waitForTimeout(100);
-            const modal=p.locator('#cloudRestoreModal');
-            assert(!(await modal.evaluate(el=>el.classList.contains('hidden'))),'restore modal did not open');
-            assert(await p.evaluate(()=>document.body.classList.contains('cloud-restore-open')),'restore interaction mode missing');
-            await p.evaluate(()=>{
-              document.getElementById('moodCheckinModal')?.classList.remove('hidden');
-              document.getElementById('fuwaReleaseNotesModal')?.classList.remove('hidden');
-              const ft=document.getElementById('featureTutorial'); if(ft){ft.hidden=false;ft.setAttribute('aria-hidden','false');}
-            });
-            const layer=await p.evaluate(()=>({
-              settings:getComputedStyle(document.getElementById('settingsSheet')).pointerEvents,
-              mood:getComputedStyle(document.getElementById('moodCheckinModal')).pointerEvents,
-              release:getComputedStyle(document.getElementById('fuwaReleaseNotesModal')).pointerEvents,
-              tutorial:getComputedStyle(document.getElementById('featureTutorial')).pointerEvents,
-              restore:getComputedStyle(document.getElementById('cloudRestoreModal')).pointerEvents,
-              z:Number(getComputedStyle(document.getElementById('cloudRestoreModal')).zIndex)
-            }));
-            assert(layer.settings==='none',`settings intercepts ${JSON.stringify(layer)}`);
-            assert(layer.mood==='none',`mood intercepts ${JSON.stringify(layer)}`);
-            assert(layer.release==='none',`release intercepts ${JSON.stringify(layer)}`);
-            assert(layer.tutorial==='none',`tutorial intercepts ${JSON.stringify(layer)}`);
-            assert(layer.restore==='auto',`restore events wrong ${JSON.stringify(layer)}`);
-            assert(layer.z>1000000,`restore layer too low ${JSON.stringify(layer)}`);
-            const confirm=p.locator('#cloudRestoreConfirmButton');
-            assert(await confirm.isVisible(),'confirm not visible');
-            assert(await confirm.isEnabled(),'confirm starts disabled');
-            await confirm.click();
-            await p.waitForTimeout(150);
-            let s=await confirm.evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
-            assert(!s.disabled&&s.text.includes('Restore safely')&&s.busy===null,`confirm did not recover ${JSON.stringify(s)}`);
-            await confirm.click();
-            await p.waitForTimeout(150);
-            s=await confirm.evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
-            assert(!s.disabled,'second retry left confirm disabled');
-            await p.evaluate(()=>{
-              document.getElementById('moodCheckinModal')?.classList.add('hidden');
-              document.getElementById('fuwaReleaseNotesModal')?.classList.add('hidden');
-              const ft=document.getElementById('featureTutorial'); if(ft){ft.hidden=true;ft.setAttribute('aria-hidden','true');}
-            });
-            await p.locator('#cloudRestoreCancelButton').click();
-            await p.waitForTimeout(60);
-            assert(await modal.evaluate(el=>el.classList.contains('hidden')),'cancel did not close restore');
-            assert(!await p.evaluate(()=>document.body.classList.contains('cloud-restore-open')),'interaction mode not released');
-            assert(!errors.length,`runtime errors ${errors.join('|')}`);
-            await c.close(); await b.close();
-            console.log('restore interaction regression passed');
-          })().catch(e=>{console.error(e);process.exit(1)});
-          JS
+          node tools/fuwa_v96_browser_qa.js
 
-      - name: Restore data-safety regression
-        run: |
-          set -euo pipefail
-          python3 -m http.server 4312 --bind 127.0.0.1 >/tmp/fuwa-v96-data.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
-          sleep .4
-          node - <<'JS'
-          const { chromium } = require('playwright');
-          const assert=(x,m)=>{if(!x)throw new Error(m)};
-          const STORES=['entries','tinyJoys','letters','moodCheckins','threads','bookmarks','nightlyReflections','thenNow','comfortItems','unsentLetters','thoughtBubbles','dreams','dailyCheckins','lifeCollections','habitDefinitions','moments','randomThoughts'];
-          (async()=>{
-            const b=await chromium.launch({headless:true});
-            const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
-            const p=await c.newPage(),errors=[]; p.on('pageerror',e=>errors.push(String(e)));
-            await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1')});
-            await p.goto('http://127.0.0.1:4312/index.html',{waitUntil:'domcontentloaded'});
-            await p.waitForFunction(()=>typeof window.fuwaCreateCloudBackupPayload==='function'&&typeof window.fuwaApplyCloudRestorePayload==='function'&&typeof window.fuwaRestoreSafetyBackup==='function');
-            const r=await p.evaluate(async stores=>{
-              const base=await window.fuwaCreateCloudBackupPayload(); stores.forEach(k=>base.data[k]=[]); base.backupFormat='fuwa-cloud-v1';
-              base.data.moments=[{id:'v96-m',text:'moment'}]; base.data.randomThoughts=[{id:'v96-r',text:'thought'}]; base.recordCount=2;
-              const restored=await window.fuwaApplyCloudRestorePayload(base);
-              const after=await window.fuwaCreateCloudBackupPayload();
-              const safety=await window.fuwaCreateRestoreSafetyBackup();
-              const repl=await window.fuwaCreateCloudBackupPayload(); stores.forEach(k=>repl.data[k]=[]); repl.data.moments=[{id:'v96-x',text:'replacement'}]; repl.recordCount=1;
-              await window.fuwaApplyCloudRestorePayload(repl);
-              const rollback=await window.fuwaRestoreSafetyBackup(safety);
-              const rolled=await window.fuwaCreateCloudBackupPayload();
-              return {restored,count:after.recordCount,m:after.data.moments.map(x=>x.id),r:after.data.randomThoughts.map(x=>x.id),rollback,rolledM:rolled.data.moments.map(x=>x.id),rolledR:rolled.data.randomThoughts.map(x=>x.id)};
-            },STORES);
-            assert(r.restored.ok&&r.count===2,'restore regression');
-            assert(r.m.includes('v96-m')&&r.r.includes('v96-r'),'cloud stores missing');
-            assert(r.rollback.ok&&r.rolledM.includes('v96-m')&&!r.rolledM.includes('v96-x')&&r.rolledR.includes('v96-r'),'rollback regression');
-            assert(!errors.length,errors.join('|'));
-            await c.close(); await b.close(); console.log('restore data-safety regression passed');
-          })().catch(e=>{console.error(e);process.exit(1)});
-          JS
-
-      - name: Responsive runtime QA
-        run: |
-          set -euo pipefail
-          python3 -m http.server 4313 --bind 127.0.0.1 >/tmp/fuwa-v96-responsive.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
-          sleep .4
-          node - <<'JS'
-          const { chromium } = require('playwright');
-          const assert=(x,m)=>{if(!x)throw new Error(m)};
-          const sizes=[[320,700],[375,812],[390,844],[430,932],[768,1024],[1024,768],[820,1180],[1180,820],[834,1194],[1194,834],[1024,1366],[1366,1024]];
-          (async()=>{const b=await chromium.launch({headless:true});for(const [w,h] of sizes){const c=await b.newContext({viewport:{width:w,height:h},serviceWorkers:'block'}),p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1')});await p.goto('http://127.0.0.1:4313/index.html',{waitUntil:'domcontentloaded'});await p.waitForTimeout(130);const g=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,nodes:document.getElementsByTagName('*').length,nav:getComputedStyle(document.querySelector('.bottom-nav')).position,bottom:document.querySelector('.bottom-nav').getBoundingClientRect().bottom}));assert(!errors.length,`${w}x${h}: ${errors.join('|')}`);assert(g.sw<=g.iw+2,`${w}x${h}: overflow`);assert(g.nodes<9000,`${w}x${h}: runaway DOM`);assert(g.nav==='fixed'&&Math.abs(g.bottom-h)<4,`${w}x${h}: nav regression`);await c.close()}await b.close();console.log('12-size runtime QA passed')})().catch(e=>{console.error(e);process.exit(1)});
-          JS
-
-      - name: Build packages
+      - name: Build clean packages
         run: |
           set -euo pipefail
           mkdir -p dist/changes dist/full/Fuwa
@@ -209,6 +90,7 @@ jobs:
           cp -R audio data icon dist/full/Fuwa/
           test ! -e dist/full/Fuwa/.github
           test ! -e dist/full/Fuwa/tools
+          test "$(find dist/changes -maxdepth 1 -type f | wc -l)" -eq 5
 
       - name: Upload changes
         uses: actions/upload-artifact@v4
