@@ -1,0 +1,36 @@
+name: Fuwa v90 artifact diagnostics
+on:
+  push:
+    branches: [artifact/v90-ui-audio-files]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect relevant UI and audio code
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for fn in ['index.html','style.css','app.js']:
+              text=Path(fn).read_text(encoding='utf-8')
+              print('\n===== ',fn,' =====')
+              patterns=[
+                'How was your day', 'mood', 'bottom-nav', 'sleep-player', 'sleep-sound',
+                'Gentle Rain', 'Ocean Drift', 'Warm Hearth', 'Evening Breeze',
+                'Quiet Forest', 'Cozy Room', 'Deep Hush', 'Soft Air',
+                'createNoise', 'AudioContext', 'Biquad', 'Oscillator', 'sleepPlayerCard'
+              ]
+              lines=text.splitlines()
+              seen=set()
+              for i,line in enumerate(lines):
+                  if any(p.lower() in line.lower() for p in patterns):
+                      a=max(0,i-5); b=min(len(lines),i+8)
+                      key=(a,b)
+                      if key in seen: continue
+                      seen.add(key)
+                      print(f'--- lines {a+1}-{b} ---')
+                      print('\n'.join(f'{j+1}: {lines[j]}' for j in range(a,b)))
+          PY
