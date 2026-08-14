@@ -84,13 +84,12 @@ jobs:
             await p.addInitScript(()=>{
               localStorage.setItem('fuwaLocalModeV1','1');
               localStorage.setItem('fuwaTutorialSeenV1','1');
+              localStorage.setItem('fuwaFeatureTutorial:v1:me','1');
               window.alert=()=>{}; window.confirm=()=>true;
             });
             await p.goto('http://127.0.0.1:4311/index.html',{waitUntil:'domcontentloaded'});
             await p.waitForTimeout(220);
             assert(!errors.length,`startup errors ${errors.join('|')}`);
-
-            // Real user path: bottom Me tab -> Settings -> Restore from Fuwa Cloud.
             await p.locator('.bottom-nav [data-nav="me"]').click();
             await p.waitForTimeout(80);
             await p.locator('#openSettingsButton').click();
@@ -101,29 +100,28 @@ jobs:
             assert(await outer.isEnabled(),'outer restore button disabled');
             await outer.click();
             await p.waitForTimeout(100);
-
             const modal=p.locator('#cloudRestoreModal');
             assert(!(await modal.evaluate(el=>el.classList.contains('hidden'))),'restore modal did not open');
             assert(await p.evaluate(()=>document.body.classList.contains('cloud-restore-open')),'restore interaction mode missing');
-
-            // Recreate competing-overlay races that previously intercepted taps.
             await p.evaluate(()=>{
               document.getElementById('moodCheckinModal')?.classList.remove('hidden');
               document.getElementById('fuwaReleaseNotesModal')?.classList.remove('hidden');
+              const ft=document.getElementById('featureTutorial'); if(ft){ft.hidden=false;ft.setAttribute('aria-hidden','false');}
             });
             const layer=await p.evaluate(()=>({
               settings:getComputedStyle(document.getElementById('settingsSheet')).pointerEvents,
               mood:getComputedStyle(document.getElementById('moodCheckinModal')).pointerEvents,
               release:getComputedStyle(document.getElementById('fuwaReleaseNotesModal')).pointerEvents,
+              tutorial:getComputedStyle(document.getElementById('featureTutorial')).pointerEvents,
               restore:getComputedStyle(document.getElementById('cloudRestoreModal')).pointerEvents,
               z:Number(getComputedStyle(document.getElementById('cloudRestoreModal')).zIndex)
             }));
             assert(layer.settings==='none',`settings intercepts ${JSON.stringify(layer)}`);
             assert(layer.mood==='none',`mood intercepts ${JSON.stringify(layer)}`);
             assert(layer.release==='none',`release intercepts ${JSON.stringify(layer)}`);
+            assert(layer.tutorial==='none',`tutorial intercepts ${JSON.stringify(layer)}`);
             assert(layer.restore==='auto',`restore events wrong ${JSON.stringify(layer)}`);
             assert(layer.z>1000000,`restore layer too low ${JSON.stringify(layer)}`);
-
             const confirm=p.locator('#cloudRestoreConfirmButton');
             assert(await confirm.isVisible(),'confirm not visible');
             assert(await confirm.isEnabled(),'confirm starts disabled');
@@ -135,10 +133,10 @@ jobs:
             await p.waitForTimeout(150);
             s=await confirm.evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
             assert(!s.disabled,'second retry left confirm disabled');
-
             await p.evaluate(()=>{
               document.getElementById('moodCheckinModal')?.classList.add('hidden');
               document.getElementById('fuwaReleaseNotesModal')?.classList.add('hidden');
+              const ft=document.getElementById('featureTutorial'); if(ft){ft.hidden=true;ft.setAttribute('aria-hidden','true');}
             });
             await p.locator('#cloudRestoreCancelButton').click();
             await p.waitForTimeout(60);
