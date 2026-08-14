@@ -1,0 +1,115 @@
+name: Fuwa v91 HQ Sleep package QA v2
+
+on:
+  push:
+    branches:
+      - qa/v91-hq-sleep-audio-package
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v91-hq-sleep-audio-package
+          fetch-depth: 0
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg >/dev/null
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Apply Fuwa v91 production patch
+        run: python3 tools/fuwa_v91_hq_sleep_patch.py
+
+      - name: Build and validate HQ local audio
+        run: bash tools/build_fuwa_v91_sleep_audio.sh
+
+      - name: Static release and data-safety QA
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check firebase-fuwa.js
+          node --check data/scrapbook-data.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest valid')"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          html=Path('index.html').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          old_js=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          assert 'FUWA_BUILD: v91-hq-recorded-sleep-audio-qa' in html
+          assert 'What’s new in Fuwa 1.1.6' in html
+          assert 'fuwa-shell-v91' in sw
+          assert 'fuwa-v1.1.6-2026-08-14' in sw and 'fuwa-v1.1.6-2026-08-14' in js
+          assert re.search(r'const DATABASE_VERSION = 13;', js)
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert js.count(token) <= old_js.count(token), token
+          for untouched in ('firebase-fuwa.js','manifest.json','style.css'):
+              subprocess.run(['git','diff','--exit-code','HEAD','--',untouched],check=True)
+          subprocess.run(['git','diff','--exit-code','HEAD','--','data','icon'],check=True)
+          player=html.index('id="sleepPlayerCard"')
+          soundscape=html.index('<p class="eyebrow">Choose your sound</p>')
+          timer=html.index('<p class="eyebrow">How long?</p>')
+          assert player < soundscape < timer
+          paths=('gentle-rain.mp3','ocean-drift.mp3','warm-hearth.mp3','evening-breeze.mp3','quiet-forest.mp3','cozy-room.mp3','deep-hush.mp3','soft-air.mp3')
+          for path in paths:
+              assert path in js and path in sw and Path('audio/sleep',path).is_file()
+          for old in ('AudioContext','sleepAudioContext','sleepMasterGain','buildRainSound','stopSleepNodesOnly'):
+              assert old not in js, old
+          assert 'new Audio()' in js and 'preload = "metadata"' in js
+          print('static/data-safety QA passed')
+          PY
+          git diff --check
+
+      - name: Install browser QA runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Phone and iPad interaction QA
+        run: |
+          python3 -m http.server 4173 >/tmp/fuwa-v91-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          node tools/fuwa_v91_hq_sleep_smoke.cjs
+
+      - name: Prepare ready-to-copy package
+        run: |
+          mkdir -p dist/Fuwa-v91-HQ-Sleep/audio
+          cp index.html app.js service-worker.js dist/Fuwa-v91-HQ-Sleep/
+          cp -R audio/sleep dist/Fuwa-v91-HQ-Sleep/audio/
+          cat > dist/Fuwa-v91-HQ-Sleep/INSTALL.txt <<'TXT'
+          FUWA v91 HQ SLEEP — READY TO COPY
+
+          Replace these files in the Fuwa main folder:
+          - index.html
+          - app.js
+          - service-worker.js
+
+          Copy the included audio folder into the Fuwa main folder.
+          The final files should be under audio/sleep/.
+
+          Do not delete or replace any other Fuwa files, data folders, or icons.
+          TXT
+
+      - name: Upload ready-to-copy package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v91-HQ-Sleep-ready-to-copy
+          path: dist/Fuwa-v91-HQ-Sleep
+          retention-days: 1
+          compression-level: 6
+
+      - name: Upload QA screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v91-HQ-Sleep-QA-screenshot
+          path: /tmp/fuwa-v91-sleep.png
+          retention-days: 1
