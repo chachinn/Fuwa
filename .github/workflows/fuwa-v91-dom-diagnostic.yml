@@ -16,27 +16,26 @@ jobs:
       - name: Apply patch and inspect source
         run: |
           python3 tools/fuwa_v91_hq_sleep_patch.py
-          grep -n 'id="sleepView"' index.html
-          grep -n 'id="sleepPlayerCard"' index.html
-          grep -n 'Choose your sound' index.html
+          echo '--- patched Sleep Corner source ---'
+          sed -n '710,810p' index.html
       - name: Browser DOM diagnostic
         run: |
           npm init -y >/dev/null 2>&1
           npm install --no-save playwright@1.55.0 >/dev/null
           npx playwright install chromium >/dev/null
           python3 -m http.server 4173 >/tmp/http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           sleep 1
           node - <<'JS'
           const {chromium}=require('playwright');
           (async()=>{
             const b=await chromium.launch({headless:true});
-            const p=await b.newPage();
+            const p=await b.newPage({viewport:{width:390,height:844}});
             const res=await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
-            console.log('status',res.status(),'url',p.url(),'title',await p.title());
-            console.log('body chars',(await p.locator('body').innerHTML()).length);
-            console.log('sleepView count',await p.locator('#sleepView').count());
-            console.log('sleep player count',await p.locator('#sleepPlayerCard').count());
-            console.log('all view ids',await p.locator('.view').evaluateAll(xs=>xs.map(x=>x.id)));
+            console.log('status',res.status(),'title',await p.title());
+            console.log('sleep parent',await p.locator('#sleepPlayerCard').evaluate(el=>el.parentElement?.id || el.parentElement?.className));
+            console.log('sleep children',await p.locator('#sleepView').evaluate(el=>[...el.children].map(x=>({id:x.id,cls:x.className,text:(x.textContent||'').trim().slice(0,24)}))));
             await b.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
