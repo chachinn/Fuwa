@@ -125,7 +125,7 @@ jobs:
 
               await page.evaluate(()=>document.querySelector('[data-nav="weather"]')?.click());
               await page.waitForTimeout(250);
-              const weather=await page.evaluate(()=>[...document.querySelectorAll('.weather-legend span')].map(el=>({t:el.textContent.trim(),s:parseFloat(getComputedStyle(el).fontSize)})));
+              const weather=await page.evaluate(()=>[...document.querySelectorAll('.weather-legend > span')].map(el=>({t:el.textContent.trim(),s:parseFloat(getComputedStyle(el).fontSize)})));
               if(weather.length&&weather.some(x=>!/\d/.test(x.t)||x.s<12))throw new Error(`weather count visibility ${viewport.width}: ${JSON.stringify(weather)}`);
 
               const overflow=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
