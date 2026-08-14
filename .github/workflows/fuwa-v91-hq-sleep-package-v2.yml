@@ -74,10 +74,28 @@ jobs:
 
       - name: Phone and iPad interaction QA
         run: |
-          python3 -m http.server 4173 >/tmp/fuwa-v91-http.log 2>&1 &
+          set -euo pipefail
+          python3 -m http.server 4187 --bind 127.0.0.1 >/tmp/fuwa-v91-http.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID || true' EXIT
-          sleep 1
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+
+          healthy=0
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4187/index.html | grep -q 'FUWA_BUILD: v91-hq-recorded-sleep-audio-qa'; then
+              healthy=1
+              break
+            fi
+            sleep 0.2
+          done
+          if [ "$healthy" -ne 1 ]; then
+            echo 'QA server did not serve the patched Fuwa document.'
+            cat /tmp/fuwa-v91-http.log || true
+            exit 1
+          fi
+          BYTES=$(curl --silent --fail http://127.0.0.1:4187/index.html | wc -c)
+          echo "QA server index bytes: $BYTES"
+          test "$BYTES" -gt 50000
+
           node tools/fuwa_v91_hq_sleep_smoke.cjs
 
       - name: Prepare ready-to-copy package
