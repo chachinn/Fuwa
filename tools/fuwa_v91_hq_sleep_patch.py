@@ -453,10 +453,14 @@ if "const SLEEP_AUDIO_ASSETS" not in sw:
         raise SystemExit("service worker optional assets marker missing")
     sw = sw.replace(marker, audio_assets + marker, 1)
 
-old_install = 'await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);'
-new_install = 'await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS, ...SLEEP_AUDIO_ASSETS]);'
+old_install = '''await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
+    await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));'''
+new_install = '''await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
+    await Promise.all(
+      [...OPTIONAL_ASSETS, ...SLEEP_AUDIO_ASSETS].map(asset => cache.add(asset).catch(() => null))
+    );'''
 if old_install not in sw:
-    raise SystemExit("service worker install line missing")
+    raise SystemExit("service worker install lines missing")
 sw = sw.replace(old_install, new_install, 1)
 
 SW.write_text(sw, encoding="utf-8")
