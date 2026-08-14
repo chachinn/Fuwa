@@ -1,0 +1,164 @@
+name: Fuwa v92 package QA
+
+on:
+  push:
+    branches:
+      - qa/v92-writing-focus-sanctuary
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v92-writing-focus-sanctuary
+          fetch-depth: 0
+
+      - name: Apply Fuwa v92 patch
+        run: python3 tools/fuwa_v92_patch.py
+
+      - name: Static and data-safety QA
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check firebase-fuwa.js
+          node --check data/scrapbook-data.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest valid')"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          html=Path('index.html').read_text(encoding='utf-8')
+          css=Path('style.css').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          old_js=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          assert 'FUWA_BUILD: v92-writing-focus-sanctuary-qa' in html
+          assert 'What’s new in Fuwa 1.1.7' in html
+          assert 'fuwa-shell-v92' in sw
+          assert 'fuwa-v1.1.7-2026-08-14' in sw and 'fuwa-v1.1.7-2026-08-14' in js
+          assert re.search(r'const DATABASE_VERSION = 13;',js)
+          assert 'FUWA V92 — WRITING-FIRST DAILY LIFE' in css
+          assert 'scrollIntoView' in js and 'sanctuarySurpriseMemoryButton' in js
+          companion=html.index('class="sanctuary-companion-card"')
+          memory=html.index('class="sanctuary-memory-card hidden"')
+          progress=html.index('class="sanctuary-progress-card"')
+          assert companion < memory < progress
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert js.count(token) <= old_js.count(token), token
+          for untouched in ('firebase-fuwa.js','manifest.json'):
+              subprocess.run(['git','diff','--exit-code','HEAD','--',untouched],check=True)
+          subprocess.run(['git','diff','--exit-code','HEAD','--','data','icon','audio'],check=True)
+          print('static/data-safety QA passed')
+          PY
+          git diff --check
+
+      - name: Install browser QA
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Phone and iPad responsive interaction QA
+        run: |
+          python3 -m http.server 4192 --bind 127.0.0.1 >/tmp/fuwa-v92-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl --silent --fail http://127.0.0.1:4192/index.html -o /tmp/v92-index.html && break
+            sleep .2
+          done
+          cmp index.html /tmp/v92-index.html
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          const sizes=[
+            ['iPhone small',320,700],['iPhone',390,844],['iPhone large',430,932],
+            ['iPad portrait',768,1024],['iPad landscape',1024,768],
+            ['iPad Air portrait',834,1194],['iPad Air landscape',1194,834]
+          ];
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const [name,width,height] of sizes){
+              const page=await browser.newPage({viewport:{width,height}});
+              const errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              await page.goto('http://127.0.0.1:4192/index.html',{waitUntil:'load'});
+              await page.waitForTimeout(350);
+              const result=await page.evaluate(async()=>{
+                document.body.classList.remove('auth-pending','auth-signed-out');
+                document.body.classList.add('auth-local');
+                const activate=id=>{
+                  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+                  const v=document.getElementById(id); if(v)v.classList.add('active');
+                };
+
+                activate('lifeView');
+                document.querySelectorAll('#lifeView .journal-page').forEach((p,i)=>p.classList.toggle('active',i===0));
+                const firstHeading=document.querySelector('#lifeView .journal-page.active h3');
+                const sectionButtons=[...document.querySelectorAll('#lifeView .journal-section-tabs button')];
+                const sectionTops=sectionButtons.map(b=>Math.round(b.getBoundingClientRect().top));
+                const life={
+                  headingTop:firstHeading?.getBoundingClientRect().top ?? 9999,
+                  notebookTop:document.querySelector('#lifeView .notebook-shell')?.getBoundingClientRect().top ?? 9999,
+                  sectionRows:new Set(sectionTops).size,
+                  overflow:document.documentElement.scrollWidth-window.innerWidth
+                };
+
+                activate('sleepView');
+                const hero=document.querySelector('#sleepView .sleep-page-hero')?.getBoundingClientRect();
+                const player=document.querySelector('#sleepPlayerCard')?.getBoundingClientRect();
+                const sleep={heroHeight:hero?.height??9999,playerTop:player?.top??9999,overflow:document.documentElement.scrollWidth-window.innerWidth};
+
+                activate('sanctuaryView');
+                try { if(typeof renderSanctuary==='function') renderSanctuary(true); } catch(e) {}
+                const companion=document.querySelector('.sanctuary-companion-card');
+                const memory=document.getElementById('sanctuaryMemoryCard');
+                const progress=document.querySelector('.sanctuary-progress-card');
+                const button=document.getElementById('sanctuarySurpriseMemoryButton');
+                button?.click();
+                await new Promise(r=>setTimeout(r,120));
+                const toast=document.getElementById('toast');
+                const sanctuary={
+                  order:!!(companion&&memory&&progress&&((companion.compareDocumentPosition(memory)&Node.DOCUMENT_POSITION_FOLLOWING)!==0)&&((memory.compareDocumentPosition(progress)&Node.DOCUMENT_POSITION_FOLLOWING)!==0)),
+                  reacted:!!(memory&&!memory.classList.contains('hidden')) || !!toast?.classList.contains('show'),
+                  overflow:document.documentElement.scrollWidth-window.innerWidth
+                };
+                return {life,sleep,sanctuary};
+              });
+              if(errors.length) throw new Error(`${name} page errors: ${errors.join(' | ')}`);
+              if(result.life.overflow>1||result.sleep.overflow>1||result.sanctuary.overflow>1) throw new Error(`${name} horizontal overflow ${JSON.stringify(result)}`);
+              if(width<=600 && result.life.headingTop>510) throw new Error(`${name} Daily Life still starts too low ${JSON.stringify(result.life)}`);
+              if(width<=600 && result.life.sectionRows!==1) throw new Error(`${name} Daily Life section controls are not one-row ${JSON.stringify(result.life)}`);
+              if(width<=600 && result.sleep.heroHeight>120) throw new Error(`${name} Sleep hero still too tall ${JSON.stringify(result.sleep)}`);
+              if(width<=600 && result.sleep.playerTop>390) throw new Error(`${name} Sleep player still too low ${JSON.stringify(result.sleep)}`);
+              if(!result.sanctuary.order||!result.sanctuary.reacted) throw new Error(`${name} Sanctuary Surprise me failed ${JSON.stringify(result.sanctuary)}`);
+              await page.close();
+            }
+            await browser.close();
+            console.log('responsive/interaction QA passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Package replacement files
+        run: |
+          mkdir -p dist/Fuwa-v92-ready-to-copy
+          cp index.html style.css app.js service-worker.js dist/Fuwa-v92-ready-to-copy/
+          cat > dist/Fuwa-v92-ready-to-copy/INSTALL.txt <<'TXT'
+          FUWA v92 — READY TO COPY
+
+          Replace these four files in your Fuwa main folder:
+          - index.html
+          - style.css
+          - app.js
+          - service-worker.js
+
+          Keep your existing audio/, data/, icon/, manifest.json, and firebase-fuwa.js files.
+          This update is built on top of main commit 0210930dec1959fdde03981fe80fee13757e8f05 (your HQ audio push).
+          TXT
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v92-ready-to-copy
+          path: dist/Fuwa-v92-ready-to-copy
+          retention-days: 1
