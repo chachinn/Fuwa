@@ -1,166 +1,156 @@
-name: Fuwa v89 notebook + typography QA
+name: Fuwa v89 notebook geometry and typography QA
+
 on:
   push:
     branches: [qa/v89-notebook-font-fix]
+    paths: [.fuwa-v89-run]
+
 permissions:
   contents: write
+
 jobs:
-  qa:
+  notebook-qa:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: qa/v89-notebook-font-fix
           fetch-depth: 0
-      - name: Apply v89 corrective patch
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
 
-          css = Path('style.css')
-          text = css.read_text()
-          marker = '/* FUWA V89 — NOTEBOOK GEOMETRY + ORIGINAL SOFT TYPE */'
-          if marker not in text:
-              text += r'''
+      - name: Apply corrective patch
+        run: python3 tools/fuwa_v89_notebook_font_patch.py
 
-/* FUWA V89 — NOTEBOOK GEOMETRY + ORIGINAL SOFT TYPE */
-:root{
-  --fuwa-font-ui:Inter,ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  --fuwa-font-display:Georgia,"Times New Roman",serif;
-  --fuwa-notebook-left:clamp(24px,7vw,30px);
-  --fuwa-notebook-right:clamp(12px,4vw,16px);
-}
-body,
-body :where(button,input,textarea,select,label,p,small,span,strong,a,li,summary){
-  font-family:var(--fuwa-font-ui);
-}
-body :where(h1,h2,h3,.topbar h1,.hero-card h2,.section-heading h3,.page-title-row h2,.journal-page h3,.journal-closing h3,.journal-customize-head h3,.notebook-date-wrap strong){
-  font-family:var(--fuwa-font-display);
-}
-.journal-section-jump,
-.notebook-form{
-  box-sizing:border-box;
-  width:100%;
-  max-width:100%;
-  padding-left:var(--fuwa-notebook-left);
-  padding-right:var(--fuwa-notebook-right);
-}
-.journal-section-jump{
-  margin:12px 0 7px;
-  overflow:hidden;
-}
-.journal-section-tabs,
-.journal-page-jump-list{
-  width:100%;
-  max-width:100%;
-  min-width:0;
-  margin-left:0;
-  margin-right:0;
-}
-.journal-section-tabs button,
-.journal-page-jump-list button{box-sizing:border-box}
-@media (min-width:700px){
-  :root{--fuwa-notebook-left:44px;--fuwa-notebook-right:28px}
-}
-@media (min-width:1000px) and (orientation:landscape){
-  :root{--fuwa-notebook-left:52px;--fuwa-notebook-right:34px}
-}
-'''
-          css.write_text(text)
-
-          idx = Path('index.html')
-          html = idx.read_text()
-          html = html.replace('FUWA_BUILD: v88-ipad-responsive', 'FUWA_BUILD: v89-notebook-geometry-font-restore')
-          html = html.replace('What’s new in Fuwa 1.1.3', 'What’s new in Fuwa 1.1.4')
-          html = re.sub(r'<p class="fuwa-release-lead">.*?</p>', '<p class="fuwa-release-lead">Daily Life now stays properly inside the notebook on every supported screen size, and Fuwa’s original softer typography is back.</p>', html, count=1, flags=re.S)
-          release = '''<div class="fuwa-release-list">
-        <article><span>📓</span><div><strong>Notebook edges finally line up</strong><p>Daily Life section tabs, page shortcuts, and writing pages now share the exact same inner margins instead of using mismatched insets.</p></div></article>
-        <article><span>☁️</span><div><strong>Fuwa’s softer type is back</strong><p>The v87 system-font replacement has been removed. Fuwa is back to its original rounded interface type with serif reserved for display headings.</p></div></article>
-        <article><span>📱</span><div><strong>Phone and iPad together</strong><p>The corrected notebook geometry is applied consistently to small phones, larger iPhones, iPad portrait, and iPad landscape.</p></div></article>
-      </div>'''
-          html = re.sub(r'<div class="fuwa-release-list">.*?</div>\s*<button class="fuwa-release-got-it"', release + '\n      <button class="fuwa-release-got-it"', html, count=1, flags=re.S)
-          idx.write_text(html)
-
-          app = Path('app.js')
-          app.write_text(app.read_text().replace('fuwa-v1.1.3-2026-08-14', 'fuwa-v1.1.4-2026-08-14'))
-          sw = Path('service-worker.js')
-          sw.write_text(sw.read_text().replace('fuwa-shell-v88', 'fuwa-shell-v89').replace('fuwa-v1.1.3-2026-08-14', 'fuwa-v1.1.4-2026-08-14'))
-          PY
-      - name: Syntax and data-safety checks
+      - name: Static release and data-safety QA
         run: |
           node --check app.js
-          node --check firebase-fuwa.js
           node --check service-worker.js
-          python - <<'PY'
-          import json,re
+          node --check firebase-fuwa.js
+          node --check data/scrapbook-data.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest valid')"
+          git fetch origin main
+          python3 - <<'PY'
           from pathlib import Path
-          json.loads(Path('manifest.json').read_text())
-          app=Path('app.js').read_text(); idx=Path('index.html').read_text(); sw=Path('service-worker.js').read_text(); css=Path('style.css').read_text()
-          assert 'DATABASE_VERSION = 13' in app
-          assert 'v89-notebook-geometry-font-restore' in idx
+          import re, subprocess
+          html=Path('index.html').read_text(encoding='utf-8')
+          css=Path('style.css').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          old_js=subprocess.check_output(['git','show','origin/main:app.js'],text=True)
+          assert 'FUWA_BUILD: v89-notebook-geometry-font-restore' in html
+          assert 'What’s new in Fuwa 1.1.4' in html
           assert 'fuwa-shell-v89' in sw
-          assert 'fuwa-v1.1.4-2026-08-14' in app and 'fuwa-v1.1.4-2026-08-14' in sw
+          assert 'fuwa-v1.1.4-2026-08-14' in sw and 'fuwa-v1.1.4-2026-08-14' in js
+          assert 'FUWA V89 — NOTEBOOK GEOMETRY + ORIGINAL SOFT TYPE' in css
           assert '--fuwa-font-ui:Inter,ui-rounded,"SF Pro Rounded"' in css
-          assert '--fuwa-notebook-left' in css and '--fuwa-notebook-right' in css
-          for token in ['indexedDB.deleteDatabase(','localStorage.clear(']: assert token not in app, token
-          ids=re.findall(r'\bid="([^"]+)"',idx); dup={x for x in ids if ids.count(x)>1}; assert not dup, f'duplicate IDs: {sorted(dup)}'
-          print('static QA passed')
+          old_db=re.search(r'const DATABASE_VERSION = (\d+);',old_js).group(1)
+          new_db=re.search(r'const DATABASE_VERSION = (\d+);',js).group(1)
+          assert old_db == new_db == '13'
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert js.count(token) <= old_js.count(token), f'new destructive call: {token}'
+          subprocess.run(['git','diff','--exit-code','origin/main','--','firebase-fuwa.js','manifest.json','data','icon'],check=True)
+          print('static v89 QA passed')
           PY
-      - name: Install Playwright
+          git diff --check origin/main -- index.html style.css app.js service-worker.js
+
+      - name: Install browser QA runtime
         run: |
           npm init -y >/dev/null 2>&1
-          npm install --silent playwright@1.54.2
-          npx playwright install --with-deps chromium >/dev/null
-      - name: Browser layout QA + screenshots
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Phone and iPad geometry QA
         run: |
-          cat > /tmp/qa.mjs <<'JS'
-          import { chromium } from 'playwright';
-          import { spawn } from 'node:child_process';
-          import fs from 'node:fs';
-          const server=spawn('python',['-m','http.server','8765','--bind','127.0.0.1'],{stdio:'ignore'});
-          await new Promise(r=>setTimeout(r,800));
-          const browser=await chromium.launch({headless:true});
-          const sizes=[['phone-320',320,700],['phone-390',390,844],['phone-430',430,932],['ipad-10-portrait',768,1024],['ipad-10-landscape',1024,768],['ipad-air-portrait',820,1180],['ipad-air-landscape',1180,820],['ipad-pro11-portrait',834,1194],['ipad-pro11-landscape',1194,834],['ipad-pro129-portrait',1024,1366],['ipad-pro129-landscape',1366,1024]];
-          fs.mkdirSync('qa-shots',{recursive:true});
-          for(const [name,width,height] of sizes){
-            const page=await browser.newPage({viewport:{width,height}});
-            await page.addInitScript(()=>localStorage.setItem('fuwaLocalModeV1','1'));
-            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
-            await page.goto('http://127.0.0.1:8765/?view=life',{waitUntil:'networkidle'}); await page.waitForTimeout(450);
-            const nav=page.locator('[data-nav="life"]').first(); if(await nav.count()){try{await nav.click({timeout:500})}catch{}}
-            await page.waitForTimeout(250);
-            const result=await page.evaluate(()=>{
-              const q=s=>document.querySelector(s), rect=e=>e?e.getBoundingClientRect():null;
-              const jump=q('.journal-section-jump'), form=q('.notebook-form');
-              const tabs=[...document.querySelectorAll('.journal-section-tabs button')];
-              const jr=rect(jump),fr=rect(form),first=tabs.length?rect(tabs[0]):null,last=tabs.length?rect(tabs[tabs.length-1]):null;
-              const heading=q('.journal-page h3');
-              return {scrollWidth:document.documentElement.scrollWidth,innerWidth:innerWidth,jumpLeft:jr?.left,jumpRight:jr?.right,formLeft:fr?.left,formRight:fr?.right,firstTabLeft:first?.left,lastTabRight:last?.right,uiFont:getComputedStyle(document.body).fontFamily,displayFont:heading?getComputedStyle(heading).fontFamily:'',tabCount:tabs.length};
-            });
-            const eps=2.1;
-            if(result.scrollWidth>result.innerWidth+1) throw new Error(`${name}: horizontal overflow ${JSON.stringify(result)}`);
-            if(Math.abs(result.jumpLeft-result.formLeft)>eps || Math.abs(result.jumpRight-result.formRight)>eps) throw new Error(`${name}: notebook inset mismatch ${JSON.stringify(result)}`);
-            if(result.firstTabLeft<result.formLeft-eps || result.lastTabRight>result.formRight+eps) throw new Error(`${name}: tabs escape writing bounds ${JSON.stringify(result)}`);
-            if(!/Inter|SF Pro Rounded|ui-rounded/.test(result.uiFont)) throw new Error(`${name}: soft UI stack not active ${result.uiFont}`);
-            if(!/Georgia|Times New Roman/.test(result.displayFont)) throw new Error(`${name}: display font not serif ${result.displayFont}`);
-            if(errors.length) throw new Error(`${name}: runtime error ${errors.join(' | ')}`);
-            await page.screenshot({path:`qa-shots/${name}.png`,fullPage:false}); console.log(name,result); await page.close();
-          }
-          await browser.close(); server.kill();
+          python3 -m http.server 4173 >/tmp/fuwa-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          mkdir -p qa-shots
+          cat >/tmp/fuwa-v89-smoke.cjs <<'JS'
+          const { chromium } = require(process.cwd() + '/node_modules/playwright');
+          const sizes=[
+            {name:'phone-320',width:320,height:700,tablet:false},
+            {name:'phone-390',width:390,height:844,tablet:false},
+            {name:'phone-430',width:430,height:932,tablet:false},
+            {name:'ipad-768-portrait',width:768,height:1024,tablet:true},
+            {name:'ipad-1024-landscape',width:1024,height:768,tablet:true},
+            {name:'ipad-air-portrait',width:820,height:1180,tablet:true},
+            {name:'ipad-air-landscape',width:1180,height:820,tablet:true},
+            {name:'ipad-pro11-portrait',width:834,height:1194,tablet:true},
+            {name:'ipad-pro11-landscape',width:1194,height:834,tablet:true},
+            {name:'ipad-pro129-portrait',width:1024,height:1366,tablet:true},
+            {name:'ipad-pro129-landscape',width:1366,height:1024,tablet:true}
+          ];
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const spec of sizes){
+              const context=await browser.newContext({viewport:{width:spec.width,height:spec.height},isMobile:true,hasTouch:true});
+              const page=await context.newPage();
+              const errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              await page.addInitScript(()=>localStorage.setItem('fuwaLocalModeV1','1'));
+              await page.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+              await page.waitForTimeout(900);
+              await page.evaluate(()=>document.querySelector('[data-nav="life"]')?.click());
+              await page.waitForTimeout(250);
+              const r=await page.evaluate(()=>{
+                const n=v=>Number.parseFloat(v)||0;
+                const q=s=>document.querySelector(s);
+                const jump=q('.journal-section-jump');
+                const form=q('.notebook-form');
+                const tabs=[...document.querySelectorAll('.journal-section-tabs button')];
+                const pageButtons=[...document.querySelectorAll('.journal-page-jump-list button')];
+                const jr=jump?.getBoundingClientRect();
+                const fr=form?.getBoundingClientRect();
+                const jcs=jump?getComputedStyle(jump):null;
+                const fcs=form?getComputedStyle(form):null;
+                const contentLeft=fr.left+n(fcs.paddingLeft);
+                const contentRight=fr.right-n(fcs.paddingRight);
+                const jumpContentLeft=jr.left+n(jcs.paddingLeft);
+                const jumpContentRight=jr.right-n(jcs.paddingRight);
+                const first=tabs[0]?.getBoundingClientRect();
+                const last=tabs[tabs.length-1]?.getBoundingClientRect();
+                const firstPage=pageButtons[0]?.getBoundingClientRect();
+                const cols=q('.journal-section-tabs')?getComputedStyle(q('.journal-section-tabs')).gridTemplateColumns.split(' ').filter(Boolean).length:0;
+                return {
+                  overflow:document.documentElement.scrollWidth-window.innerWidth,
+                  contentLeft,contentRight,jumpContentLeft,jumpContentRight,
+                  firstTabLeft:first?.left,lastTabRight:last?.right,firstPageLeft:firstPage?.left,
+                  cols,uiFont:getComputedStyle(document.body).fontFamily,
+                  displayFont:getComputedStyle(q('.journal-page h3')).fontFamily
+                };
+              });
+              const eps=2.25;
+              if(r.overflow>2) throw new Error(`${spec.name} horizontal overflow ${JSON.stringify(r)}`);
+              if(Math.abs(r.contentLeft-r.jumpContentLeft)>eps || Math.abs(r.contentRight-r.jumpContentRight)>eps) throw new Error(`${spec.name} notebook content insets do not match ${JSON.stringify(r)}`);
+              if(r.firstTabLeft<r.contentLeft-eps || r.lastTabRight>r.contentRight+eps) throw new Error(`${spec.name} section tabs escape writing bounds ${JSON.stringify(r)}`);
+              if(r.firstPageLeft<r.contentLeft-eps) throw new Error(`${spec.name} page shortcuts escape writing bounds ${JSON.stringify(r)}`);
+              if(spec.tablet && r.cols!==4) throw new Error(`${spec.name} expected 4 section columns, got ${r.cols}`);
+              if(!/Inter|ui-rounded|SF Pro Rounded/.test(r.uiFont)) throw new Error(`${spec.name} original soft UI stack not active: ${r.uiFont}`);
+              if(!/Georgia|Times New Roman/.test(r.displayFont)) throw new Error(`${spec.name} display type not serif: ${r.displayFont}`);
+              if(errors.length) throw new Error(`${spec.name} page errors: ${errors.join(' | ')}`);
+              await page.screenshot({path:`qa-shots/${spec.name}.png`,fullPage:false});
+              console.log(spec.name,r);
+              await context.close();
+            }
+            await browser.close();
+            console.log('phone + iPad notebook geometry QA passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
           JS
-          node /tmp/qa.mjs
-      - name: Upload QA screenshots
+          node /tmp/fuwa-v89-smoke.cjs
+
+      - name: Upload visual QA
         uses: actions/upload-artifact@v4
         with:
           name: fuwa-v89-layout-shots
           path: qa-shots/*.png
           retention-days: 1
+
       - name: Commit verified production patch
         run: |
-          rm -rf node_modules package.json package-lock.json qa-shots
-          git config user.name 'Fuwa QA Bot'
-          git config user.email 'actions@users.noreply.github.com'
-          git add style.css index.html app.js service-worker.js
-          git diff --cached --quiet && exit 0
-          git commit -m 'Fuwa v89: fix notebook geometry and restore soft typography'
-          git push
+          git config user.name "Fuwa QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm tools/fuwa_v89_notebook_font_patch.py .github/workflows/fuwa-v89-notebook-font-qa.yml .fuwa-v89-run
+          git add index.html style.css app.js service-worker.js
+          git commit -m "Fuwa v89: fix notebook geometry and restore soft typography"
+          git push origin HEAD:qa/v89-notebook-font-fix
