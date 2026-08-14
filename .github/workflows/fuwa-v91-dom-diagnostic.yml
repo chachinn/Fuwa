@@ -1,0 +1,42 @@
+name: Fuwa v91 DOM diagnostic
+
+on:
+  push:
+    branches:
+      - qa/v91-hq-sleep-audio-package
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v91-hq-sleep-audio-package
+      - name: Apply patch and inspect source
+        run: |
+          python3 tools/fuwa_v91_hq_sleep_patch.py
+          grep -n 'id="sleepView"' index.html
+          grep -n 'id="sleepPlayerCard"' index.html
+          grep -n 'Choose your sound' index.html
+      - name: Browser DOM diagnostic
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+          python3 -m http.server 4173 >/tmp/http.log 2>&1 &
+          sleep 1
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage();
+            const res=await p.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
+            console.log('status',res.status(),'url',p.url(),'title',await p.title());
+            console.log('body chars',(await p.locator('body').innerHTML()).length);
+            console.log('sleepView count',await p.locator('#sleepView').count());
+            console.log('sleep player count',await p.locator('#sleepPlayerCard').count());
+            console.log('all view ids',await p.locator('.view').evaluateAll(xs=>xs.map(x=>x.id)));
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
