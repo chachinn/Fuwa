@@ -1,0 +1,88 @@
+name: Fuwa v90 manual package QA corrected
+
+on:
+  push:
+    branches:
+      - qa/v90-manual-ui-sleep-package
+    paths:
+      - .fuwa-v90-run2
+
+jobs:
+  package-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v90-manual-ui-sleep-package
+          fetch-depth: 0
+
+      - name: Apply Fuwa v90 patch
+        run: python3 tools/fuwa_v90_manual_patch.py
+
+      - name: Static and data safety QA
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check firebase-fuwa.js
+          node --check data/scrapbook-data.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest valid')"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess
+          html=Path('index.html').read_text(encoding='utf-8')
+          css=Path('style.css').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          old_js=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          assert 'FUWA_BUILD: v90-home-sleep-nav-ui-qa' in html
+          assert 'What’s new in Fuwa 1.1.5' in html
+          assert 'fuwa-shell-v90' in sw
+          assert 'fuwa-v1.1.5-2026-08-14' in sw and 'fuwa-v1.1.5-2026-08-14' in js
+          assert 'FUWA V90 — HOME CLOUD MOODS + GROUNDED NAV + SLEEP PLAYER' in css
+          assert re.search(r'const DATABASE_VERSION = 13;', js)
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert js.count(token) <= old_js.count(token), token
+          for path in ('firebase-fuwa.js','manifest.json'):
+              subprocess.run(['git','diff','--exit-code','HEAD','--',path],check=True)
+          subprocess.run(['git','diff','--exit-code','HEAD','--','data','icon'],check=True)
+          assert html.index('id="sleepPlayerCard"') < html.index('<p class="eyebrow">How long?</p>')
+          assert 'sleepSoundSwitchToken' in js
+          print('static/data-safety QA passed')
+          PY
+          git diff --check
+
+      - name: Install browser QA runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Responsive browser and interaction QA
+        run: |
+          python3 -m http.server 4173 >/tmp/fuwa-v90-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          sleep 1
+          node tools/fuwa_v90_smoke.cjs
+
+      - name: Prepare ready-to-copy production files
+        run: |
+          mkdir -p manual-package
+          cp index.html style.css app.js service-worker.js manual-package/
+
+      - name: Upload ready-to-copy Fuwa files
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v90-ready-to-copy
+          path: manual-package/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload QA screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v90-QA-screenshot
+          path: /tmp/fuwa-v90-home-sleep.png
+          if-no-files-found: warn
+          retention-days: 1
