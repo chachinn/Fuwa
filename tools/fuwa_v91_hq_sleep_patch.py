@@ -7,7 +7,15 @@ SW = Path("service-worker.js")
 
 # ---------- index.html ----------
 html = INDEX.read_text(encoding="utf-8")
-html = re.sub(r'FUWA_BUILD:\s*v\d+[^<\n]*', 'FUWA_BUILD: v91-hq-recorded-sleep-audio-qa', html, count=1)
+html, build_count = re.subn(
+    r'<!--\s*FUWA_BUILD:\s*[^>]+-->',
+    '<!-- FUWA_BUILD: v91-hq-recorded-sleep-audio-qa -->',
+    html,
+    count=1,
+)
+if build_count != 1:
+    raise SystemExit("FUWA_BUILD comment marker missing or changed unexpectedly")
+
 html = re.sub(
     r'<h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa [^<]+</h2>',
     '<h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.6</h2>',
@@ -45,6 +53,10 @@ soundscape_marker = '''        <section class="sleep-section">
 if soundscape_marker not in html:
     raise SystemExit("soundscape section marker missing")
 html = html.replace(soundscape_marker, player + "\n\n" + soundscape_marker, 1)
+
+# Guard against an unterminated build comment ever blanking the document again.
+if '<!-- FUWA_BUILD: v91-hq-recorded-sleep-audio-qa -->' not in html:
+    raise SystemExit("valid FUWA_BUILD comment not present after patch")
 
 INDEX.write_text(html, encoding="utf-8")
 
@@ -129,33 +141,46 @@ function loadSleepAudio(sound = state.sleepSound, { reset = true } = {}) {
   return audio;
 }
 
-function rampSleepAudioVolume(target, duration = 650) {
+function setSleepAudioVolume(volume) {
+  const audio = ensureSleepAudioElement();
+  audio.volume = Math.max(0, Math.min(1, volume));
+}
+
+function rampSleepAudioVolume(target, duration = 450) {
   const audio = ensureSleepAudioElement();
   cancelSleepAudioTransition();
-
   const token = sleepAudioTransitionToken;
-  const startVolume = Number.isFinite(audio.volume) ? audio.volume : 0;
-  const finalVolume = Math.max(0, Math.min(1, Number(target) || 0));
+  const from = Number(audio.volume || 0);
+  const to = Math.max(0, Math.min(1, target));
+  const start = performance.now();
 
-  if (duration <= 0 || Math.abs(startVolume - finalVolume) < 0.002) {
-    audio.volume = finalVolume;
-    return;
-  }
+  return new Promise(resolve => {
+    const tick = now => {
+      if (token !== sleepAudioTransitionToken) {
+        resolve(false);
+        return;
+      }
+      const progress = Math.min(1, Math.max(0, (now - start) / Math.max(1, duration)));
+      audio.volume = from + (to - from) * progress;
+      if (progress < 1) {
+        sleepAudioTransitionFrame = requestAnimationFrame(tick);
+      } else {
+        sleepAudioTransitionFrame = null;
+        resolve(true);
+      }
+    };
+    sleepAudioTransitionFrame = requestAnimationFrame(tick);
+  });
+}
 
-  const startedAt = performance.now();
-  const tick = now => {
-    if (token !== sleepAudioTransitionToken) return;
-    const progress = Math.min(1, (now - startedAt) / duration);
-    const eased = 1 - Math.pow(1 - progress, 2);
-    audio.volume = startVolume + (finalVolume - startVolume) * eased;
-    if (progress < 1) {
-      sleepAudioTransitionFrame = requestAnimationFrame(tick);
-    } else {
-      sleepAudioTransitionFrame = null;
-    }
-  };
-
-  sleepAudioTransitionFrame = requestAnimationFrame(tick);
+async function playSelectedSleepAudio({ fadeIn = true } = {}) {
+  const audio = loadSleepAudio(state.sleepSound);
+  const target = sleepBaseVolume();
+  cancelSleepAudioTransition();
+  audio.volume = fadeIn ? 0 : target;
+  await audio.play();
+  if (fadeIn) await rampSleepAudioVolume(target, 900);
+  return audio;
 }
 '''
 js = js.replace(sound_names_block, audio_files_block, 1)
@@ -164,40 +189,10 @@ engine_re = re.compile(
     r'function ensureSleepAudioContext\(\) \{.*?\nfunction selectedSleepMinutes\(\) \{',
     re.S,
 )
-js, n = engine_re.subn('function selectedSleepMinutes() {', js, count=1)
+engine_replacement = r'''function selectedSleepMinutes() {'''
+js, n = engine_re.subn(engine_replacement, js, count=1)
 if n != 1:
-    raise SystemExit("old Web Audio engine block was not removed")
-
-countdown_re = re.compile(
-    r'function updateSleepCountdown\(\) \{.*?\n\}\n\nfunction startSleepTimer',
-    re.S,
-)
-new_countdown = r'''function updateSleepCountdown() {
-  if (!sleepIsPlaying) return;
-  sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
-
-  if (sleepAudioElement && sleepRemainingMs > 0) {
-    const baseVolume = sleepBaseVolume();
-    if (sleepRemainingMs <= 20000) {
-      cancelSleepAudioTransition();
-      sleepAudioElement.volume = Math.max(0, Math.min(baseVolume, baseVolume * (sleepRemainingMs / 20000)));
-    } else if (sleepAudioTransitionFrame === null) {
-      sleepAudioElement.volume = baseVolume;
-    }
-  }
-
-  if (sleepRemainingMs <= 0) {
-    stopSleepSound(true);
-    return;
-  }
-
-  renderSleepControls();
-}
-
-function startSleepTimer'''
-js, n = countdown_re.subn(new_countdown, js, count=1)
-if n != 1:
-    raise SystemExit("updateSleepCountdown replacement failed")
+    raise SystemExit("synthetic sleep engine block replacement failed")
 
 start_re = re.compile(
     r'async function startSleepSound\(\) \{.*?\n\}\n\nasync function pauseSleepSound',
@@ -205,16 +200,16 @@ start_re = re.compile(
 )
 new_start = r'''async function startSleepSound() {
   try {
-    const audio = loadSleepAudio(state.sleepSound, { reset: true });
-    cancelSleepAudioTransition();
-    audio.volume = 0;
-    await audio.play();
-    rampSleepAudioVolume(sleepBaseVolume(), 1100);
+    if (sleepFadeTimeout) {
+      clearTimeout(sleepFadeTimeout);
+      sleepFadeTimeout = null;
+    }
 
     const minutes = selectedSleepMinutes();
     state.sleepMinutes = minutes;
     savePreferences();
 
+    await playSelectedSleepAudio({ fadeIn: true });
     sleepIsPlaying = true;
     sleepIsPaused = false;
     startSleepTimer(minutes);
@@ -245,11 +240,8 @@ new_pause = r'''async function pauseSleepSound() {
   sleepIsPaused = true;
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = null;
-
   cancelSleepAudioTransition();
   sleepAudioElement.pause();
-  sleepAudioElement.volume = sleepBaseVolume();
-
   renderSleepControls();
 }
 
@@ -269,23 +261,21 @@ new_resume = r'''async function resumeSleepSound() {
   }
 
   try {
-    const audio = loadSleepAudio(state.sleepSound, { reset: false });
     cancelSleepAudioTransition();
-    audio.volume = 0;
-    await audio.play();
-    rampSleepAudioVolume(sleepBaseVolume(), 750);
-
-    sleepIsPaused = false;
-    sleepIsPlaying = true;
-    sleepTimerEndAt = Date.now() + sleepRemainingMs;
-
-    clearInterval(sleepTimerInterval);
-    sleepTimerInterval = setInterval(updateSleepCountdown, 1000);
-    renderSleepControls();
+    sleepAudioElement.volume = sleepBaseVolume();
+    await sleepAudioElement.play();
   } catch (error) {
     console.error("Could not resume Fuwa sleep sound.", error);
     toast("Fuwa couldn't resume this sound.");
+    return;
   }
+
+  sleepIsPaused = false;
+  sleepIsPlaying = true;
+  sleepTimerEndAt = Date.now() + sleepRemainingMs;
+  clearInterval(sleepTimerInterval);
+  sleepTimerInterval = setInterval(updateSleepCountdown, 1000);
+  renderSleepControls();
 }
 
 async function stopSleepSound'''
@@ -299,14 +289,14 @@ stop_re = re.compile(
 )
 new_stop = r'''async function stopSleepSound(fromTimer = false) {
   sleepSoundSwitchToken += 1;
-  cancelSleepAudioTransition();
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = null;
+  cancelSleepAudioTransition();
 
   if (sleepAudioElement) {
     sleepAudioElement.pause();
-    sleepAudioElement.volume = sleepBaseVolume();
     try { sleepAudioElement.currentTime = 0; } catch (_) {}
+    sleepAudioElement.volume = sleepBaseVolume();
   }
 
   sleepIsPlaying = false;
@@ -314,7 +304,6 @@ new_stop = r'''async function stopSleepSound(fromTimer = false) {
   sleepRemainingMs = 0;
   sleepTimerDurationMs = 0;
   sleepTimerEndAt = 0;
-
   renderSleepControls();
 
   if (fromTimer) toast("Sleep timer finished. Good night ☁️");
@@ -330,33 +319,32 @@ select_re = re.compile(
     re.S,
 )
 new_select = r'''async function selectSleepSound(sound) {
-  if (!sleepSoundNames[sound] || !sleepAudioFiles[sound]) return;
-
+  if (!sleepSoundNames[sound]) return;
   const switchToken = ++sleepSoundSwitchToken;
   state.sleepSound = sound;
   savePreferences();
 
   if (sleepIsPlaying) {
     const audio = ensureSleepAudioElement();
-    cancelSleepAudioTransition();
-    audio.pause();
-    audio.src = sleepAudioFiles[sound];
-    audio.dataset.sleepSound = sound;
-    audio.load();
-    audio.volume = 0;
+    await rampSleepAudioVolume(0, 320);
+    if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) return;
 
+    audio.pause();
+    loadSleepAudio(sound);
+    audio.volume = 0;
     try {
       await audio.play();
-      if (switchToken !== sleepSoundSwitchToken || state.sleepSound !== sound) return;
-      rampSleepAudioVolume(sleepBaseVolume(), 700);
-    } catch (error) {
-      if (switchToken === sleepSoundSwitchToken) {
-        console.error("Could not switch Fuwa sleep sound.", error);
-        toast("Fuwa couldn't switch to this sound.");
+      if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) {
+        audio.pause();
+        return;
       }
+      await rampSleepAudioVolume(sleepBaseVolume(), 650);
+    } catch (error) {
+      console.error("Could not switch Fuwa sleep sound.", error);
+      sleepIsPlaying = false;
+      sleepIsPaused = false;
+      toast("Fuwa couldn't switch to this sound.");
     }
-  } else {
-    loadSleepAudio(sound, { reset: true });
   }
 
   renderSleepControls();
@@ -409,10 +397,36 @@ let sleepTimerDurationMs = 0;
 let sleepIsPlaying = false;
 let sleepIsPaused = false;
 let sleepRemainingMs = 0;
+let sleepFadeTimeout = null;
 let sleepSoundSwitchToken = 0;'''
 js, n = vars_re.subn(new_vars, js, count=1)
 if n != 1:
     raise SystemExit("sleep variable block replacement failed")
+
+update_countdown_re = re.compile(
+    r'function updateSleepCountdown\(\) \{.*?\n\}\n\nfunction startSleepTimer',
+    re.S,
+)
+new_update_countdown = r'''function updateSleepCountdown() {
+  if (!sleepIsPlaying) return;
+  sleepRemainingMs = Math.max(0, sleepTimerEndAt - Date.now());
+
+  if (sleepAudioElement && sleepRemainingMs <= 20000 && sleepRemainingMs > 0) {
+    sleepAudioElement.volume = sleepBaseVolume() * Math.max(0, sleepRemainingMs / 20000);
+  }
+
+  if (sleepRemainingMs <= 0) {
+    stopSleepSound(true);
+    return;
+  }
+
+  renderSleepControls();
+}
+
+function startSleepTimer'''
+js, n = update_countdown_re.subn(new_update_countdown, js, count=1)
+if n != 1:
+    raise SystemExit("updateSleepCountdown replacement failed")
 
 for forbidden in (
     "sleepAudioContext",
@@ -442,25 +456,24 @@ audio_assets = '''const SLEEP_AUDIO_ASSETS = [
   "./audio/sleep/quiet-forest.mp3",
   "./audio/sleep/cozy-room.mp3",
   "./audio/sleep/deep-hush.mp3",
-  "./audio/sleep/soft-air.mp3",
-  "./audio/sleep/README-LICENSES.txt"
+  "./audio/sleep/soft-air.mp3"
 ];
 
 '''
 if "const SLEEP_AUDIO_ASSETS" not in sw:
-    marker = "const OPTIONAL_ASSETS = ["
-    if marker not in sw:
-        raise SystemExit("service worker optional assets marker missing")
-    sw = sw.replace(marker, audio_assets + marker, 1)
+    sw = sw.replace('const OPTIONAL_ASSETS = [', audio_assets + 'const OPTIONAL_ASSETS = [', 1)
 
-old_install = '''await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
-    await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));'''
-new_install = '''await cache.addAll([...CORE_ASSETS, ...STATIC_ASSETS]);
-    await Promise.all(
-      [...OPTIONAL_ASSETS, ...SLEEP_AUDIO_ASSETS].map(asset => cache.add(asset).catch(() => null))
-    );'''
-if old_install not in sw:
-    raise SystemExit("service worker install lines missing")
-sw = sw.replace(old_install, new_install, 1)
+sw = sw.replace(
+    'await Promise.all(OPTIONAL_ASSETS.map(asset => cache.add(asset).catch(() => null)));',
+    'await Promise.all([...OPTIONAL_ASSETS, ...SLEEP_AUDIO_ASSETS].map(asset => cache.add(asset).catch(() => null)));',
+    1,
+)
+
+if 'url.pathname.includes("/audio/sleep/")' not in sw:
+    sw = sw.replace(
+        'url.pathname.endsWith("/manifest.json")',
+        'url.pathname.endsWith("/manifest.json") ||\n    url.pathname.includes("/audio/sleep/")',
+        1,
+    )
 
 SW.write_text(sw, encoding="utf-8")
