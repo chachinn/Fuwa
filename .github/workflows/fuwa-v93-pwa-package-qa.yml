@@ -1,0 +1,121 @@
+name: Fuwa v93 PWA package QA
+
+on:
+  push:
+    branches:
+      - qa/v93-stability-cleanup-package
+
+jobs:
+  pwa-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v93-stability-cleanup-package
+          fetch-depth: 0
+      - name: Apply production patch and static recheck
+        run: |
+          set -euo pipefail
+          python3 tools/fuwa_v93_stability_patch.py
+          node --check app.js
+          node --check service-worker.js
+          node --check firebase-fuwa.js
+          node -e "const m=JSON.parse(require('fs').readFileSync('manifest.json','utf8')); if(m.orientation!=='any')process.exit(1)"
+          grep -q 'FUWA_BUILD: v93-stability-performance-qa' index.html
+          grep -q 'fuwa-shell-v93' service-worker.js
+          grep -q 'isSleepAudioRequest' service-worker.js
+          ! grep -q 'SLEEP_AUDIO_ASSETS' service-worker.js
+          git diff --check
+      - name: Install Chromium
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Explicit service-worker lazy-cache and offline QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4197 --bind 127.0.0.1 >/tmp/fuwa-v93-pwa-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4197/index.html >/dev/null && break || sleep .2; done
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          const withTimeout=(promise,ms,label)=>Promise.race([promise,new Promise((_,rej)=>setTimeout(()=>rej(new Error(label)),ms))]);
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
+            const p=await c.newPage();
+            await p.goto('http://127.0.0.1:4197/index.html',{waitUntil:'domcontentloaded'});
+            const reg=await withTimeout(p.evaluate(async()=>{
+              const existing=await navigator.serviceWorker.getRegistrations();
+              await Promise.all(existing.map(r=>r.unregister()));
+              const registration=await navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'});
+              const worker=registration.installing||registration.waiting||registration.active;
+              if(worker && worker.state!=='activated') await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(new Error('activation timeout')),7000);worker.addEventListener('statechange',()=>{if(worker.state==='activated'){clearTimeout(t);resolve()}})});
+              await navigator.serviceWorker.ready;
+              return {scope:registration.scope,active:!!registration.active};
+            }),10000,'service worker registration timeout');
+            assert(reg.active,'service worker did not activate');
+            await p.waitForTimeout(200);
+            const initial=await p.evaluate(async()=>{const cache=await caches.open('fuwa-shell-v93');return(await cache.keys()).map(r=>r.url)});
+            assert(initial.some(x=>x.endsWith('/index.html')),'core shell index missing from cache');
+            assert(!initial.some(x=>x.includes('/audio/sleep/')),'Sleep audio was eagerly cached during install');
+            const audio='http://127.0.0.1:4197/audio/sleep/gentle-rain.mp3';
+            const first=await withTimeout(p.evaluate(u=>fetch(u).then(r=>({ok:r.ok,status:r.status})),audio),10000,'audio first-use timeout');
+            assert(first.ok,`audio first-use failed ${first.status}`);
+            await p.waitForTimeout(200);
+            const cached=await p.evaluate(async u=>!!(await(await caches.open('fuwa-shell-v93')).match(u)),audio);
+            assert(cached,'first-used ambience was not cached');
+            await c.setOffline(true);
+            await p.reload({waitUntil:'domcontentloaded'});
+            assert((await p.title()).includes('Fuwa'),'offline core shell reload failed');
+            const offlineAudio=await p.evaluate(u=>fetch(u).then(r=>r.ok).catch(()=>false),audio);
+            assert(offlineAudio,'cached ambience unavailable offline');
+            await c.close();await b.close();
+            console.log('bounded service-worker/lazy-audio/offline QA passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+      - name: Build clean package contents
+        run: |
+          set -euo pipefail
+          mkdir -p dist/ready dist/full/Fuwa
+          cp index.html app.js manifest.json service-worker.js dist/ready/
+          cat > dist/ready/INSTALL.txt <<'TXT'
+          FUWA 1.1.8 / v93 — READY TO COPY
+
+          Replace these four files in Fuwa's root/main folder:
+          - index.html
+          - app.js
+          - manifest.json
+          - service-worker.js
+
+          Keep style.css, firebase-fuwa.js, audio/, data/, and icon/ unchanged.
+          No database reset or data deletion is required.
+          TXT
+          cp index.html style.css app.js manifest.json service-worker.js firebase-fuwa.js dist/full/Fuwa/
+          cp -R audio data icon dist/full/Fuwa/
+          cat > dist/full/Fuwa/README-RELEASE.txt <<'TXT'
+          FUWA 1.1.8 / v93 — FULL CLEAN PRODUCTION TREE
+
+          Correct production layout only. Temporary QA helpers, workflows, branches, and Git metadata are not included.
+          TXT
+          test ! -e dist/full/Fuwa/.github
+          test ! -e dist/full/Fuwa/tools
+          test -f dist/full/Fuwa/audio/sleep/README-LICENSES.txt
+          test -f dist/full/Fuwa/data/scrapbook-data.js
+          test -f dist/full/Fuwa/icon/icon-192.png
+          find dist/full/Fuwa -maxdepth 3 -type f | sort
+      - name: Upload ready-to-copy ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v93-ready-to-copy
+          path: dist/ready
+          retention-days: 1
+      - name: Upload full clean production ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v93-full-clean-release
+          path: dist/full/Fuwa
+          retention-days: 1
