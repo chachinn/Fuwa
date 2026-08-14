@@ -22,6 +22,14 @@ const sizes=[
     await page.goto('http://127.0.0.1:4173/index.html',{waitUntil:'domcontentloaded'});
     await page.waitForTimeout(900);
 
+    // This smoke test is for an existing-user UI release. Suppress unrelated
+    // onboarding/check-in overlays so they do not intercept the controls under test.
+    await page.evaluate(()=>{
+      document.querySelector('#fuwaTutorial')?.classList.add('hidden');
+      document.querySelector('#featureTutorial')?.classList.add('hidden');
+      document.querySelector('#moodCheckinModal')?.classList.add('hidden');
+    });
+
     const home=await page.evaluate(()=>{
       const buttons=[...document.querySelectorAll('#moodPicker button')];
       const nav=document.querySelector('.bottom-nav')?.getBoundingClientRect();
@@ -38,6 +46,7 @@ const sizes=[
 
     await page.evaluate(()=>document.querySelector('[data-nav="sleep"]')?.click());
     await page.waitForTimeout(300);
+    await page.evaluate(()=>document.querySelector('#moodCheckinModal')?.classList.add('hidden'));
     const sleep=await page.evaluate(()=>{
       const player=document.querySelector('#sleepPlayerCard');
       const timer=[...document.querySelectorAll('#sleepView .sleep-section')].find(x=>x.textContent.includes('Sleep timer'));
