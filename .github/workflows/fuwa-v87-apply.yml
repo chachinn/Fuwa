@@ -1,0 +1,23 @@
+name: Fuwa v87 patch runner
+on:
+  push:
+    branches: [qa/v87-ui-responsive-stability]
+    paths: [.fuwa-v87-run]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v87-ui-responsive-stability
+      - run: python3 tools/fuwa_v87_patch.py
+      - run: node --check app.js && node --check service-worker.js
+      - run: |
+          git config user.name "Fuwa QA Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html style.css app.js service-worker.js
+          git diff --cached --check
+          git commit -m "Fuwa v87: responsive UI and stability fixes"
+          git push origin HEAD:qa/v87-ui-responsive-stability
