@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v94-cloud-restore-safety-qa -->
+  <!-- FUWA_BUILD: v95-cloud-restore-button-qa -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -1668,11 +1668,12 @@
     <div class="fuwa-release-sheet">
       <button class="fuwa-release-close" id="fuwaReleaseNotesClose" type="button" aria-label="Close what’s new">×</button>
       <p class="eyebrow">Fuwa update</p>
-      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.9</h2>
+      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.10</h2>
       <p class="fuwa-release-date">August 14, 2026</p>
       <div class="fuwa-release-cloud" aria-hidden="true">☁️</div>
-      <p class="fuwa-release-lead">A cloud-restore safety update: Fuwa now verifies every backed-up record consistently and automatically restores the pre-restore device snapshot if a restore cannot finish safely.</p>
-      <div class="fuwa-release-list"><article><span>☁️</span><div><strong>Cloud restore verification fixed</strong><p>Moments and Random Thoughts now count correctly during restore verification, so valid cloud backups no longer fail after being written.</p></div></article>
+      <p class="fuwa-release-lead">A small cloud-restore reliability update: Restore safely stays retryable after temporary cloud checks, and the restore sheet now stays above regular check-in sheets so nothing invisible can block your tap.</p>
+      <div class="fuwa-release-list"><article><span>↻</span><div><strong>Restore button stays retryable</strong><p>A slow or temporary cloud preview check no longer leaves Restore safely disabled. Tapping it performs a fresh verified check before any device data changes.</p></div></article>
+        <article><span>☁️</span><div><strong>Cloud restore verification fixed</strong><p>Moments and Random Thoughts now count correctly during restore verification, so valid cloud backups no longer fail after being written.</p></div></article>
         <article><span>🛟</span><div><strong>Automatic safety rollback</strong><p>Fuwa validates cloud record totals before writing and restores the pre-restore device snapshot automatically if a later verification step cannot complete.</p></div></article>
         <article><span>◌</span><div><strong>Lighter updates</strong><p>Sleep Corner’s large ambience files now cache only when you use them, so Fuwa updates do not wait on every sound download.</p></div></article>
         <article><span>✎</span><div><strong>More room for your dailies</strong><p>Daily Life now uses a compact writing-first header and one-row section navigation on phones, so the current page appears much sooner.</p></div></article>

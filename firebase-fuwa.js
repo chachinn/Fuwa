@@ -28,6 +28,7 @@ let suppressAutoSyncUntil = 0;
 let startupReconciliationDoneForUid = null;
 let startupReconciliationInFlight = false;
 let cloudConflictDetected = false;
+let cloudRestoreRunning = false;
 
 const FUWA_CLOUD_DEVICE_ID_KEY = "fuwaCloudDeviceIdV1";
 const FUWA_CLOUD_BASELINE_KEY = "fuwaCloudBaselineV1";
@@ -945,6 +946,14 @@ async function getVerifiedCloudBackup(user = auth?.currentUser) {
   return backup;
 }
 
+function resetCloudRestoreButtonIfIdle(label = "Restore safely") {
+  const button = $auth("cloudRestoreConfirmButton");
+  if (!button || cloudRestoreRunning) return;
+  button.disabled = false;
+  button.textContent = label;
+  button.removeAttribute("aria-busy");
+}
+
 async function openCloudRestoreModal() {
   const modal = $auth("cloudRestoreModal");
   if (!modal) return;
@@ -953,7 +962,10 @@ async function openCloudRestoreModal() {
   if ($auth("cloudRestoreSummary")) $auth("cloudRestoreSummary").textContent = "Checking your cloud backup…";
   if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = "Checking…";
   if ($auth("cloudRestoreRecords")) $auth("cloudRestoreRecords").textContent = "Checking…";
-  if ($auth("cloudRestoreConfirmButton")) $auth("cloudRestoreConfirmButton").disabled = true;
+
+  // V95: the preview check is informational, not a permanent gate. A slow or
+  // transient Firestore read must never leave Restore safely untappable.
+  resetCloudRestoreButtonIfIdle("Restore safely");
 
   try {
     const backup = await getVerifiedCloudBackup();
@@ -968,17 +980,18 @@ async function openCloudRestoreModal() {
       const count = Number(backup.recordCount || 0);
       $auth("cloudRestoreRecords").textContent = `${count} record${count === 1 ? "" : "s"}`;
     }
-    if ($auth("cloudRestoreConfirmButton")) $auth("cloudRestoreConfirmButton").disabled = false;
+    resetCloudRestoreButtonIfIdle("Restore safely");
   } catch (error) {
     console.error("Fuwa could not prepare cloud restore.", error);
     const noBackup = error?.message === "no-cloud-backup";
     if ($auth("cloudRestoreSummary")) {
       $auth("cloudRestoreSummary").textContent = noBackup
         ? "There isn't a Fuwa cloud backup for this account yet."
-        : "Fuwa couldn't verify this cloud backup. Nothing on your device was changed.";
+        : "Fuwa couldn't verify the preview just now. Tap Restore safely to retry the cloud check. Nothing on this device has changed.";
     }
-    if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = "Unavailable";
+    if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = noBackup ? "No backup" : "Check again";
     if ($auth("cloudRestoreRecords")) $auth("cloudRestoreRecords").textContent = "—";
+    resetCloudRestoreButtonIfIdle(noBackup ? "Check again" : "Restore safely");
   }
 }
 
@@ -987,11 +1000,13 @@ async function handleCloudRestoreConfirm() {
   const cancel = $auth("cloudRestoreCancelButton");
   let safetyBackup = null;
   let restoreStarted = false;
-  if (button?.disabled) return;
+  if (cloudRestoreRunning) return;
 
+  cloudRestoreRunning = true;
   if (button) {
     button.disabled = true;
-    button.textContent = "Protecting this device…";
+    button.setAttribute("aria-busy", "true");
+    button.textContent = "Checking backup…";
   }
   if (cancel) cancel.disabled = true;
 
@@ -1005,6 +1020,7 @@ async function handleCloudRestoreConfirm() {
       throw new Error("restore-engine-not-ready");
     }
 
+    if (button) button.textContent = "Protecting this device…";
     safetyBackup = await window.fuwaCreateRestoreSafetyBackup();
     suppressAutoSyncUntil = Date.now() + 5000;
 
@@ -1019,6 +1035,8 @@ async function handleCloudRestoreConfirm() {
     setPendingCloudSync(false);
     startupReconciliationDoneForUid = auth.currentUser.uid;
 
+    cloudRestoreRunning = false;
+    if (button) button.removeAttribute("aria-busy");
     closeCloudRestoreModal();
 
     // The in-memory safety snapshot already protected this restore attempt.
@@ -1061,8 +1079,10 @@ async function handleCloudRestoreConfirm() {
           : "Fuwa couldn't complete the restore or automatically roll back the device copy. Please don't clear or reload Fuwa data.";
 
     window.alert(message);
+    cloudRestoreRunning = false;
     if (button) {
       button.disabled = false;
+      button.removeAttribute("aria-busy");
       button.textContent = "Restore safely";
     }
     if (cancel) cancel.disabled = false;
@@ -1110,7 +1130,10 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // iOS PWAs can be restored from a suspended state without a normal reload.
-window.addEventListener("pageshow", () => retryPendingCloudSync("resume"));
+window.addEventListener("pageshow", () => {
+  retryPendingCloudSync("resume");
+  resetCloudRestoreButtonIfIdle();
+});
 
 function bindAuthUI() {
   $auth("loginForm")?.addEventListener("submit", handleLogin);

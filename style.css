@@ -6276,7 +6276,8 @@ body.drawer-open .bottom-nav{pointer-events:none}
 .cloud-restore-modal {
   position: fixed;
   inset: 0;
-  z-index: 170;
+  /* Data-safety dialogs must stay above optional check-in sheets, but below privacy lock. */
+  z-index: 360;
   display: grid;
   place-items: end center;
   padding: 18px;
