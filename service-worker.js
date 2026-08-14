@@ -1,7 +1,7 @@
-const CACHE_NAME = "fuwa-shell-v87";
+const CACHE_NAME = "fuwa-shell-v88";
 const RELEASE_MARKER_CACHE = "fuwa-release-state";
 const RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
-const RELEASE_KEY = "fuwa-v1.1.2-2026-08-14";
+const RELEASE_KEY = "fuwa-v1.1.3-2026-08-14";
 
 const CORE_ASSETS = [
   "./",
