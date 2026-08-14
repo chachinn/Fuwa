@@ -32,7 +32,9 @@ const sizes = [
         document.getElementById(id)?.classList.add('hidden');
       });
       document.body.style.overflow = '';
-      navigate('sleep');
+      const sleepNav = document.querySelector('[data-nav="sleep"]');
+      if (!sleepNav) throw new Error('Sleep navigation control missing');
+      sleepNav.click();
     });
     await page.waitForTimeout(250);
 
