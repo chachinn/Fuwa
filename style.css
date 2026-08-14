@@ -10118,3 +10118,79 @@ body :where(h1,h2,h3,.topbar h1,.hero-card h2,.section-heading h3,.page-title-ro
   .hero-card .mood-picker{max-width:620px;margin-left:auto!important;margin-right:auto!important}
   #sleepView .sleep-player-card{max-width:720px;margin-left:auto!important;margin-right:auto!important}
 }
+
+
+/* FUWA V92 — WRITING-FIRST DAILY LIFE + COMPACT SLEEP + SANCTUARY FEEDBACK */
+#sanctuaryView #sanctuaryMemoryCard{
+  margin:0 0 12px;
+  scroll-margin-top:calc(94px + env(safe-area-inset-top,0px));
+}
+#sanctuarySurpriseMemoryButton[aria-busy="true"]{opacity:.68;pointer-events:none}
+.sanctuary-companion-card>button{min-height:40px}
+
+#lifeView>.page-title-row{margin:0 2px 4px;align-items:center}
+#lifeView>.page-title-row h2{font-size:clamp(24px,6vw,29px);line-height:1.08}
+#lifeView>.feature-intro{margin:3px 2px 10px;font-size:11px;line-height:1.4}
+#lifeView .life-tab-bar{margin:8px 0 10px;padding:3px;border-radius:15px}
+#lifeView .life-tab-bar button{min-height:38px;padding:0 8px;font-size:10px}
+#lifeView .notebook-shell{border-radius:22px}
+#lifeView .notebook-topbar{padding-top:10px;padding-bottom:6px}
+#lifeView .notebook-progress{padding-bottom:7px}
+#lifeView .journal-section-jump{padding-top:5px;padding-bottom:5px}
+#lifeView .journal-section-tabs{
+  display:flex!important;
+  grid-template-columns:none!important;
+  gap:6px;
+  overflow-x:auto;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+  scroll-snap-type:x proximity;
+  padding:1px 0 3px;
+}
+#lifeView .journal-section-tabs::-webkit-scrollbar{display:none}
+#lifeView .journal-section-tabs button{
+  flex:0 0 auto;
+  width:auto!important;
+  min-width:max-content;
+  min-height:36px;
+  padding:0 12px;
+  border-radius:999px;
+  font-size:9px;
+  scroll-snap-align:start;
+}
+#lifeView .journal-page-jump-list{margin-top:4px;padding-bottom:4px}
+#lifeView .journal-page-jump-list button{min-height:34px;padding:0 10px}
+#lifeView .notebook-form{padding-top:4px}
+#lifeView .journal-page-stack{min-height:0}
+#lifeView .journal-page h3{margin:5px 0 5px;font-size:clamp(24px,6.6vw,28px)}
+#lifeView .journal-prompt{margin-bottom:10px}
+#lifeView .journal-mood-grid{margin-top:10px;gap:8px}
+#lifeView .journal-mood-grid button{min-height:66px}
+
+#sleepView>.thread-back{margin:0 0 4px;padding:5px 2px}
+#sleepView .sleep-page-hero{padding-bottom:12px}
+#sleepView .sleep-player-card{margin-top:4px}
+
+@media(max-width:600px){
+  #lifeView>.page-title-row{margin-bottom:6px}
+  #lifeView>.page-title-row .eyebrow,
+  #lifeView>.page-title-row .life-pages-header-icon,
+  #lifeView>.feature-intro{display:none!important}
+  #lifeView>.page-title-row h2{margin:0;font-size:22px}
+  #lifeView .life-tab-bar{margin:5px 0 8px}
+  #lifeView .notebook-topbar{padding-top:8px}
+  #lifeView .journal-page h3{font-size:clamp(23px,6.2vw,27px)}
+
+  #sleepView .sleep-page-art{display:none!important}
+  #sleepView .sleep-page-hero{text-align:left;padding:0 3px 10px}
+  #sleepView .sleep-page-hero>.eyebrow{font-size:9px}
+  #sleepView .sleep-page-hero h2{margin:2px 0 3px;font-size:24px;line-height:1.08}
+  #sleepView .sleep-page-hero>.muted{max-width:none;margin:0;font-size:10px;line-height:1.35}
+  #sleepView .sleep-player-card{margin-top:0}
+}
+
+@media(min-width:768px){
+  #lifeView>.feature-intro{max-width:760px}
+  #lifeView .journal-section-tabs{gap:8px}
+  #lifeView .journal-section-tabs button{min-height:40px;padding:0 15px;font-size:10px}
+}
