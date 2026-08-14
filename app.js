@@ -9488,7 +9488,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.1-2026-08-14";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.2-2026-08-14";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
@@ -10033,3 +10033,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 });
+
+
+/* FUWA V87 — SLEEP PLAYER INTEGRATION */
+(function mountSleepPlayerWithSoundscapeV87() {
+  function mount() {
+    const soundGrid = document.getElementById("sleepSoundGrid");
+    const player = document.getElementById("sleepPlayerCard");
+    const soundSection = soundGrid?.closest(".sleep-section");
+    if (!soundGrid || !player || !soundSection) return;
+
+    if (player.parentElement !== soundSection) {
+      soundSection.appendChild(player);
+    }
+    player.classList.add("sleep-player-inline");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", mount, { once: true });
+  } else {
+    mount();
+  }
+})();
