@@ -1,0 +1,175 @@
+name: Fuwa v93 final release QA
+
+on:
+  push:
+    branches:
+      - qa/v93-stability-cleanup-package
+
+jobs:
+  release-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v93-stability-cleanup-package
+          fetch-depth: 0
+
+      - name: Apply production patch
+        run: python3 tools/fuwa_v93_stability_patch.py
+
+      - name: Static syntax, manifest, data-safety, and repository QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check service-worker.js
+          node --check firebase-fuwa.js
+          node --check data/scrapbook-data.js
+          node - <<'JS'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync('manifest.json','utf8'));
+          if(m.orientation!=='any') throw new Error('manifest must allow both orientations');
+          if(!m.icons.some(x=>x.src.includes('icon-192.png')) || !m.icons.some(x=>x.src.includes('icon-512.png'))) throw new Error('PNG icons missing');
+          console.log('manifest QA passed');
+          JS
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess,re,collections
+          html=Path('index.html').read_text(encoding='utf-8')
+          js=Path('app.js').read_text(encoding='utf-8')
+          sw=Path('service-worker.js').read_text(encoding='utf-8')
+          old_js=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          old_html=subprocess.check_output(['git','show','HEAD:index.html'],text=True)
+          assert 'FUWA_BUILD: v93-stability-performance-qa' in html
+          assert 'What’s new in Fuwa 1.1.8' in html
+          assert 'const DATABASE_VERSION = 13;' in js
+          assert 'fuwa-v1.1.8-2026-08-14' in js
+          assert 'fuwa-shell-v93' in sw and 'fuwa-v1.1.8-2026-08-14' in sw
+          assert 'SLEEP_AUDIO_ASSETS' not in sw
+          assert 'isSleepAudioRequest' in sw and 'cacheFirst(event.request)' in sw
+          assert 'await Promise.all(OPTIONAL_ASSETS.map' in sw
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert js.count(token) <= old_js.count(token)
+          def dups(text):
+              ids=re.findall(r'\bid="([^"]+)"',text)
+              return {k:v for k,v in collections.Counter(ids).items() if v>1}
+          assert dups(html)==dups(old_html)
+          expected={'gentle-rain.mp3','ocean-drift.mp3','warm-hearth.mp3','evening-breeze.mp3','quiet-forest.mp3','cozy-room.mp3','deep-hush.mp3','soft-air.mp3','README-LICENSES.txt'}
+          present={p.name for p in Path('audio/sleep').iterdir() if p.is_file()}
+          assert expected <= present
+          for f in expected:
+              assert Path('audio/sleep',f).stat().st_size > (1000 if f.endswith('.mp3') else 100)
+          changed=set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())
+          assert changed=={'index.html','app.js','manifest.json','service-worker.js'},changed
+          for p in ('style.css','firebase-fuwa.js','data/scrapbook-data.js','data/scrapbook-data.json'):
+              subprocess.run(['git','diff','--exit-code','HEAD','--',p],check=True)
+          subprocess.run(['git','diff','--exit-code','HEAD','--','audio','icon'],check=True)
+          assert 'scrapbook-data.json' not in html+js+sw
+          print('static/data-safety/repository QA passed')
+          PY
+          git diff --check
+
+      - name: Install Chromium QA runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Responsive UI QA on phone and iPad sizes
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4194 --bind 127.0.0.1 >/tmp/fuwa-v93-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4194/index.html >/tmp/index && break || sleep .2; done
+          grep -q 'FUWA_BUILD: v93-stability-performance-qa' /tmp/index
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          const sizes=[[320,700,'320 phone'],[375,812,'375 phone'],[390,844,'390 phone'],[430,932,'430 phone'],[768,1024,'iPad 10 portrait'],[1024,768,'iPad 10 landscape'],[820,1180,'iPad Air portrait'],[1180,820,'iPad Air landscape'],[834,1194,'iPad Pro 11 portrait'],[1194,834,'iPad Pro 11 landscape'],[1024,1366,'iPad Pro 12.9 portrait'],[1366,1024,'iPad Pro 12.9 landscape']];
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            for(const [width,height,label] of sizes){
+              const c=await b.newContext({viewport:{width,height},serviceWorkers:'block'});
+              const p=await c.newPage();const errors=[];p.on('pageerror',e=>errors.push(String(e)));
+              await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1');HTMLMediaElement.prototype.play=function(){return Promise.resolve()};HTMLMediaElement.prototype.pause=function(){}});
+              const t=Date.now();await p.goto('http://127.0.0.1:4194/index.html',{waitUntil:'domcontentloaded'});await p.waitForTimeout(250);const ready=Date.now()-t;
+              await p.evaluate(()=>{document.querySelectorAll('#fuwaReleaseNotesModal,.tutorial-modal,.onboarding-modal').forEach(x=>x.classList.add('hidden'));document.body.style.overflow=''});
+              assert(!errors.length,`${label}: page error ${errors.join('|')}`);
+              const base=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,nodes:document.getElementsByTagName('*').length,nav:getComputedStyle(document.querySelector('.bottom-nav')).position,bottom:document.querySelector('.bottom-nav').getBoundingClientRect().bottom}));
+              assert(base.sw<=base.iw+2,`${label}: horizontal overflow`);assert(base.nodes<9000,`${label}: runaway DOM`);assert(base.nav==='fixed',`${label}: nav not fixed`);assert(Math.abs(base.bottom-height)<4,`${label}: nav not bottom-attached`);assert(ready<5000,`${label}: slow startup smoke ${ready}ms`);
+              const nav=async v=>{const ok=await p.evaluate(v=>{const x=document.querySelector(`[data-nav="${v}"]`);if(!x)return false;x.click();return true},v);assert(ok,`${label}: no nav ${v}`);await p.waitForTimeout(45)};
+              await nav('life');
+              const life=await p.evaluate(()=>{const s=document.querySelector('.notebook-shell')?.getBoundingClientRect(),q=document.querySelector('.journal-page.active')?.getBoundingClientRect();return{sL:s?.left,sR:s?.right,pTop:q?.top,sw:document.documentElement.scrollWidth}});
+              assert(life.sL>=-1&&life.sR<=width+1,`${label}: notebook overflow`);assert(Number.isFinite(life.pTop)&&life.pTop<height*1.25,`${label}: writing page too far down`);assert(life.sw<=width+2,`${label}: Daily Life overflow`);
+              await nav('sleep');
+              const sl=await p.evaluate(()=>{const a=document.querySelector('#sleepPlayerCard')?.getBoundingClientRect(),g=document.querySelector('#sleepSoundGrid')?.getBoundingClientRect();return{pb:a?.bottom,gt:g?.top}});assert(Number.isFinite(sl.pb)&&sl.pb<=sl.gt+2,`${label}: Now Playing below Soundscape`);
+              await c.close();
+            }
+            await b.close();console.log('12-size responsive QA passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Interaction and navigation performance stress QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4195 --bind 127.0.0.1 >/tmp/fuwa-v93-stress-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .4
+          node - <<'JS'
+          const {chromium}=require('playwright');const assert=(x,m)=>{if(!x)throw new Error(m)};
+          (async()=>{const b=await chromium.launch({headless:true});for(const [w,h,label] of [[390,844,'phone'],[1024,768,'iPad landscape']]){const c=await b.newContext({viewport:{width:w,height:h},serviceWorkers:'block'}),p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1');HTMLMediaElement.prototype.play=function(){return Promise.resolve()};HTMLMediaElement.prototype.pause=function(){}});await p.goto('http://127.0.0.1:4195/index.html',{waitUntil:'domcontentloaded'});await p.waitForTimeout(250);await p.evaluate(()=>{document.querySelectorAll('#fuwaReleaseNotesModal,.tutorial-modal,.onboarding-modal').forEach(x=>x.classList.add('hidden'));document.body.style.overflow=''});const nav=async v=>{const ok=await p.evaluate(v=>{const x=document.querySelector(`[data-nav="${v}"]`);if(!x)return false;x.click();return true},v);assert(ok,`${label}: missing ${v}`);await p.waitForTimeout(35)};const before=await p.evaluate(()=>document.getElementsByTagName('*').length),start=Date.now();for(let i=0;i<8;i++)for(const v of ['home','entries','letters','me','life','sleep'])await nav(v);const elapsed=Date.now()-start,after=await p.evaluate(()=>document.getElementsByTagName('*').length);assert(elapsed<10000,`${label}: navigation stress ${elapsed}ms`);assert(after<Math.max(9000,before*1.45),`${label}: DOM growth ${before}->${after}`);assert(!errors.length,`${label}: runtime errors ${errors.join('|')}`);
+          await p.evaluate(()=>{if(typeof state!=='undefined'){state.tinyJoys=[{id:'qa',text:'QA memory',createdAt:new Date().toISOString(),date:new Date().toISOString()}];if(typeof renderCache!=='undefined')renderCache.sanctuary=''}});await nav('sanctuary');await p.evaluate(()=>document.querySelector('#sanctuarySurpriseMemoryButton')?.click());await p.waitForTimeout(100);const visible=await p.locator('#sanctuaryMemoryCard').evaluate(el=>!el.classList.contains('hidden')&&el.getBoundingClientRect().height>0);assert(visible,`${label}: Surprise me did not reveal memory`);assert(!errors.length,`${label}: Sanctuary runtime error`);await c.close()}await b.close();console.log('navigation/performance/Sanctuary QA passed')})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Service worker install, lazy audio cache, and offline QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4196 --bind 127.0.0.1 >/tmp/fuwa-v93-sw-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .4
+          node - <<'JS'
+          const {chromium}=require('playwright');const assert=(x,m)=>{if(!x)throw new Error(m)};
+          (async()=>{const b=await chromium.launch({headless:true}),c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'}),p=await c.newPage();await p.addInitScript(()=>localStorage.setItem('fuwaLocalModeV1','1'));await p.goto('http://127.0.0.1:4196/index.html',{waitUntil:'domcontentloaded'});await p.evaluate(()=>navigator.serviceWorker.ready);await p.waitForTimeout(350);let keys=await p.evaluate(async()=>{const c=await caches.open('fuwa-shell-v93');return(await c.keys()).map(x=>x.url)});assert(keys.some(x=>x.endsWith('/index.html')),'core index not cached');assert(!keys.some(x=>x.includes('/audio/sleep/')),'audio eagerly cached at install');const url='http://127.0.0.1:4196/audio/sleep/gentle-rain.mp3',r=await p.evaluate(u=>fetch(u).then(x=>({ok:x.ok,status:x.status})),url);assert(r.ok,`audio first fetch ${r.status}`);await p.waitForTimeout(150);const cached=await p.evaluate(async u=>!!(await(await caches.open('fuwa-shell-v93')).match(u)),url);assert(cached,'first-used audio not cached');await c.setOffline(true);await p.reload({waitUntil:'domcontentloaded'});assert((await p.title()).includes('Fuwa'),'offline shell reload failed');assert(await p.evaluate(u=>fetch(u).then(x=>x.ok).catch(()=>false),url),'cached ambience unavailable offline');await c.close();await b.close();console.log('service-worker/lazy-audio/offline QA passed')})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Build clean ZIP contents
+        run: |
+          set -euo pipefail
+          mkdir -p dist/ready dist/full/Fuwa
+          cp index.html app.js manifest.json service-worker.js dist/ready/
+          cat > dist/ready/INSTALL.txt <<'TXT'
+          FUWA 1.1.8 / v93 — READY TO COPY
+          Replace these files in Fuwa's root/main folder:
+          - index.html
+          - app.js
+          - manifest.json
+          - service-worker.js
+          Keep style.css, firebase-fuwa.js, audio/, data/, and icon/ unchanged.
+          No database reset or data deletion is required.
+          TXT
+          cp index.html style.css app.js manifest.json service-worker.js firebase-fuwa.js dist/full/Fuwa/
+          cp -R audio data icon dist/full/Fuwa/
+          cat > dist/full/Fuwa/README-RELEASE.txt <<'TXT'
+          FUWA 1.1.8 / v93 — FULL CLEAN PRODUCTION TREE
+          Production files only. Temporary QA helpers, workflows, and Git metadata are intentionally excluded.
+          TXT
+          test ! -e dist/full/Fuwa/.github
+          test ! -e dist/full/Fuwa/tools
+          find dist/full/Fuwa -maxdepth 3 -type f | sort
+
+      - name: Upload ready-to-copy ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v93-ready-to-copy
+          path: dist/ready
+          retention-days: 1
+
+      - name: Upload full clean production ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v93-full-clean-release
+          path: dist/full/Fuwa
+          retention-days: 1
