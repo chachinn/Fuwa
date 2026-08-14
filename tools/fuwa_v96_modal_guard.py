@@ -25,6 +25,7 @@ new_open = '''function fuwaMoodCheckinBlockedByActiveModal() {
 
 function openMoodCheckin(force = false) {
   if (document.body.classList.contains("cloud-restore-open")) return;
+  if (!force && currentView !== "home") return;
   if (!force && fuwaMoodCheckinBlockedByActiveModal()) return;
   const today = getTodayMoodCheckin();'''
 if text.count(old_open) != 1:
@@ -40,9 +41,14 @@ old_maybe = '''function maybeShowDailyMoodCheckin() {
   }, 350);
 }'''
 new_maybe = '''function maybeShowDailyMoodCheckin() {
+  if (currentView !== "home") return;
   if (fuwaMoodCheckinBlockedByActiveModal()) return;
   if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
   setTimeout(() => {
+    // Automatic check-ins belong to Home only. If the user navigated away
+    // while this gentle delay was pending, quietly cancel instead of opening
+    // over Me, Settings, Cloud Restore, or another destination.
+    if (currentView !== "home") return;
     if (fuwaMoodCheckinBlockedByActiveModal()) return;
     if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
     openMoodCheckin();
