@@ -2815,14 +2815,14 @@ function ensureSleepAudioContext() {
 
     sleepMasterGain.gain.value = Math.max(0, Math.min(1, state.sleepVolume / 100));
     sleepMasterFilter.type = "lowpass";
-    sleepMasterFilter.frequency.value = 6200;
-    sleepMasterFilter.Q.value = 0.12;
+    sleepMasterFilter.frequency.value = 4300;
+    sleepMasterFilter.Q.value = 0.08;
 
-    sleepCompressor.threshold.value = -28;
-    sleepCompressor.knee.value = 24;
-    sleepCompressor.ratio.value = 2.5;
-    sleepCompressor.attack.value = 0.08;
-    sleepCompressor.release.value = 0.42;
+    sleepCompressor.threshold.value = -24;
+    sleepCompressor.knee.value = 30;
+    sleepCompressor.ratio.value = 1.8;
+    sleepCompressor.attack.value = 0.12;
+    sleepCompressor.release.value = 0.62;
 
     sleepMasterGain.connect(sleepMasterFilter);
     sleepMasterFilter.connect(sleepCompressor);
@@ -2939,61 +2939,58 @@ function createLfo(targetParam, frequency, depth, center) {
 }
 
 function buildRainSound() {
-  const rain = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 4700, q: 0.15, gain: 0.105 });
-  const windowBed = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 620, q: 0.45, gain: 0.030 });
-  createLfo(rain.gain.gain, 0.035, 0.010, 0.100);
-  createLfo(windowBed.gain.gain, 0.055, 0.006, 0.028);
+  const rain = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 2800, q: 0.10, gain: 0.074 });
+  const windowBed = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 430, q: 0.35, gain: 0.017 });
+  createLfo(rain.gain.gain, 0.024, 0.006, 0.070);
+  createLfo(windowBed.gain.gain, 0.031, 0.003, 0.016);
 }
 
 function buildWaveSound() {
-  const tide = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 880, q: 0.18, gain: 0.115 });
-  const foam = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 1250, q: 0.55, gain: 0.027 });
-  createLfo(tide.gain.gain, 0.060, 0.085, 0.095);
-  createLfo(foam.gain.gain, 0.061, 0.019, 0.022);
+  const tide = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 650, q: 0.12, gain: 0.084 });
+  const foam = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 900, q: 0.42, gain: 0.014 });
+  createLfo(tide.gain.gain, 0.044, 0.055, 0.066);
+  createLfo(foam.gain.gain, 0.045, 0.008, 0.010);
 }
 
 function buildFireplaceSound() {
-  const warmth = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 520, q: 0.20, gain: 0.095 });
-  const ember = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 760, q: 0.60, gain: 0.026 });
-  createLfo(warmth.gain.gain, 0.075, 0.009, 0.088);
-  createLfo(ember.gain.gain, 0.42, 0.008, 0.022);
+  const warmth = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 360, q: 0.12, gain: 0.062 });
+  const ember = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 520, q: 0.38, gain: 0.010 });
+  createLfo(warmth.gain.gain, 0.042, 0.004, 0.059);
+  createLfo(ember.gain.gain, 0.18, 0.0025, 0.0085);
 }
 
 function buildWindSound() {
-  const breeze = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 1650, q: 0.20, gain: 0.078 });
-  const lowAir = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 330, q: 0.35, gain: 0.025 });
-  createLfo(breeze.filter.frequency, 0.032, 290, 1180);
-  createLfo(breeze.gain.gain, 0.045, 0.022, 0.068);
-  createLfo(lowAir.gain.gain, 0.030, 0.005, 0.023);
+  const breeze = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 1150, q: 0.12, gain: 0.048 });
+  const lowAir = createFilteredNoise({ color: "brown", type: "bandpass", frequency: 260, q: 0.25, gain: 0.013 });
+  createLfo(breeze.filter.frequency, 0.020, 140, 960);
+  createLfo(breeze.gain.gain, 0.027, 0.010, 0.043);
+  createLfo(lowAir.gain.gain, 0.020, 0.0025, 0.012);
 }
 
 function buildForestSound() {
-  const nightAir = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 1050, q: 0.20, gain: 0.060 });
-  const leaves = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 2350, q: 1.0, gain: 0.010 });
-  createLfo(nightAir.gain.gain, 0.028, 0.010, 0.055);
-  createLfo(leaves.gain.gain, 0.20, 0.003, 0.008);
+  const nightAir = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 760, q: 0.12, gain: 0.043 });
+  const leaves = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 1650, q: 0.72, gain: 0.005 });
+  createLfo(nightAir.gain.gain, 0.020, 0.005, 0.040);
+  createLfo(leaves.gain.gain, 0.11, 0.0015, 0.0042);
 }
 
 function buildCafeSound() {
-  // "Cozy Room" keeps the old cafe ID for saved-preference compatibility.
-  const room = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 720, q: 0.22, gain: 0.068 });
-  const fabric = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 980, q: 0.45, gain: 0.014 });
-  createLfo(room.gain.gain, 0.027, 0.008, 0.064);
-  createLfo(fabric.gain.gain, 0.055, 0.003, 0.012);
+  const room = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 560, q: 0.14, gain: 0.050 });
+  const fabric = createFilteredNoise({ color: "pink", type: "bandpass", frequency: 720, q: 0.32, gain: 0.007 });
+  createLfo(room.gain.gain, 0.019, 0.004, 0.047);
+  createLfo(fabric.gain.gain, 0.032, 0.0015, 0.006);
 }
 
 function buildBrownNoise() {
-  const hush = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 980, q: 0.12, gain: 0.145 });
-  createLfo(hush.gain.gain, 0.018, 0.005, 0.140);
+  const hush = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 700, q: 0.08, gain: 0.094 });
+  createLfo(hush.gain.gain, 0.012, 0.003, 0.091);
 }
 
 function buildWhiteNoise() {
-  // Keep the legacy "white" key, but use a pink-noise veil so it is much
-  // gentler for sleep than raw white noise.
-  const air = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 3900, q: 0.10, gain: 0.095 });
-  const softness = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 600, q: 0.15, gain: 0.018 });
-  createLfo(air.gain.gain, 0.020, 0.004, 0.092);
-  createLfo(softness.gain.gain, 0.026, 0.003, 0.016);
+  const air = createFilteredNoise({ color: "pink", type: "lowpass", frequency: 2450, q: 0.08, gain: 0.058 });
+  const softness = createFilteredNoise({ color: "brown", type: "lowpass", frequency: 480, q: 0.10, gain: 0.010 });
+  createLfo(air.gain.gain, 0.014, 0.0025, 0.056);
+  createLfo(softness.gain.gain, 0.018, 0.0015, 0.009);
 }
 
 function buildSelectedSleepSound() {
@@ -3201,6 +3198,7 @@ async function resumeSleepSound() {
 }
 
 async function stopSleepSound(fromTimer = false) {
+  sleepSoundSwitchToken += 1;
   clearInterval(sleepTimerInterval);
   sleepTimerInterval = null;
 
@@ -3236,24 +3234,25 @@ async function toggleSleepPlayback() {
 
 async function selectSleepSound(sound) {
   if (!sleepSoundNames[sound]) return;
+  const switchToken = ++sleepSoundSwitchToken;
   state.sleepSound = sound;
   savePreferences();
 
   if (sleepIsPlaying) {
     const ctx = ensureSleepAudioContext();
-    const currentGain = sleepMasterGain.gain.value;
+    const currentGain = Math.max(0.0001, sleepMasterGain.gain.value);
     sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
     sleepMasterGain.gain.setValueAtTime(currentGain, ctx.currentTime);
-    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    sleepMasterGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.50);
 
     setTimeout(() => {
-      if (!sleepIsPlaying) return;
+      if (!sleepIsPlaying || switchToken !== sleepSoundSwitchToken) return;
       stopSleepNodesOnly();
       buildSelectedSleepSound();
       sleepMasterGain.gain.cancelScheduledValues(ctx.currentTime);
       sleepMasterGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 0.90);
-    }, 220);
+      sleepMasterGain.gain.linearRampToValueAtTime(Math.max(0.0001, state.sleepVolume / 100), ctx.currentTime + 1.15);
+    }, 420);
   }
 
   renderSleepControls();
@@ -3467,6 +3466,7 @@ let sleepIsPlaying = false;
 let sleepIsPaused = false;
 let sleepRemainingMs = 0;
 let sleepFadeTimeout = null;
+let sleepSoundSwitchToken = 0;
 
 // Privacy Lock
 let privacySetupStage = "new";
@@ -9488,7 +9488,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.4-2026-08-14";
+const FUWA_RELEASE_KEY = "fuwa-v1.1.5-2026-08-14";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";

@@ -10054,3 +10054,67 @@ body :where(h1,h2,h3,.topbar h1,.hero-card h2,.section-heading h3,.page-title-ro
 @media (min-width:1000px) and (orientation:landscape){
   :root{--fuwa-notebook-left:52px;--fuwa-notebook-right:34px}
 }
+
+
+/* FUWA V90 — HOME CLOUD MOODS + GROUNDED NAV + SLEEP PLAYER */
+.hero-card .mood-picker{
+  grid-template-columns:repeat(6,minmax(0,1fr))!important;
+  gap:clamp(6px,1.8vw,9px)!important;
+  align-items:center!important;
+  margin:12px 0 18px!important;
+}
+.hero-card .mood-picker button{
+  width:100%!important;
+  min-width:0!important;
+  min-height:0!important;
+  height:auto!important;
+  aspect-ratio:1 / 1!important;
+  padding:clamp(4px,1vw,7px)!important;
+  border-radius:50%!important;
+  display:grid!important;
+  place-items:center!important;
+  overflow:hidden!important;
+  transform:none!important;
+}
+.hero-card .mood-picker button.selected{
+  transform:scale(1.04)!important;
+  box-shadow:0 7px 18px rgba(219,109,140,.14)!important;
+}
+.hero-card .mood-picker .fuwa-mood-svg{
+  display:block!important;
+  width:100%!important;
+  max-width:58px!important;
+  height:auto!important;
+  margin:0 auto!important;
+}
+
+.bottom-nav{
+  bottom:0!important;
+  margin-bottom:0!important;
+  border-radius:24px 24px 0 0!important;
+  border:1px solid rgba(232,210,219,.92)!important;
+  border-bottom:0!important;
+  box-shadow:0 -10px 30px rgba(93,66,77,.10)!important;
+  padding-bottom:calc(8px + var(--safe-bottom))!important;
+}
+.app-shell{padding-bottom:calc(82px + var(--safe-bottom))!important}
+
+#sleepView .sleep-player-card{
+  margin:14px 0 20px!important;
+  padding:16px!important;
+  border-radius:22px!important;
+  background:rgba(255,255,255,.72)!important;
+  box-shadow:0 8px 22px rgba(84,65,91,.065)!important;
+}
+#sleepView .sleep-player-top{align-items:center!important}
+#sleepView .sleep-player-actions{gap:10px!important}
+#sleepView .sleep-section + .sleep-player-card{margin-top:12px!important}
+
+@media(max-width:350px){
+  .hero-card .mood-picker{gap:5px!important}
+  .hero-card .mood-picker button{padding:3px!important}
+}
+@media(min-width:700px){
+  .hero-card .mood-picker{max-width:620px;margin-left:auto!important;margin-right:auto!important}
+  #sleepView .sleep-player-card{max-width:720px;margin-left:auto!important;margin-right:auto!important}
+}
