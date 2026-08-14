@@ -29,7 +29,7 @@ const sizes = [
 
     const response = await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
     if (!response || response.status() !== 200) throw new Error(`${spec.name} HTTP ${response?.status()}`);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1100);
 
     const structure = await page.evaluate(() => {
       ['fuwaTutorial', 'moodCheckinModal', 'fuwaReleaseNotesModal'].forEach(id => {
@@ -37,21 +37,22 @@ const sizes = [
       });
       document.body.style.overflow = '';
 
+      const sleepView = document.getElementById('sleepView');
       const player = document.getElementById('sleepPlayerCard');
       const soundGrid = document.getElementById('sleepSoundGrid');
       const timerOptions = document.getElementById('sleepTimerOptions');
       const playButton = document.getElementById('sleepPlayPauseButton');
       const stopButton = document.getElementById('sleepStopButton');
 
-      if (!player || !soundGrid || !timerOptions || !playButton || !stopButton) {
+      if (!sleepView || !player || !soundGrid || !timerOptions || !playButton || !stopButton) {
         return {
           missing: {
+            sleepView: !sleepView,
             player: !player,
             soundGrid: !soundGrid,
             timerOptions: !timerOptions,
             playButton: !playButton,
-            stopButton: !stopButton,
-            sleepView: !document.getElementById('sleepView')
+            stopButton: !stopButton
           },
           htmlChars: document.documentElement.outerHTML.length,
           bodyChars: document.body.innerHTML.length,
@@ -59,31 +60,33 @@ const sizes = [
         };
       }
 
-      [player, soundGrid.closest('.sleep-section'), timerOptions.closest('.sleep-section')]
-        .filter(Boolean)
-        .forEach(el => {
-          el.classList.remove('hidden');
-          el.style.display = 'block';
-          el.style.visibility = 'visible';
-          el.style.position = 'relative';
-        });
-      if (player.parentElement) player.parentElement.style.display = 'block';
+      document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+      sleepView.classList.add('active');
+      sleepView.style.display = 'block';
+      sleepView.style.visibility = 'visible';
+      sleepView.style.opacity = '1';
 
       const soundSection = soundGrid.closest('.sleep-section');
       const timerSection = timerOptions.closest('.sleep-section');
-      const orderPlayerBeforeSound = !!(player.compareDocumentPosition(soundSection) & Node.DOCUMENT_POSITION_FOLLOWING);
-      const orderSoundBeforeTimer = !!(soundSection.compareDocumentPosition(timerSection) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const children = [...sleepView.children].map(el => ({
+        id: el.id || '',
+        cls: el.className || '',
+        text: (el.textContent || '').trim().slice(0, 32)
+      }));
 
       return {
         missing: null,
-        orderPlayerBeforeSound,
-        orderSoundBeforeTimer,
+        playerParent: player.parentElement?.id || player.parentElement?.className || '',
+        soundParent: soundSection?.parentElement?.id || soundSection?.parentElement?.className || '',
+        children,
+        orderPlayerBeforeSound: !!(player.compareDocumentPosition(soundSection) & Node.DOCUMENT_POSITION_FOLLOWING),
+        orderSoundBeforeTimer: !!(soundSection.compareDocumentPosition(timerSection) & Node.DOCUMENT_POSITION_FOLLOWING),
         sounds: document.querySelectorAll('[data-sleep-sound]').length,
         canMp3: document.createElement('audio').canPlayType('audio/mpeg'),
         overflow: document.documentElement.scrollWidth - window.innerWidth,
-        playerWidth: player.getBoundingClientRect().width,
-        soundWidth: soundSection.getBoundingClientRect().width,
-        timerWidth: timerSection.getBoundingClientRect().width,
+        playerRect: (() => { const r = player.getBoundingClientRect(); return { top:r.top, left:r.left, right:r.right, width:r.width, height:r.height }; })(),
+        soundRect: (() => { const r = soundSection.getBoundingClientRect(); return { top:r.top, left:r.left, right:r.right, width:r.width, height:r.height }; })(),
+        timerRect: (() => { const r = timerSection.getBoundingClientRect(); return { top:r.top, left:r.left, right:r.right, width:r.width, height:r.height }; })(),
         viewport: window.innerWidth,
         navBottom: (() => {
           const nav = document.querySelector('.bottom-nav')?.getBoundingClientRect();
@@ -94,13 +97,18 @@ const sizes = [
 
     if (structure.missing) throw new Error(`${spec.name} Sleep DOM missing ${JSON.stringify(structure)}`);
     if (!structure.orderPlayerBeforeSound || !structure.orderSoundBeforeTimer) {
-      throw new Error(`${spec.name} Sleep Corner source order wrong ${JSON.stringify(structure)}`);
+      throw new Error(`${spec.name} Sleep Corner DOM order wrong ${JSON.stringify(structure)}`);
+    }
+    if (!(structure.playerRect.top < structure.soundRect.top && structure.soundRect.top < structure.timerRect.top)) {
+      throw new Error(`${spec.name} Sleep Corner visual order wrong ${JSON.stringify(structure)}`);
     }
     if (structure.sounds !== 8) throw new Error(`${spec.name} expected 8 sounds`);
     if (!structure.canMp3) throw new Error(`${spec.name} reports no MP3 support`);
     if (structure.overflow > 2) throw new Error(`${spec.name} overflow ${structure.overflow}`);
-    for (const [key, width] of Object.entries({ playerWidth: structure.playerWidth, soundWidth: structure.soundWidth, timerWidth: structure.timerWidth })) {
-      if (width > structure.viewport + 2) throw new Error(`${spec.name} ${key} exceeds viewport ${width}/${structure.viewport}`);
+    for (const [key, rect] of Object.entries({ player: structure.playerRect, sound: structure.soundRect, timer: structure.timerRect })) {
+      if (rect.width <= 0 || rect.left < -2 || rect.right > structure.viewport + 2) {
+        throw new Error(`${spec.name} ${key} geometry bad ${JSON.stringify(rect)} viewport=${structure.viewport}`);
+      }
     }
     if (structure.navBottom !== null && Math.abs(structure.navBottom) > 2) {
       throw new Error(`${spec.name} nav not bottom attached ${structure.navBottom}`);
@@ -118,7 +126,7 @@ const sizes = [
 
       await page.locator('[data-sleep-sound="rain"]').click({ force: true });
       await page.locator('#sleepPlayPauseButton').click({ force: true });
-      await page.waitForTimeout(1100);
+      await page.waitForTimeout(1200);
 
       let audioState = await page.evaluate(() => ({
         playing: sleepIsPlaying,
@@ -135,7 +143,7 @@ const sizes = [
       await page.locator('[data-sleep-sound="waves"]').click({ force: true });
       await page.locator('[data-sleep-sound="forest"]').click({ force: true });
       await page.locator('[data-sleep-sound="cafe"]').click({ force: true });
-      await page.waitForTimeout(1300);
+      await page.waitForTimeout(1400);
 
       audioState = await page.evaluate(() => ({
         sound: state.sleepSound,
@@ -160,7 +168,7 @@ const sizes = [
       }
 
       await page.locator('#sleepPlayPauseButton').click({ force: true });
-      await page.waitForTimeout(350);
+      await page.waitForTimeout(400);
       await page.locator('#sleepStopButton').click({ force: true });
       await page.waitForTimeout(100);
       audioState = await page.evaluate(() => ({
