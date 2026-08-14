@@ -1,0 +1,210 @@
+name: Fuwa v95 restore button release QA
+
+on:
+  push:
+    branches:
+      - qa/v95-cloud-restore-button-recovery
+
+jobs:
+  release-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v95-cloud-restore-button-recovery
+          fetch-depth: 0
+
+      - name: Apply production patch
+        run: python3 tools/fuwa_v95_restore_button_patch.py
+
+      - name: Static syntax and data-safety QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check firebase-fuwa.js
+          node --check service-worker.js
+          node --check data/scrapbook-data.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess, re, collections
+
+          app = Path('app.js').read_text(encoding='utf-8')
+          fb = Path('firebase-fuwa.js').read_text(encoding='utf-8')
+          html = Path('index.html').read_text(encoding='utf-8')
+          sw = Path('service-worker.js').read_text(encoding='utf-8')
+          old_app = subprocess.check_output(['git','show','HEAD:app.js'], text=True)
+          old_html = subprocess.check_output(['git','show','HEAD:index.html'], text=True)
+
+          assert 'const DATABASE_VERSION = 13;' in app
+          assert 'fuwa-v1.1.10-2026-08-14' in app
+          assert 'FUWA_BUILD: v95-cloud-restore-button-qa' in html
+          assert 'What’s new in Fuwa 1.1.10' in html
+          assert 'fuwa-shell-v95' in sw and 'fuwa-v1.1.10-2026-08-14' in sw
+
+          assert 'let cloudRestoreRunning = false;' in fb
+          assert 'function resetCloudRestoreButtonIfIdle' in fb
+          assert 'resetCloudRestoreButtonIfIdle("Restore safely")' in fb
+          assert 'if (cloudRestoreRunning) return;' in fb
+          assert 'button.setAttribute("aria-busy", "true")' in fb
+          assert 'button.removeAttribute("aria-busy")' in fb
+          assert 'Tap Restore safely to retry the cloud check' in fb
+
+          # v94 data-safety repair must remain intact.
+          assert 'return cloudBackupRecordCount(data);' in app
+          assert 'window.fuwaRestoreSafetyBackup = restoreSafetyBackup;' in app
+          assert 'invalid-cloud-backup:record-count' in app
+          assert 'await window.fuwaRestoreSafetyBackup(safetyBackup);' in fb
+
+          # No destructive shortcut or schema bump.
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert app.count(token) <= old_app.count(token), token
+
+          def dups(text):
+              ids = re.findall(r'\bid="([^"]+)"', text)
+              return {k:v for k,v in collections.Counter(ids).items() if v > 1}
+          assert dups(html) == dups(old_html)
+
+          changed = set(subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
+          assert changed == {'app.js','firebase-fuwa.js','index.html','service-worker.js'}, changed
+          for path in ('style.css','manifest.json','data/scrapbook-data.js','data/scrapbook-data.json'):
+              subprocess.run(['git','diff','--exit-code','HEAD','--',path], check=True)
+          subprocess.run(['git','diff','--exit-code','HEAD','--','audio','icon'], check=True)
+          print('static/data-safety QA passed')
+          PY
+          git diff --check
+
+      - name: Install Chromium QA runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Restore button retry regression QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4201 --bind 127.0.0.1 >/tmp/fuwa-v95-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .4
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+            const page=await context.newPage();
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            await page.addInitScript(()=>{
+              localStorage.setItem('fuwaLocalModeV1','1');
+              localStorage.setItem('fuwaTutorialSeenV1','1');
+              window.alert=()=>{};
+              window.confirm=()=>true;
+            });
+            await page.goto('http://127.0.0.1:4201/index.html',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(250);
+            assert(!errors.length,`startup errors: ${errors.join('|')}`);
+
+            const outer=page.locator('#cloudRestoreButton');
+            assert(await outer.count()===1,'missing Restore from Fuwa Cloud button');
+            await outer.click({force:true});
+            await page.waitForTimeout(100);
+            assert(!(await page.locator('#cloudRestoreModal').evaluate(el=>el.classList.contains('hidden'))),'restore modal did not open');
+
+            // No signed-in Firebase account in this QA context: preview intentionally fails.
+            // The regression requirement is that the action remains tappable and retryable.
+            await page.waitForTimeout(150);
+            let state=await page.locator('#cloudRestoreConfirmButton').evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
+            assert(state.disabled===false,`confirm stuck disabled after preview failure: ${JSON.stringify(state)}`);
+            assert(state.busy===null,'confirm incorrectly busy after preview failure');
+
+            await page.locator('#cloudRestoreConfirmButton').click();
+            await page.waitForTimeout(120);
+            state=await page.locator('#cloudRestoreConfirmButton').evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
+            assert(state.disabled===false,`confirm did not recover after failed fresh verification: ${JSON.stringify(state)}`);
+            assert(state.text.includes('Restore safely'),'confirm label did not recover');
+            assert(state.busy===null,'aria-busy remained after failed verification');
+
+            // A second tap must still work: proves the button is genuinely retryable.
+            await page.locator('#cloudRestoreConfirmButton').click();
+            await page.waitForTimeout(120);
+            state=await page.locator('#cloudRestoreConfirmButton').evaluate(el=>({disabled:el.disabled,text:el.textContent,busy:el.getAttribute('aria-busy')}));
+            assert(state.disabled===false,'second retry left confirm disabled');
+            assert(!errors.length,`runtime errors: ${errors.join('|')}`);
+
+            await context.close(); await browser.close();
+            console.log('restore button retry regression QA passed');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: v94 restore safety regression remains green
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4202 --bind 127.0.0.1 >/tmp/fuwa-v95-data.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .4
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          const STORES=['entries','tinyJoys','letters','moodCheckins','threads','bookmarks','nightlyReflections','thenNow','comfortItems','unsentLetters','thoughtBubbles','dreams','dailyCheckins','lifeCollections','habitDefinitions','moments','randomThoughts'];
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+            const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));
+            await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1')});
+            await p.goto('http://127.0.0.1:4202/index.html',{waitUntil:'domcontentloaded'});
+            await p.waitForFunction(()=>typeof window.fuwaCreateCloudBackupPayload==='function'&&typeof window.fuwaApplyCloudRestorePayload==='function'&&typeof window.fuwaRestoreSafetyBackup==='function');
+            const r=await p.evaluate(async stores=>{
+              const base=await window.fuwaCreateCloudBackupPayload();stores.forEach(k=>base.data[k]=[]);base.backupFormat='fuwa-cloud-v1';
+              base.data.moments=[{id:'v95-m',text:'moment'}];base.data.randomThoughts=[{id:'v95-r',text:'thought'}];base.recordCount=2;
+              const restored=await window.fuwaApplyCloudRestorePayload(base);
+              const after=await window.fuwaCreateCloudBackupPayload();
+              const safety=await window.fuwaCreateRestoreSafetyBackup();
+              const repl=await window.fuwaCreateCloudBackupPayload();stores.forEach(k=>repl.data[k]=[]);repl.data.moments=[{id:'v95-x',text:'replacement'}];repl.recordCount=1;
+              await window.fuwaApplyCloudRestorePayload(repl);const rollback=await window.fuwaRestoreSafetyBackup(safety);const rolled=await window.fuwaCreateCloudBackupPayload();
+              return {restored,count:after.recordCount,m:after.data.moments.map(x=>x.id),r:after.data.randomThoughts.map(x=>x.id),rollback,rolledM:rolled.data.moments.map(x=>x.id),rolledR:rolled.data.randomThoughts.map(x=>x.id)};
+            },STORES);
+            assert(r.restored.ok&&r.count===2,'v94 restore regression');assert(r.m.includes('v95-m')&&r.r.includes('v95-r'),'cloud stores missing');assert(r.rollback.ok&&r.rolledM.includes('v95-m')&&!r.rolledM.includes('v95-x')&&r.rolledR.includes('v95-r'),'rollback regression');assert(!errors.length,errors.join('|'));
+            await c.close();await b.close();console.log('v94 restore safety regression remains green');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Phone and iPad runtime smoke QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4203 --bind 127.0.0.1 >/tmp/fuwa-v95-responsive.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .4
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          const sizes=[[320,700],[375,812],[390,844],[430,932],[768,1024],[1024,768],[820,1180],[1180,820],[834,1194],[1194,834],[1024,1366],[1366,1024]];
+          (async()=>{const b=await chromium.launch({headless:true});for(const [w,h] of sizes){const c=await b.newContext({viewport:{width:w,height:h},serviceWorkers:'block'}),p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1')});await p.goto('http://127.0.0.1:4203/index.html',{waitUntil:'domcontentloaded'});await p.waitForTimeout(160);const g=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,nodes:document.getElementsByTagName('*').length,nav:getComputedStyle(document.querySelector('.bottom-nav')).position,bottom:document.querySelector('.bottom-nav').getBoundingClientRect().bottom}));assert(!errors.length,`${w}x${h}: ${errors.join('|')}`);assert(g.sw<=g.iw+2,`${w}x${h}: overflow`);assert(g.nodes<9000,`${w}x${h}: runaway DOM`);assert(g.nav==='fixed'&&Math.abs(g.bottom-h)<4,`${w}x${h}: nav regression`);await c.close()}await b.close();console.log('12-size runtime QA passed')})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Build clean packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist/changes dist/full/Fuwa
+          cp index.html app.js firebase-fuwa.js service-worker.js dist/changes/
+          cp index.html style.css app.js manifest.json service-worker.js firebase-fuwa.js dist/full/Fuwa/
+          cp -R audio data icon dist/full/Fuwa/
+          test ! -e dist/full/Fuwa/.github
+          test ! -e dist/full/Fuwa/tools
+
+      - name: Upload changes
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v95-restore-button-fix
+          path: dist/changes
+          retention-days: 1
+
+      - name: Upload full clean production
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v95-full-clean-production
+          path: dist/full/Fuwa
+          retention-days: 1
