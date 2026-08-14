@@ -81,9 +81,11 @@ jobs:
 
           healthy=0
           for i in $(seq 1 30); do
-            if curl --silent --fail http://127.0.0.1:4187/index.html | grep -q 'FUWA_BUILD: v91-hq-recorded-sleep-audio-qa'; then
-              healthy=1
-              break
+            if curl --silent --fail http://127.0.0.1:4187/index.html -o /tmp/fuwa-served-index.html; then
+              if grep -q 'FUWA_BUILD: v91-hq-recorded-sleep-audio-qa' /tmp/fuwa-served-index.html; then
+                healthy=1
+                break
+              fi
             fi
             sleep 0.2
           done
@@ -92,9 +94,11 @@ jobs:
             cat /tmp/fuwa-v91-http.log || true
             exit 1
           fi
-          BYTES=$(curl --silent --fail http://127.0.0.1:4187/index.html | wc -c)
+
+          BYTES=$(wc -c < /tmp/fuwa-served-index.html)
           echo "QA server index bytes: $BYTES"
           test "$BYTES" -gt 50000
+          cmp index.html /tmp/fuwa-served-index.html
 
           node tools/fuwa_v91_hq_sleep_smoke.cjs
 
