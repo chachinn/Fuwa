@@ -1,0 +1,135 @@
+name: Fuwa v100 Version 1.0 remembers release v4
+on:
+  push:
+    branches: [qa/v100-fuwa-v1-remembers-capture]
+    paths: ['.github/workflows/fuwa-v100-v1-remembers-release-v4.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: qa/v100-fuwa-v1-remembers-capture, fetch-depth: 0}
+      - name: Apply v100 product patch
+        run: python3 tools/v100_patch.py
+      - name: Static privacy and data-safety gate
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check firebase-fuwa.js
+          node --check smart-fuwa.js
+          node --check smart-fuwa-life.js
+          node --check smart-fuwa-memory.js
+          node --check service-worker.js
+          grep -q 'FUWA_BUILD: v100-version-1-remembers-qa' index.html
+          grep -q 'What’s new in Fuwa Version 1.0' index.html
+          grep -q '<strong>Version 1.0</strong> · pre-release build' index.html
+          grep -q 'fuwa-shell-v100' service-worker.js
+          grep -q 'fuwa-v1.0-2026-08-15' app.js
+          grep -q 'async photoMetadata()' app.js
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          ! grep -Eiq 'openai|anthropic|firebase|firestore|fetch\(|XMLHttpRequest|WebSocket|sendBeacon' smart-fuwa-memory.js
+          ! grep -q 'indexedDB.deleteDatabase(' smart-fuwa-memory.js
+          ! grep -q 'localStorage.clear(' smart-fuwa-memory.js
+          git diff --check
+      - name: Install Playwright
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Final experienced-user functional performance responsive QA
+        run: |
+          cat > v100-test.cjs <<'JS'
+          const {chromium}=require('playwright');
+          const {spawn}=require('child_process');
+          const assert=require('assert');
+          (async()=>{
+            const server=spawn('python3',['-m','http.server','8765'],{stdio:'ignore'});
+            await new Promise(r=>setTimeout(r,700));
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:390,height:844}});
+            await page.addInitScript(()=>{
+              localStorage.setItem('fuwaLocalModeV1','1');
+              localStorage.setItem('fuwaTutorialSeenV1','1');
+            });
+            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('http://127.0.0.1:8765',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(700);
+            const now=Date.now(),day=86400000,entries=[];
+            for(let i=0;i<1500;i++) entries.push({
+              id:'e'+i,
+              title:i%11===0?'Japan memory':'Day '+i,
+              body:(i<350?'I was worried about the old deadline and office pressure. ':'')+
+                (i>1100?'I feel more confident about my creative app project and rest lately. ':'')+
+                (i%17===0?'Talked to Mika at Tokyo about work and travel. ':'')+
+                (i%23===0?'I need to remember to book the hotel tomorrow. ':'')+
+                'A personal journal note '+i,
+              date:new Date(now-(1500-i)*day).toISOString().slice(0,10),
+              createdAt:now-(1500-i)*day,updatedAt:now-(1500-i)*day
+            });
+            await page.evaluate(entries=>{
+              const base=window.fuwaSmartApi;
+              window.fuwaSmartApi={...base,
+                snapshot:()=>({data:{entries,tinyJoys:[],moodCheckins:[],threads:[],bookmarks:[],nightlyReflections:[],thenNow:[],comfortItems:[],unsentLetters:[],thoughtBubbles:[],dreams:[],dailyCheckins:[],lifeCollections:[],habitDefinitions:[],moments:[],randomThoughts:[]}}),
+                photoMetadata:async()=>[{id:'p1',entryId:'e1496',type:'image/jpeg',width:1200,height:1600,originalName:'IMG_1.jpg',createdAt:Date.now()}]
+              };
+              window.fuwaSmartApi.navigate('smart');
+              window.fuwaSmartRender?.();
+            },entries);
+            await page.waitForTimeout(320);
+            const perf=await page.evaluate(()=>{
+              const t=performance.now();const m=window.fuwaRemembersDebug.buildModel();const a=performance.now();
+              const q=window.fuwaRemembersDebug.deeperAsk('How have I changed over time?');const b=performance.now();
+              return {docs:m.docs.length,build:a-t,ask:b-a,answer:q.answer,changes:window.fuwaRemembersDebug.changeOverTime().length,rels:window.fuwaRemembersDebug.relationshipMemory().length,seasons:window.fuwaRemembersDebug.seasonalYou().length,vocab:window.fuwaRemembersDebug.personalVocabulary().words.length,classify:window.fuwaRemembersDebug.classifyDump('I need to remember to book the hotel tomorrow').type};
+            });
+            assert.equal(perf.docs,1500);assert(perf.build<500,'build '+perf.build);assert(perf.ask<300,'ask '+perf.ask);
+            assert(perf.changes>0);assert(perf.rels>0);assert(perf.seasons>0);assert(perf.vocab>0);assert.equal(perf.classify,'Loose End');
+            await page.evaluate(()=>window.fuwaRemembersDebug.render());await page.waitForTimeout(180);
+            assert(await page.locator('#fuwaRemembers').isVisible());
+            assert((await page.locator('#fuwaPhotoContext').innerText()).includes('attached photo'));
+            assert((await page.locator('#fuwaRelationships').innerText()).includes('Mika'));
+            assert((await page.locator('#fuwaChangeOverTime').innerText()).length>20);
+            assert((await page.locator('#fuwaVocabulary').innerText()).length>10);
+            await page.locator('#fuwaQuickDump').fill('I need to remember to book my hotel tomorrow');
+            await page.locator('#fuwaOrganizeDump').click();
+            assert((await page.locator('#fuwaDumpSuggestion').innerText()).includes('Loose End'));
+            await page.locator('#fuwaVoiceButton').click();await page.waitForTimeout(80);
+            assert((await page.locator('#fuwaVoiceStatus').innerText()).length>0);
+            for(const [w,h] of [[320,700],[375,812],[390,844],[430,932],[768,1024],[1024,768],[820,1180],[1180,820],[834,1194],[1194,834],[1024,1366],[1366,1024]]){
+              await page.setViewportSize({width:w,height:h});await page.waitForTimeout(35);
+              assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+1)),`overflow ${w}x${h}`);
+            }
+            assert.equal(errors.length,0,errors.join('\n'));
+            await browser.close();server.kill();console.log(JSON.stringify(perf));
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          node v100-test.cjs
+      - name: Restore daily-backup and destructive-storage regression gate
+        run: |
+          set -euo pipefail
+          grep -q 'CLOUD_RESTORE_READ_TIMEOUT_MS = 12000' firebase-fuwa.js
+          grep -q 'FUWA_DAILY_BACKUP_HOUR = 8' firebase-fuwa.js
+          grep -q 'fuwaRestoreSafetyBackup' firebase-fuwa.js
+          grep -q 'markDailyBackupSatisfied' firebase-fuwa.js
+          python3 - <<'PY'
+          import subprocess
+          old=subprocess.check_output(['git','show','origin/main:app.js'],text=True)+subprocess.check_output(['git','show','origin/main:firebase-fuwa.js'],text=True)
+          cur=open('app.js').read()+open('firebase-fuwa.js').read()
+          for t in ('localStorage.clear(','indexedDB.deleteDatabase('): assert cur.count(t)<=old.count(t),t
+          PY
+      - name: Promote exact tested production files to main
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/fuwa-v100
+          cp index.html app.js service-worker.js smart-fuwa-memory.js smart-fuwa-memory.css /tmp/fuwa-v100/
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "35266f16b5e70d3827e307e90292aae20dcebfaa"
+          git checkout -B main origin/main
+          cp /tmp/fuwa-v100/* .
+          git config user.name chachinn
+          git config user.email '140357822+chachinn@users.noreply.github.com'
+          git add index.html app.js service-worker.js smart-fuwa-memory.js smart-fuwa-memory.css
+          git diff --cached --check
+          git commit -m 'Release Fuwa Version 1.0 remembers and smart capture'
+          git push origin HEAD:main
