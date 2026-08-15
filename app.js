@@ -4403,6 +4403,13 @@ function navigate(view) {
   closeFuwaDrawer();
   currentView = view;
 
+  // Automatic Mood Check-In belongs to Home only. If it opened just before a
+  // navigation tap, close it rather than letting the modal follow the user and
+  // intercept controls in Fuwa Insights or another destination.
+  if (view !== "home" && !$("moodCheckinModal")?.classList.contains("hidden")) {
+    closeMoodCheckin();
+  }
+
   document.querySelectorAll(".view").forEach(section => {
     section.classList.toggle("active", section.id === `${view}View`);
   });
@@ -6297,6 +6304,18 @@ window.fuwaSmartApi = {
   openEntry(id = null) { openEditor(id); },
   navigate(view) { navigate(view); },
   toast(message) { toast(message); },
+  async photoMetadata() {
+    const rows = await diaryRepository.readAllMedia();
+    return rows.map(record => ({
+      id: record.id,
+      entryId: record.entryId || null,
+      type: record.type || record.blob?.type || "image/jpeg",
+      width: Number(record.width || 0) || null,
+      height: Number(record.height || 0) || null,
+      originalName: String(record.originalName || "photo").slice(0, 120),
+      createdAt: Number(record.createdAt || 0) || null
+    }));
+  },
   async createThread({ title, description = "", emoji = "☁️", entryIds = [] } = {}) {
     const cleanTitle = String(title || "").trim().slice(0, 60);
     if (!cleanTitle) throw new Error("smart-thread-title-required");
@@ -9507,7 +9526,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.2.2-2026-08-15";
+const FUWA_RELEASE_KEY = "fuwa-v1.0-2026-08-15";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";

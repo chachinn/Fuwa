@@ -1,7 +1,7 @@
-const CACHE_NAME = "fuwa-shell-v99";
+const CACHE_NAME = "fuwa-shell-v100";
 const RELEASE_MARKER_CACHE = "fuwa-release-state";
 const RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
-const RELEASE_KEY = "fuwa-v1.2.2-2026-08-15";
+const RELEASE_KEY = "fuwa-v1.0-2026-08-15";
 
 const CORE_ASSETS = [
   "./",
@@ -9,9 +9,11 @@ const CORE_ASSETS = [
   "./style.css",
   "./smart-fuwa.css",
   "./smart-fuwa-life.css",
+  "./smart-fuwa-memory.css",
   "./app.js",
   "./smart-fuwa.js",
   "./smart-fuwa-life.js",
+  "./smart-fuwa-memory.js",
   "./firebase-fuwa.js",
   "./manifest.json"
 ];
@@ -87,6 +89,9 @@ function isCoreRequest(request) {
     url.pathname.endsWith("/smart-fuwa.css") ||
     url.pathname.endsWith("/app.js") ||
     url.pathname.endsWith("/smart-fuwa.js") ||
+    url.pathname.endsWith("/smart-fuwa-life.js") ||
+    url.pathname.endsWith("/smart-fuwa-memory.js") ||
+    url.pathname.endsWith("/smart-fuwa-memory.css") ||
     url.pathname.endsWith("/firebase-fuwa.js") ||
     url.pathname.endsWith("/data/scrapbook-data.js") ||
     url.pathname.endsWith("/manifest.json")
