@@ -1,0 +1,86 @@
+name: Promote Fuwa v97 to main
+
+on:
+  push:
+    branches:
+      - qa/v97-fuwa-intelligence
+    paths:
+      - .github/workflows/promote-v97-to-main.yml
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout current production main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Guard production base and fetch tested QA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_MAIN="32698c1979fabea8ca8a7d90724688618766d5db"
+          ACTUAL_MAIN="$(git rev-parse HEAD)"
+          test "$ACTUAL_MAIN" = "$EXPECTED_MAIN"
+          git fetch origin qa/v97-fuwa-intelligence
+          mkdir -p tools
+          for f in \
+            tools/fuwa_v97_patch.py \
+            tools/fuwa_v97_patch_repair.py \
+            tools/fuwa_v97_smart_repair.py \
+            tools/fuwa_v97_entity_repair.py; do
+            git show origin/qa/v97-fuwa-intelligence:"$f" > "$f"
+          done
+          git show origin/qa/v97-fuwa-intelligence:smart-fuwa.js > smart-fuwa.js
+          git show origin/qa/v97-fuwa-intelligence:smart-fuwa.css > smart-fuwa.css
+
+      - name: Build exact tested v97 production files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/fuwa_v97_patch_repair.py
+          python3 tools/fuwa_v97_patch.py
+          python3 tools/fuwa_v97_smart_repair.py
+          python3 tools/fuwa_v97_entity_repair.py
+
+      - name: Verify exact tested file hashes and safety markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s  %s\n' \
+            '7b2769bf309859e1eaae26807b75bbb9dd1e8f09437827729d6c9496a1b8c548' 'index.html' \
+            '7c305922b0869a3a82824f4a782e3bff3a2201c598f614963daa6e4860ed3591' 'style.css' \
+            'd7c9ddd47ea001c9e193dfc20e64936fa272548a0d01e76d3c4e75cd73ccce3e' 'smart-fuwa.css' \
+            '6cad3d745589bdc20c0af94df634e4293c29812c2f63583e8503f1221dba50a4' 'app.js' \
+            '008a5547ea4a631b27bb0ab4b23227a07966dc084c90719e6f29285ab7ab5151' 'smart-fuwa.js' \
+            'ff8e2afd6820a1db1c5b15a021efcb85ca2ce0651fd3e2438b9d23f78e4337f8' 'firebase-fuwa.js' \
+            'bd86d969e82eaacc7c84699f9042917413ed2743e7495b5d031400a4bc99a083' 'service-worker.js' > /tmp/v97.sha256
+          sha256sum -c /tmp/v97.sha256
+          node --check app.js
+          node --check smart-fuwa.js
+          node --check firebase-fuwa.js
+          node --check service-worker.js
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          grep -q 'FUWA_BUILD: v97-fuwa-intelligence-qa' index.html
+          grep -q 'fuwa-v1.2.0-2026-08-15' app.js
+          grep -q 'fuwa-shell-v97' service-worker.js
+          ! grep -Eqi 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon|firebase|firestore|openai|anthropic' smart-fuwa.js
+          git diff --check
+
+      - name: Commit production-only files to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tools
+          git status --short
+          git add index.html style.css smart-fuwa.css app.js smart-fuwa.js firebase-fuwa.js service-worker.js
+          test "$(git diff --cached --name-only | sort)" = "$(printf '%s\n' app.js firebase-fuwa.js index.html service-worker.js smart-fuwa.css smart-fuwa.js style.css | sort)"
+          git config user.name 'chachinn'
+          git config user.email '140357822+chachinn@users.noreply.github.com'
+          git commit -m 'Release Fuwa 1.2.0 intelligence'
+          git push origin HEAD:main
