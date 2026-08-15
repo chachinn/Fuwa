@@ -1,0 +1,81 @@
+name: Fuwa v98 life intelligence release
+on:
+  push:
+    branches: [qa/v98-life-intelligence]
+    paths: ['.github/workflows/fuwa-v98-life-intelligence.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: qa/v98-life-intelligence, fetch-depth: 0}
+      - name: Patch production shell
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html'); s=p.read_text()
+          s=s.replace('FUWA_BUILD: v97-fuwa-intelligence-qa','FUWA_BUILD: v98-life-intelligence-qa')
+          s=s.replace('<link rel="stylesheet" href="smart-fuwa.css" />','<link rel="stylesheet" href="smart-fuwa.css" />\n  <link rel="stylesheet" href="smart-fuwa-life.css" />')
+          s=s.replace('<script src="smart-fuwa.js"></script>','<script src="smart-fuwa.js"></script>\n  <script src="smart-fuwa-life.js"></script>')
+          s=s.replace('What’s new in Fuwa 1.2.0','What’s new in Fuwa 1.2.1')
+          p.write_text(s)
+          p=Path('app.js'); s=p.read_text().replace('fuwa-v1.2.0-2026-08-15','fuwa-v1.2.1-2026-08-15'); p.write_text(s)
+          p=Path('service-worker.js'); s=p.read_text().replace('fuwa-shell-v97','fuwa-shell-v98').replace('fuwa-v1.2.0-2026-08-15','fuwa-v1.2.1-2026-08-15')
+          s=s.replace('"./smart-fuwa.css",','"./smart-fuwa.css",\n  "./smart-fuwa-life.css",').replace('"./smart-fuwa.js",','"./smart-fuwa.js",\n  "./smart-fuwa-life.js",')
+          p.write_text(s)
+          PY
+      - name: Static privacy and safety QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check smart-fuwa.js
+          node --check smart-fuwa-life.js
+          node --check firebase-fuwa.js
+          node --check service-worker.js
+          grep -q 'FUWA_BUILD: v98-life-intelligence-qa' index.html
+          grep -q 'smart-fuwa-life.css' index.html
+          grep -q 'smart-fuwa-life.js' index.html
+          grep -q 'fuwa-shell-v98' service-worker.js
+          grep -q 'fuwa-v1.2.1-2026-08-15' app.js
+          ! grep -Eqi 'fetch\(|XMLHttpRequest|WebSocket|sendBeacon|firebase|firestore|openai|anthropic' smart-fuwa-life.js
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          git diff --check
+          python3 - <<'PY'
+          import subprocess
+          now=open('app.js').read(); old=subprocess.check_output(['git','show','origin/main:app.js'],text=True)
+          for token in ('localStorage.clear(','indexedDB.deleteDatabase('):
+              assert now.count(token) <= old.count(token)
+          PY
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Functional and responsive QA
+        run: |
+          cat > /tmp/v98-test.js <<'JS'
+          const { chromium }=require('playwright');
+          (async()=>{const browser=await chromium.launch({headless:true});
+          const sizes=[[320,568],[390,844],[430,932],[820,1180],[1180,820]];
+          for(const [width,height] of sizes){const page=await browser.newPage({viewport:{width,height}});const errors=[];page.on('pageerror',e=>errors.push(String(e)));await page.addInitScript(()=>{localStorage.setItem('fuwaAuthModeV1','local');localStorage.setItem('fuwaTutorialSeenV1','1');});await page.goto('http://127.0.0.1:4338/',{waitUntil:'domcontentloaded'});await page.waitForTimeout(700);if(errors.length)throw new Error(errors.join('\n'));const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth+2);if(overflow)throw new Error(`horizontal overflow ${width}x${height}`);await page.close();}
+          const page=await browser.newPage();await page.setContent('<main><section id="smartView"><div class="smart-shell"><footer class="smart-footer"></footer></div></section></main>');await page.addScriptTag({content:`window.fuwaSmartApi={snapshot:()=>({data:{entries:[{id:'a',date:'2026-08-10',title:'Interview tomorrow',body:'I have an interview tomorrow and I need to decide whether to accept the offer later.',createdAt:1786300000000},{id:'b',date:'2026-07-15',title:'Japan plans',body:'I want to visit Tokyo with Mika and book the hotel soon.',createdAt:1784000000000},{id:'c',date:'2026-06-10',title:'Work change',body:'Started a new project at work with Mika.',createdAt:1781000000000},{id:'d',date:'2026-05-10',title:'Work again',body:'Work project is changing and I need to follow up with Mika.',createdAt:1779000000000}],moments:[{id:'m1',date:'2026-04-01',title:'First trip',note:'First Japan trip to Tokyo',createdAt:1775000000000}]}}),openEntry:()=>{}};`});await page.addScriptTag({path:'smart-fuwa-life.js'});await page.waitForTimeout(100);const result=await page.evaluate(()=>({follow:fuwaLifeIntelligenceDebug.smartFollowUps().length,loose:fuwaLifeIntelligenceDebug.looseEnds().length,chapters:fuwaLifeIntelligenceDebug.chapterSuggestions().length,timeline:fuwaLifeIntelligenceDebug.timeline().length,graph:fuwaLifeIntelligenceDebug.graph().nodes.length,attention:!!fuwaLifeIntelligenceDebug.attention()}));for(const k of ['follow','loose','timeline'])if(result[k]<1)throw new Error(`${k} missing`);if(!result.attention)throw new Error('attention missing');console.log(result);await browser.close();})();
+          JS
+          python3 -m http.server 4338 --bind 127.0.0.1 >/tmp/v98-server.log 2>&1 & PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT; sleep .5
+          node /tmp/v98-test.js
+      - name: Promote exact tested files to main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "eaeb3a1504f3892c42639d73a4e93849e0806717"
+          mkdir -p /tmp/v98
+          cp index.html app.js service-worker.js smart-fuwa-life.js smart-fuwa-life.css /tmp/v98/
+          git checkout main
+          git reset --hard origin/main
+          cp /tmp/v98/* .
+          git add index.html app.js service-worker.js smart-fuwa-life.js smart-fuwa-life.css
+          git config user.name chachinn
+          git config user.email 140357822+chachinn@users.noreply.github.com
+          git commit -m 'Release Fuwa 1.2.1 life intelligence'
+          git push origin main
