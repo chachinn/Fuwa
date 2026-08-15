@@ -1,4 +1,4 @@
-const CACHE_NAME = "fuwa-shell-v101";
+const CACHE_NAME = "fuwa-shell-v102";
 const RELEASE_MARKER_CACHE = "fuwa-release-state";
 const RELEASE_MARKER_REQUEST = "./__fuwa_release_marker__";
 const RELEASE_KEY = "fuwa-v1.0-2026-08-15";
@@ -10,12 +10,12 @@ const CORE_ASSETS = [
   "./smart-fuwa.css",
   "./smart-fuwa-life.css",
   "./smart-fuwa-memory.css",
-  "./roadmap-fuwa.css",
+  "./features/memory-garden.css",
   "./app.js",
   "./smart-fuwa.js",
   "./smart-fuwa-life.js",
   "./smart-fuwa-memory.js",
-  "./roadmap-fuwa.js",
+  "./features/memory-garden.js",
   "./firebase-fuwa.js",
   "./manifest.json"
 ];

@@ -2,7 +2,7 @@
   'use strict';
 
   const DB_NAME = 'FuwaDB';
-  const MODULE_VERSION = 'v101';
+  const MODULE_VERSION = 'v102';
   const $ = (id) => document.getElementById(id);
   const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
   const today = () => new Date().toISOString().slice(0, 10);
@@ -27,6 +27,37 @@
       const req = tx.objectStore(storeName).getAll();
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function countStore(storeName) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
+      const req = tx.objectStore(storeName).count();
+      req.onsuccess = () => resolve(Number(req.result) || 0);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function getMediaForEntryIds(entryIds) {
+    const ids = [...new Set((entryIds || []).filter(Boolean))];
+    if (!ids.length) return [];
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('media', 'readonly');
+      const store = tx.objectStore('media');
+      if (!store.indexNames.contains('entryId')) { reject(new Error('Fuwa media index is unavailable')); return; }
+      const index = store.index('entryId');
+      const results = new Array(ids.length);
+      let remaining = ids.length;
+      ids.forEach((id, position) => {
+        const req = index.getAll(id);
+        req.onsuccess = () => { results[position] = req.result || []; if (--remaining === 0) resolve(results.flat()); };
+        req.onerror = () => reject(req.error);
+      });
+      tx.onerror = () => reject(tx.error || new Error('Fuwa media read failed'));
+      tx.onabort = () => reject(tx.error || new Error('Fuwa media read aborted'));
     });
   }
 
@@ -80,13 +111,6 @@
 
   function injectShell() {
     if ($('fuwaRoadmapSheet')) return;
-
-    const styleLink = document.createElement('link');
-    if (!document.querySelector('link[href="roadmap-fuwa.css"]')) {
-      styleLink.rel = 'stylesheet';
-      styleLink.href = 'roadmap-fuwa.css';
-      document.head.appendChild(styleLink);
-    }
 
     const button = document.createElement('button');
     button.type = 'button';
@@ -147,11 +171,19 @@
   }
 
   async function loadCore() {
-    const [entries, lifeCollections, moments, thoughtBubbles, moodCheckins, media] = await Promise.all([
-      getAll('entries'), getAll('lifeCollections'), getAll('moments'), getAll('thoughtBubbles'), getAll('moodCheckins'), getAll('media')
+    const [entries, lifeCollections, moments, thoughtBubbles, moodCheckins] = await Promise.all([
+      getAll('entries'), getAll('lifeCollections'), getAll('moments'), getAll('thoughtBubbles'), getAll('moodCheckins')
     ]);
     const chapters = lifeCollections.filter(item => item.kind === 'life-chapter');
-    return { entries, chapters, moments, thoughtBubbles, moodCheckins, media };
+    let media = [];
+    let mediaCount = 0;
+    if (activeTab === 'garden') mediaCount = await countStore('media');
+    if (activeTab === 'onephoto') {
+      const ids = entries.filter(entry => (entry.tags || []).includes('one-photo-one-sentence')).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 60).map(entry => entry.id);
+      media = await getMediaForEntryIds(ids);
+      mediaCount = media.length;
+    }
+    return { entries, chapters, moments, thoughtBubbles, moodCheckins, media, mediaCount };
   }
 
   async function render() {
@@ -177,7 +209,7 @@
     return entry.title || entry.body?.slice(0, 54) || entry.date || 'Untitled memory';
   }
 
-  function renderGarden(host, { entries, chapters, moments, thoughtBubbles, media }) {
+  function renderGarden(host, { entries, chapters, moments, thoughtBubbles, mediaCount }) {
     const capsules = moments.filter(m => m.kind === 'memory-capsule' || (m.tags || []).includes('memory-capsule'));
     const onePhotoCount = entries.filter(e => (e.tags || []).includes('one-photo-one-sentence')).length;
     const wonders = thoughtBubbles.filter(b => b.kind === 'i-wonder');
@@ -195,7 +227,7 @@
         <article><span>◌</span><strong>${capsules.length}</strong><small>memory capsules</small></article>
         <article><span>▣</span><strong>${onePhotoCount}</strong><small>one-photo days</small></article>
         <article><span>?</span><strong>${wonders.length}</strong><small>future questions</small></article>
-        <article><span>♡</span><strong>${media.length}</strong><small>attached photos</small></article>
+        <article><span>♡</span><strong>${mediaCount}</strong><small>attached photos</small></article>
       </div>
       <section class="roadmap-gentle-note"><strong>Nothing here replaces your journal.</strong><p>Memory Garden is only another way to arrange what is already yours.</p></section>
     `;
@@ -291,7 +323,7 @@
   }
 
   function renderOnePhoto(host, { entries, media }) {
-    const onePhotoEntries = entries.filter(e => (e.tags || []).includes('one-photo-one-sentence')).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const onePhotoEntries = entries.filter(e => (e.tags || []).includes('one-photo-one-sentence')).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 60);
     const mediaByEntry = new Map(); media.forEach(m => { if (!mediaByEntry.has(m.entryId)) mediaByEntry.set(m.entryId, m); });
     host.innerHTML = `
       <section class="roadmap-section-head"><div><p class="eyebrow">One Photo + One Sentence</p><h3>A whole day can fit in two little things.</h3><p>The photo stays in Fuwa's local media store, just like ordinary journal attachments.</p></div></section>
@@ -301,7 +333,7 @@
         <label>Date<input id="onePhotoDate" type="date" value="${today()}"></label>
         <button class="roadmap-primary" type="submit">Keep This Day</button>
       </form>
-      <div class="one-photo-grid">${onePhotoEntries.length ? onePhotoEntries.slice(0, 60).map(e => { const m = mediaByEntry.get(e.id); return `<article><div class="one-photo-thumb" data-photo-id="${m ? esc(m.id) : ''}">${m ? '<span>Photo</span>' : '<span>No photo found</span>'}</div><small>${esc(e.date || '')}</small><p>${esc(e.body || e.title || '')}</p></article>`; }).join('') : '<div class="roadmap-empty compact"><strong>No one-photo days yet.</strong><span>Use this when a full journal entry would be more than you need.</span></div>'}</div>
+      <div class="one-photo-grid">${onePhotoEntries.length ? onePhotoEntries.map(e => { const m = mediaByEntry.get(e.id); return `<article><div class="one-photo-thumb" data-photo-id="${m ? esc(m.id) : ''}">${m ? '<span>Photo</span>' : '<span>No photo found</span>'}</div><small>${esc(e.date || '')}</small><p>${esc(e.body || e.title || '')}</p></article>`; }).join('') : '<div class="roadmap-empty compact"><strong>No one-photo days yet.</strong><span>Use this when a full journal entry would be more than you need.</span></div>'}</div>
     `;
     $('onePhotoFile')?.addEventListener('change', (e) => { if ($('onePhotoFileLabel')) $('onePhotoFileLabel').textContent = e.target.files?.[0]?.name || 'Choose a photo'; });
     $('onePhotoForm')?.addEventListener('submit', saveOnePhoto);
@@ -429,7 +461,8 @@
     } catch (_) { return false; }
   }
 
-  window.fuwaRoadmapDebug = { version: MODULE_VERSION, openDb, getAll, verifyStorageShape, switchTab, render };
+  window.fuwaMemoryGardenDebug = { version: MODULE_VERSION, openDb, getAll, countStore, getMediaForEntryIds, verifyStorageShape, switchTab, render };
+  window.fuwaRoadmapDebug = window.fuwaMemoryGardenDebug;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectShell, { once: true });
   else injectShell();
