@@ -2,13 +2,15 @@
   'use strict';
 
   const DB_NAME = 'FuwaDB';
-  const MODULE_VERSION = 'v102';
+  const MODULE_VERSION = 'v103';
   const $ = (id) => document.getElementById(id);
   const uid = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
   const today = () => new Date().toISOString().slice(0, 10);
   const esc = (value = '') => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let dbPromise = null;
   let activeTab = 'garden';
+  let renderSequence = 0;
+  const readStats = Object.create(null);
 
   function openDb() {
     if (dbPromise) return dbPromise;
@@ -21,6 +23,7 @@
   }
 
   async function getAll(storeName) {
+    readStats[storeName] = (readStats[storeName] || 0) + 1;
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readonly');
@@ -31,6 +34,8 @@
   }
 
   async function countStore(storeName) {
+    const key = storeName + ':count';
+    readStats[key] = (readStats[key] || 0) + 1;
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readonly');
@@ -160,6 +165,7 @@
   }
 
   function closeSheet() {
+    renderSequence += 1;
     $('fuwaRoadmapSheet')?.classList.add('hidden');
     document.body.style.overflow = '';
   }
@@ -170,35 +176,48 @@
     render();
   }
 
-  async function loadCore() {
-    const [entries, lifeCollections, moments, thoughtBubbles, moodCheckins] = await Promise.all([
-      getAll('entries'), getAll('lifeCollections'), getAll('moments'), getAll('thoughtBubbles'), getAll('moodCheckins')
-    ]);
-    const chapters = lifeCollections.filter(item => item.kind === 'life-chapter');
-    let media = [];
-    let mediaCount = 0;
-    if (activeTab === 'garden') mediaCount = await countStore('media');
-    if (activeTab === 'onephoto') {
-      const ids = entries.filter(entry => (entry.tags || []).includes('one-photo-one-sentence')).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 60).map(entry => entry.id);
-      media = await getMediaForEntryIds(ids);
-      mediaCount = media.length;
+  async function loadForTab(tab) {
+    if (tab === 'chapters') {
+      const [entries, lifeCollections] = await Promise.all([getAll('entries'), getAll('lifeCollections')]);
+      return { entries, chapters: lifeCollections.filter(item => item.kind === 'life-chapter') };
     }
-    return { entries, chapters, moments, thoughtBubbles, moodCheckins, media, mediaCount };
+    if (tab === 'capsules') {
+      const [entries, moments] = await Promise.all([getAll('entries'), getAll('moments')]);
+      return { entries, moments };
+    }
+    if (tab === 'onephoto') {
+      const entries = await getAll('entries');
+      const ids = entries.filter(entry => (entry.tags || []).includes('one-photo-one-sentence')).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 60).map(entry => entry.id);
+      return { entries, media: await getMediaForEntryIds(ids) };
+    }
+    if (tab === 'wonder') return { thoughtBubbles: await getAll('thoughtBubbles') };
+    if (tab === 'insights') {
+      const [entries, moodCheckins, lifeCollections] = await Promise.all([getAll('entries'), getAll('moodCheckins'), getAll('lifeCollections')]);
+      return { entries, moodCheckins, chapters: lifeCollections.filter(item => item.kind === 'life-chapter') };
+    }
+    const [entries, lifeCollections, moments, thoughtBubbles, mediaCount] = await Promise.all([
+      getAll('entries'), getAll('lifeCollections'), getAll('moments'), getAll('thoughtBubbles'), countStore('media')
+    ]);
+    return { entries, chapters: lifeCollections.filter(item => item.kind === 'life-chapter'), moments, thoughtBubbles, mediaCount };
   }
 
   async function render() {
     const host = $('fuwaRoadmapContent');
     if (!host) return;
+    const sequence = ++renderSequence;
+    const requestedTab = activeTab;
     host.innerHTML = '<div class="roadmap-loading">Gathering your little garden…</div>';
     try {
-      const data = await loadCore();
-      if (activeTab === 'chapters') renderChapters(host, data);
-      else if (activeTab === 'capsules') renderCapsules(host, data);
-      else if (activeTab === 'onephoto') renderOnePhoto(host, data);
-      else if (activeTab === 'wonder') renderWonder(host, data);
-      else if (activeTab === 'insights') renderInsights(host, data);
+      const data = await loadForTab(requestedTab);
+      if (sequence !== renderSequence || requestedTab !== activeTab) return;
+      if (requestedTab === 'chapters') renderChapters(host, data);
+      else if (requestedTab === 'capsules') renderCapsules(host, data);
+      else if (requestedTab === 'onephoto') renderOnePhoto(host, data);
+      else if (requestedTab === 'wonder') renderWonder(host, data);
+      else if (requestedTab === 'insights') renderInsights(host, data);
       else renderGarden(host, data);
     } catch (error) {
+      if (sequence !== renderSequence) return;
       console.error('Memory Garden render failed.', error);
       host.innerHTML = '<div class="roadmap-empty"><strong>Memory Garden could not open just now.</strong><span>Your existing Fuwa data was not changed.</span><button id="roadmapRetry" type="button">Try again</button></div>';
       $('roadmapRetry')?.addEventListener('click', render);
@@ -461,8 +480,7 @@
     } catch (_) { return false; }
   }
 
-  window.fuwaMemoryGardenDebug = { version: MODULE_VERSION, openDb, getAll, countStore, getMediaForEntryIds, verifyStorageShape, switchTab, render };
-  window.fuwaRoadmapDebug = window.fuwaMemoryGardenDebug;
+  window.fuwaMemoryGardenDebug = { version: MODULE_VERSION, openDb, getAll, countStore, getMediaForEntryIds, verifyStorageShape, switchTab, render, readStats };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectShell, { once: true });
   else injectShell();
