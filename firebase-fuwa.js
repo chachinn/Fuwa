@@ -917,35 +917,45 @@ async function handleCloudBackupRequest(event) {
 }
 
 
-function closeCloudRestoreModal() {
-  $auth("cloudRestoreModal")?.classList.add("hidden");
+const CLOUD_RESTORE_READ_TIMEOUT_MS = 12000;
+function withCloudRestoreTimeout(promise, ms = CLOUD_RESTORE_READ_TIMEOUT_MS, code = "cloud-restore-timeout") {
+  let timer = null;
+  return Promise.race([
+    Promise.resolve(promise).finally(() => { if (timer) window.clearTimeout(timer); }),
+    new Promise((_, reject) => { timer = window.setTimeout(() => reject(new Error(code)), ms); })
+  ]);
 }
-
+function setCloudRestoreInteractionLayer(active) {
+  document.body.classList.toggle("cloud-restore-open", Boolean(active));
+  if (active) {
+    document.getElementById("moodCheckinModal")?.classList.add("hidden");
+    const feature = document.getElementById("featureTutorial");
+    if (feature) { feature.hidden = true; feature.setAttribute("aria-hidden", "true"); }
+    document.getElementById("fuwaReleaseNotesModal")?.classList.add("hidden");
+    document.body.style.overflow = "hidden";
+    return;
+  }
+  const settingsOpen = !$auth("settingsSheet")?.classList.contains("hidden");
+  document.body.style.overflow = settingsOpen ? "hidden" : "";
+}
+function closeCloudRestoreModal() {
+  if (cloudRestoreRunning) return;
+  $auth("cloudRestoreModal")?.classList.add("hidden");
+  setCloudRestoreInteractionLayer(false);
+}
 async function getVerifiedCloudBackup(user = auth?.currentUser) {
   if (!user?.uid) throw new Error("cloud-not-ready");
-
   if (!firestore || !firestoreApi) {
-    const ready = await ensureFirestoreReady();
+    const ready = await withCloudRestoreTimeout(ensureFirestoreReady(), CLOUD_RESTORE_READ_TIMEOUT_MS, "cloud-not-ready-timeout");
     if (!ready) throw new Error("cloud-not-ready");
   }
-
   const backupRef = firestoreApi.doc(firestore, "users", user.uid, "backups", "current");
-  const snapshot = await firestoreApi.getDoc(backupRef);
+  const snapshot = await withCloudRestoreTimeout(firestoreApi.getDoc(backupRef), CLOUD_RESTORE_READ_TIMEOUT_MS, "cloud-read-timeout");
   if (!snapshot.exists()) throw new Error("no-cloud-backup");
-
   const backup = snapshot.data();
-  if (
-    backup?.ownerUid !== user.uid
-    || backup?.app !== "Fuwa"
-    || backup?.backupFormat !== "fuwa-cloud-v1"
-    || !backup?.data
-  ) {
-    throw new Error("invalid-cloud-backup");
-  }
-
+  if (backup?.ownerUid !== user.uid || backup?.app !== "Fuwa" || backup?.backupFormat !== "fuwa-cloud-v1" || !backup?.data) throw new Error("invalid-cloud-backup");
   return backup;
 }
-
 function resetCloudRestoreButtonIfIdle(label = "Restore safely") {
   const button = $auth("cloudRestoreConfirmButton");
   if (!button || cloudRestoreRunning) return;
@@ -958,6 +968,7 @@ async function openCloudRestoreModal() {
   const modal = $auth("cloudRestoreModal");
   if (!modal) return;
 
+  setCloudRestoreInteractionLayer(true);
   modal.classList.remove("hidden");
   if ($auth("cloudRestoreSummary")) $auth("cloudRestoreSummary").textContent = "Checking your cloud backup…";
   if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = "Checking…";
@@ -984,12 +995,15 @@ async function openCloudRestoreModal() {
   } catch (error) {
     console.error("Fuwa could not prepare cloud restore.", error);
     const noBackup = error?.message === "no-cloud-backup";
+    const timedOut = String(error?.message || "").includes("timeout");
     if ($auth("cloudRestoreSummary")) {
       $auth("cloudRestoreSummary").textContent = noBackup
         ? "There isn't a Fuwa cloud backup for this account yet."
-        : "Fuwa couldn't verify the preview just now. Tap Restore safely to retry the cloud check. Nothing on this device has changed.";
+        : timedOut
+          ? "The cloud check took too long. Tap Restore safely to retry. Nothing on this device has changed."
+          : "Fuwa couldn't verify the preview just now. Tap Restore safely to retry the cloud check. Nothing on this device has changed.";
     }
-    if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = noBackup ? "No backup" : "Check again";
+    if ($auth("cloudRestoreDate")) $auth("cloudRestoreDate").textContent = noBackup ? "No backup" : timedOut ? "Timed out" : "Check again";
     if ($auth("cloudRestoreRecords")) $auth("cloudRestoreRecords").textContent = "—";
     resetCloudRestoreButtonIfIdle(noBackup ? "Check again" : "Restore safely");
   }

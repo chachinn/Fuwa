@@ -10195,3 +10195,11 @@ body :where(h1,h2,h3,.topbar h1,.hero-card h2,.section-heading h3,.page-title-ro
   #lifeView .journal-section-tabs{gap:8px}
   #lifeView .journal-section-tabs button{min-height:40px;padding:0 15px;font-size:10px}
 }
+
+
+/* FUWA V97 — recovery interaction isolation (carried forward from tested v96) */
+#cloudRestoreButton,#cloudRestoreConfirmButton,#cloudRestoreCancelButton{touch-action:manipulation!important;-webkit-tap-highlight-color:transparent;pointer-events:auto!important}
+#cloudRestoreButton{position:relative;z-index:6}.cloud-restore-modal:not(.hidden){z-index:2147482000!important;isolation:isolate;pointer-events:auto!important;visibility:visible!important;opacity:1!important}
+body.cloud-restore-open .settings-sheet,body.cloud-restore-open .mood-checkin-modal,body.cloud-restore-open .fuwa-release-modal,body.cloud-restore-open .feature-tutorial,body.cloud-restore-open .fuwa-drawer,body.cloud-restore-open .fuwa-drawer-backdrop,body.cloud-restore-open .bottom-nav,body.cloud-restore-open .topbar{pointer-events:none!important}
+body.cloud-restore-open .cloud-restore-modal,body.cloud-restore-open .cloud-restore-modal *{pointer-events:auto!important}
+body.cloud-restore-open .privacy-pin-modal:not(.hidden),body.cloud-restore-open .privacy-lock-screen:not(.hidden){z-index:2147482500!important;pointer-events:auto!important}

@@ -4173,7 +4173,25 @@ function renderMoodCalendar() {
   }
 }
 
+function fuwaMoodCheckinBlockedByActiveModal() {
+  const settings = $("settingsSheet");
+  const release = $("fuwaReleaseNotesModal");
+  const feature = $("featureTutorial");
+  const mainTutorial = $("fuwaTutorial");
+  const privacyPin = $("privacyPinModal");
+  const privacyLock = $("privacyLockScreen");
+  return document.body.classList.contains("cloud-restore-open")
+    || (settings && !settings.classList.contains("hidden"))
+    || (release && !release.classList.contains("hidden"))
+    || (feature && feature.hidden === false)
+    || (mainTutorial && !mainTutorial.classList.contains("hidden"))
+    || (privacyPin && !privacyPin.classList.contains("hidden"))
+    || (privacyLock && !privacyLock.classList.contains("hidden"));
+}
+
 function openMoodCheckin(force = false) {
+  if (!force && currentView !== "home") return;
+  if (!force && fuwaMoodCheckinBlockedByActiveModal()) return;
   const today = getTodayMoodCheckin();
   document.querySelectorAll("[data-checkin-mood]").forEach(button => {
     button.classList.toggle("selected", today?.mood === button.dataset.checkinMood);
@@ -4331,8 +4349,10 @@ async function saveMoodCheckin(mood) {
 }
 
 function maybeShowDailyMoodCheckin() {
+  if (currentView !== "home" || fuwaMoodCheckinBlockedByActiveModal()) return;
   if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
   setTimeout(() => {
+    if (currentView !== "home" || fuwaMoodCheckinBlockedByActiveModal()) return;
     if (getTodayMoodCheckin() || homeMoodSyncRunning || pendingHomeMoodSync) return;
     openMoodCheckin();
   }, 350);
@@ -6079,6 +6099,10 @@ function bindReleaseRitual() {
 }
 
 function renderViewOnDemand(view = currentView) {
+  if (view === "smart") {
+    window.fuwaSmartRender?.();
+    return;
+  }
   if (view === "home") {
     renderMoodPicker();
     renderHomeMoodJar();
@@ -6240,6 +6264,66 @@ function renderAll() {
   renderStats();
   applyTheme();
 }
+
+
+
+// FUWA V97 — narrow on-device intelligence bridge.
+window.fuwaSmartApi = {
+  snapshot() {
+    return structuredClone({
+      data: {
+        entries: state.entries,
+        tinyJoys: state.tinyJoys,
+        letters: state.letters,
+        moodCheckins: state.moodCheckins,
+        threads: state.threads,
+        bookmarks: state.bookmarks,
+        nightlyReflections: state.nightlyReflections,
+        thenNow: state.thenNow,
+        comfortItems: state.comfortItems,
+        unsentLetters: state.unsentLetters,
+        thoughtBubbles: state.thoughtBubbles,
+        dreams: state.dreams,
+        dailyCheckins: state.dailyCheckins,
+        lifeCollections: state.lifeCollections,
+        habitDefinitions: state.habitDefinitions,
+        moments: state.moments,
+        randomThoughts: state.randomThoughts
+      },
+      selectedMood: state.selectedMood,
+      profileName: state.profileName
+    });
+  },
+  openEntry(id = null) { openEditor(id); },
+  navigate(view) { navigate(view); },
+  toast(message) { toast(message); },
+  async createThread({ title, description = "", emoji = "☁️", entryIds = [] } = {}) {
+    const cleanTitle = String(title || "").trim().slice(0, 60);
+    if (!cleanTitle) throw new Error("smart-thread-title-required");
+    const wanted = new Set((entryIds || []).filter(Boolean));
+    const existingEntries = state.entries.filter(entry => wanted.has(entry.id));
+    if (!existingEntries.length) throw new Error("smart-thread-no-entries");
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const record = { id, title: cleanTitle, description: String(description || "").trim().slice(0, 240), emoji: safeThreadIcon(emoji), createdAt: now, updatedAt: now };
+    const transaction = diaryRepository.db.transaction(["threads", "entries"], "readwrite");
+    transaction.objectStore("threads").put(record);
+    const entryStore = transaction.objectStore("entries");
+    const nextEntries = existingEntries.map(entry => ({
+      ...entry,
+      threadIds: [...new Set([...(Array.isArray(entry.threadIds) ? entry.threadIds : []), id])],
+      updatedAt: now
+    }));
+    nextEntries.forEach(entry => entryStore.put(entry));
+    await transactionDone(transaction);
+    state.threads.push(record);
+    const byId = new Map(nextEntries.map(entry => [entry.id, entry]));
+    state.entries = state.entries.map(entry => byId.get(entry.id) || entry);
+    announceLocalDataChange({ action: "smart-create-thread", storeName: "threads", recordId: id });
+    renderAll();
+    return structuredClone(record);
+  }
+};
 
 async function openEditor(entryId = null, dateOverride = null) {
   const entry = entryId ? state.entries.find(item => item.id === entryId) : null;
@@ -9423,7 +9507,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.1.10-2026-08-14";
+const FUWA_RELEASE_KEY = "fuwa-v1.2.0-2026-08-15";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";

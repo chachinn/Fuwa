@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- FUWA_BUILD: v95-cloud-restore-button-qa-r1 -->
+  <!-- FUWA_BUILD: v97-fuwa-intelligence-qa -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#f7c6d5" />
@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="./icon/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="./icon/favicon-32.png" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="smart-fuwa.css" />
 
   <style id="fuwa-auth-critical">
     body.auth-pending,
@@ -1668,11 +1669,14 @@
     <div class="fuwa-release-sheet">
       <button class="fuwa-release-close" id="fuwaReleaseNotesClose" type="button" aria-label="Close what’s new">×</button>
       <p class="eyebrow">Fuwa update</p>
-      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.1.10</h2>
-      <p class="fuwa-release-date">August 14, 2026</p>
+      <h2 id="fuwaReleaseNotesTitle">What’s new in Fuwa 1.2.0</h2>
+      <p class="fuwa-release-date">August 15, 2026</p>
       <div class="fuwa-release-cloud" aria-hidden="true">☁️</div>
-      <p class="fuwa-release-lead">A small cloud-restore reliability update: Restore safely stays retryable after temporary cloud checks, and the restore sheet now stays above regular check-in sheets so nothing invisible can block your tap.</p>
-      <div class="fuwa-release-list"><article><span>↻</span><div><strong>Restore button stays retryable</strong><p>A slow or temporary cloud preview check no longer leaves Restore safely disabled. Tapping it performs a fresh verified check before any device data changes.</p></div></article>
+      <p class="fuwa-release-lead">Fuwa can now connect the garden you’ve already grown: ask your journal, search by meaning, notice recurring threads, reflect without repetition, and look back through people, places, weeks, and older memories — all on this device.</p>
+      <div class="fuwa-release-list"><article><span>✦</span><div><strong>Fuwa Insights</strong><p>Ask Fuwa, Smart Search, weekly stories, mood-pattern insights, recurring themes, people and places, and smarter Then & Now are gathered in one private on-device space.</p></div></article>
+        <article><span>✎</span><div><strong>Writing help that waits for you</strong><p>Optional editor tools can help unpack a thought, offer a gentler perspective, reflect what you seem to be saying, or suggest a way to continue. Nothing is added unless you choose it.</p></div></article>
+        <article><span>☁️</span><div><strong>Restore controls hardened</strong><p>The v96 recovery protections are included: automatic check-ins stay out of Settings and Cloud Restore owns its interaction layer while recovery is open.</p></div></article>
+        <article><span>↻</span><div><strong>Restore button stays retryable</strong><p>A slow or temporary cloud preview check no longer leaves Restore safely disabled. Tapping it performs a fresh verified check before any device data changes.</p></div></article>
         <article><span>☁️</span><div><strong>Cloud restore verification fixed</strong><p>Moments and Random Thoughts now count correctly during restore verification, so valid cloud backups no longer fail after being written.</p></div></article>
         <article><span>🛟</span><div><strong>Automatic safety rollback</strong><p>Fuwa validates cloud record totals before writing and restores the pre-restore device snapshot automatically if a later verification step cannot complete.</p></div></article>
         <article><span>◌</span><div><strong>Lighter updates</strong><p>Sleep Corner’s large ambience files now cache only when you use them, so Fuwa updates do not wait on every sound download.</p></div></article>
@@ -2203,5 +2207,6 @@
   <script type="module" src="firebase-fuwa.js"></script>
   <script src="data/scrapbook-data.js"></script>
   <script src="app.js"></script>
+  <script src="smart-fuwa.js"></script>
 </body>
 </html>
