@@ -24,6 +24,9 @@ let firestoreCheckPromise = null;
 let autoSyncTimer = null;
 let autoSyncInFlight = false;
 let autoSyncQueued = false;
+let dailyBackupTimer = null;
+let dailyBackupRetryTimer = null;
+let dailyBackupInFlight = false;
 let suppressAutoSyncUntil = 0;
 let startupReconciliationDoneForUid = null;
 let startupReconciliationInFlight = false;
@@ -34,13 +37,20 @@ const FUWA_CLOUD_DEVICE_ID_KEY = "fuwaCloudDeviceIdV1";
 const FUWA_CLOUD_BASELINE_KEY = "fuwaCloudBaselineV1";
 const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";
 const FUWA_LOCAL_MODE_KEY = "fuwaLocalModeV1";
+const FUWA_DAILY_BACKUP_STATE_KEY = "fuwaDailyCloudBackupV1";
+const FUWA_DAILY_BACKUP_HOUR = 8;
 let firebaseInitialized = false;
 
 /* FUWA V87 — LOCAL MODE AUTO-SYNC SAFETY */
 function stopAutoSync() {
   window.clearTimeout(autoSyncTimer);
+  window.clearTimeout(dailyBackupTimer);
+  window.clearTimeout(dailyBackupRetryTimer);
   autoSyncTimer = null;
+  dailyBackupTimer = null;
+  dailyBackupRetryTimer = null;
   autoSyncQueued = false;
+  dailyBackupInFlight = false;
 }
 
 function isLocalModeChosen(){try{return localStorage.getItem(FUWA_LOCAL_MODE_KEY)==="1"}catch(_){return false}}
@@ -286,6 +296,7 @@ async function verifyFirestoreConnection(user) {
       loadCloudBackupStatus(user);
       reconcileStartupCloudState(user);
       retryPendingCloudSync("resume");
+      scheduleDailyCloudBackup("firestore-ready");
 
       window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {
         detail: { uid: user.uid, connected: true }
@@ -546,7 +557,162 @@ function formatAutoSyncClock(date = new Date()) {
   }).format(date);
 }
 
-async function performAutomaticCloudSync() {
+/* FUWA V99 — DAILY 8:00 AM CLOUD BACKUP
+   iOS cannot wake a fully closed PWA on a clock schedule. Fuwa therefore
+   backs up at 8:00 AM while open, or catches up once when next opened/resumed.
+   Provider-agnostic: email/password and Google both use auth.currentUser.uid. */
+function setDailyBackupStatus(message) {
+  const el = $auth("cloudDailyBackupStatus");
+  if (el) el.textContent = message;
+}
+
+function localDayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function dailyBackupTarget(date = new Date()) {
+  const target = new Date(date);
+  target.setHours(FUWA_DAILY_BACKUP_HOUR, 0, 0, 0);
+  return target;
+}
+
+function readDailyBackupState(uid) {
+  if (!uid) return null;
+  try {
+    const all = JSON.parse(localStorage.getItem(FUWA_DAILY_BACKUP_STATE_KEY) || "{}");
+    return all?.[uid] || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeDailyBackupState(uid, backup = {}, now = new Date()) {
+  if (!uid) return;
+  try {
+    const all = JSON.parse(localStorage.getItem(FUWA_DAILY_BACKUP_STATE_KEY) || "{}");
+    all[uid] = {
+      dayKey: localDayKey(now),
+      completedAt: now.toISOString(),
+      backupId: backup?.backupId || null,
+      sourceDeviceId: backup?.sourceDeviceId || null
+    };
+    localStorage.setItem(FUWA_DAILY_BACKUP_STATE_KEY, JSON.stringify(all));
+  } catch (error) {
+    console.warn("Fuwa could not save its daily backup schedule state.", error);
+  }
+}
+
+function isAtOrAfterDailyBackupTime(date = new Date()) {
+  return date.getTime() >= dailyBackupTarget(date).getTime();
+}
+
+function dailyBackupDue(uid, date = new Date()) {
+  if (!uid || !isAtOrAfterDailyBackupTime(date)) return false;
+  return readDailyBackupState(uid)?.dayKey !== localDayKey(date);
+}
+
+function millisecondsUntilNext8am(date = new Date()) {
+  const target = dailyBackupTarget(date);
+  if (date.getTime() >= target.getTime()) target.setDate(target.getDate() + 1);
+  return Math.max(1000, target.getTime() - date.getTime());
+}
+
+function markDailyBackupSatisfied(uid, backup = {}, now = new Date()) {
+  if (!uid || !isAtOrAfterDailyBackupTime(now)) return false;
+  writeDailyBackupState(uid, backup, now);
+  setDailyBackupStatus(`Today ✓ · ${formatAutoSyncClock(now)}`);
+  return true;
+}
+
+function scheduleDailyCloudBackup(reason = "schedule") {
+  window.clearTimeout(dailyBackupTimer);
+  dailyBackupTimer = null;
+
+  const user = auth?.currentUser;
+  if (isLocalModeChosen() || !user?.uid) return;
+
+  const now = new Date();
+  if (dailyBackupDue(user.uid, now)) {
+    setDailyBackupStatus(navigator.onLine ? "Due · backing up shortly" : "Due · waiting for connection");
+    dailyBackupTimer = window.setTimeout(() => performDaily8amBackup(reason === "timer" ? "scheduled-8am" : "catch-up"), 500);
+    return;
+  }
+
+  const state = readDailyBackupState(user.uid);
+  if (state?.dayKey === localDayKey(now)) setDailyBackupStatus(`Today ✓ · 8:00 AM protected`);
+  else setDailyBackupStatus("Scheduled · 8:00 AM");
+
+  dailyBackupTimer = window.setTimeout(() => performDaily8amBackup("scheduled-8am"), millisecondsUntilNext8am(now));
+}
+
+function scheduleDailyBackupRetry(delay = 60000) {
+  window.clearTimeout(dailyBackupRetryTimer);
+  dailyBackupRetryTimer = window.setTimeout(() => scheduleDailyCloudBackup("retry"), Math.max(1500, delay));
+}
+
+async function performDaily8amBackup(trigger = "scheduled-8am") {
+  const user = auth?.currentUser;
+  if (isLocalModeChosen() || !user?.uid) return false;
+
+  const now = new Date();
+  if (!dailyBackupDue(user.uid, now)) {
+    scheduleDailyCloudBackup("not-due");
+    return false;
+  }
+
+  if (!navigator.onLine) {
+    setDailyBackupStatus("Due · waiting for connection");
+    return false;
+  }
+  if (cloudConflictDetected) {
+    setDailyBackupStatus("Paused · review newer cloud copy");
+    return false;
+  }
+  if (cloudRestoreRunning || Date.now() < suppressAutoSyncUntil || autoSyncInFlight || dailyBackupInFlight) {
+    setDailyBackupStatus("Due · waiting for Fuwa to finish safely");
+    scheduleDailyBackupRetry(2500);
+    return false;
+  }
+
+  if (!firestore || !firestoreApi) {
+    setDailyBackupStatus("Due · connecting to Fuwa Cloud…");
+    const ready = await ensureFirestoreReady();
+    if (!ready) {
+      setDailyBackupStatus("Due · cloud unavailable, will retry");
+      scheduleDailyBackupRetry();
+      return false;
+    }
+  }
+
+  dailyBackupInFlight = true;
+  setDailyBackupStatus(trigger === "scheduled-8am" ? "8:00 AM · backing up…" : "Catch-up · backing up…");
+  try {
+    const ok = await performAutomaticCloudSync(`daily-8am:${trigger}`);
+    if (!ok) {
+      setDailyBackupStatus("Due · will retry safely");
+      scheduleDailyBackupRetry();
+      return false;
+    }
+    return true;
+  } finally {
+    dailyBackupInFlight = false;
+    if (!dailyBackupDue(user.uid, new Date())) scheduleDailyCloudBackup("completed");
+  }
+}
+
+window.fuwaDailyBackupDebug = {
+  localDayKey,
+  dailyBackupTarget,
+  dailyBackupDue,
+  millisecondsUntilNext8am,
+  markDailyBackupSatisfied,
+  readDailyBackupState
+};
+
+async function performAutomaticCloudSync(syncReason = "automatic-local-change") {
   const user = auth?.currentUser;
 
   if (!navigator.onLine) {
@@ -616,13 +782,14 @@ async function performAutomaticCloudSync() {
       backedUpAt: firestoreApi.serverTimestamp(),
       backedUpAtClient: new Date().toISOString(),
       approximateBytes,
-      syncReason: "automatic-local-change"
+      syncReason
     };
 
     await firestoreApi.setDoc(backupRef, cloudDocument);
     writeCloudBaseline(user.uid, cloudDocument);
     cloudConflictDetected = false;
     setPendingCloudSync(false);
+    markDailyBackupSatisfied(user.uid, cloudDocument, new Date());
 
     setCloudBackupUI({
       busy: false,
@@ -890,6 +1057,7 @@ async function handleCloudBackupRequest(event) {
     writeCloudBaseline(user.uid, verified);
     cloudConflictDetected = false;
     setPendingCloudSync(false);
+    markDailyBackupSatisfied(user.uid, verified, new Date());
 
     setCloudBackupUI({
       busy: false,
@@ -1133,19 +1301,26 @@ function retryPendingCloudSync(reason = "resume") {
   autoSyncTimer = window.setTimeout(() => performAutomaticCloudSync(), 450);
 }
 
-window.addEventListener("online", () => retryPendingCloudSync("online"));
+window.addEventListener("online", () => {
+  retryPendingCloudSync("online");
+  scheduleDailyCloudBackup("online");
+});
 window.addEventListener("offline", () => {
   if (hasPendingCloudSync()) setAutoSyncStatus("Offline · changes safe on device");
   else setAutoSyncStatus("Offline · local mode");
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") retryPendingCloudSync("resume");
+  if (document.visibilityState === "visible") {
+    retryPendingCloudSync("resume");
+    scheduleDailyCloudBackup("resume");
+  }
 });
 
 // iOS PWAs can be restored from a suspended state without a normal reload.
 window.addEventListener("pageshow", () => {
   retryPendingCloudSync("resume");
+  scheduleDailyCloudBackup("pageshow");
   resetCloudRestoreButtonIfIdle();
 });
 
