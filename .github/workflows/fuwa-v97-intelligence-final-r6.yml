@@ -1,0 +1,61 @@
+name: Fuwa v97 intelligence final r6
+on:
+  push:
+    branches: [qa/v97-fuwa-intelligence]
+jobs:
+  release-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: qa/v97-fuwa-intelligence, fetch-depth: 0}
+      - name: Apply production integration
+        run: |
+          python3 tools/fuwa_v97_patch_repair.py
+          python3 tools/fuwa_v97_patch.py
+          python3 tools/fuwa_v97_smart_repair.py
+          python3 tools/fuwa_v97_entity_repair.py
+          python3 tools/fuwa_v97_qa_tutorial_repair.py
+      - name: Static privacy and data-safety QA
+        run: |
+          set -euo pipefail
+          node --check app.js; node --check smart-fuwa.js; node --check firebase-fuwa.js; node --check service-worker.js; node --check data/scrapbook-data.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,subprocess,collections,json
+          app=Path('app.js').read_text(); smart=Path('smart-fuwa.js').read_text(); html=Path('index.html').read_text(); sw=Path('service-worker.js').read_text(); fb=Path('firebase-fuwa.js').read_text()
+          assert 'const DATABASE_VERSION = 13;' in app
+          assert 'fuwa-v1.2.0-2026-08-15' in app and 'FUWA_BUILD: v97-fuwa-intelligence-qa' in html and 'What’s new in Fuwa 1.2.0' in html
+          assert 'fuwa-shell-v97' in sw and './smart-fuwa.js' in sw and './smart-fuwa.css' in sw
+          assert 'CLOUD_RESTORE_READ_TIMEOUT_MS = 12000' in fb and 'fuwaMoodCheckinBlockedByActiveModal' in app and 'window.fuwaSmartApi' in app
+          for token in ['fetch(','XMLHttpRequest','WebSocket','sendBeacon','firebase','firestore','openai','anthropic']:
+              assert token.lower() not in smart.lower(), token
+          old_app=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          for token in ('localStorage.clear(','indexedDB.deleteDatabase('): assert app.count(token)<=old_app.count(token)
+          ids=re.findall(r'\bid="([^"]+)"',html); old_html=subprocess.check_output(['git','show','HEAD:index.html'],text=True); old_ids=re.findall(r'\bid="([^"]+)"',old_html)
+          assert {k:v for k,v in collections.Counter(ids).items() if v>1}=={k:v for k,v in collections.Counter(old_ids).items() if v>1}
+          subprocess.run(['git','diff','--exit-code','HEAD','--','manifest.json','data','audio','icon'],check=True); json.loads(Path('manifest.json').read_text())
+          print('static/privacy/data-safety QA passed')
+          PY
+          git diff --check
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+      - name: Full functional performance responsive and restore QA
+        run: |
+          python3 -m http.server 4331 --bind 127.0.0.1 >/tmp/fuwa-v97-r6.log 2>&1 &
+          PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT; sleep .5
+          node tools/fuwa_v97_browser_qa.js
+      - name: Build packages
+        run: |
+          mkdir -p dist/changes dist/full/Fuwa
+          cp index.html style.css smart-fuwa.css app.js smart-fuwa.js firebase-fuwa.js service-worker.js dist/changes/
+          cp index.html style.css smart-fuwa.css app.js smart-fuwa.js manifest.json service-worker.js firebase-fuwa.js dist/full/Fuwa/
+          cp -R audio data icon dist/full/Fuwa/
+          test ! -e dist/full/Fuwa/.github; test ! -e dist/full/Fuwa/tools
+      - uses: actions/upload-artifact@v4
+        with: {name: Fuwa-v97-intelligence-final, path: dist/changes, retention-days: 1}
+      - uses: actions/upload-artifact@v4
+        with: {name: Fuwa-v97-full-clean-production-final, path: dist/full/Fuwa, retention-days: 1}
