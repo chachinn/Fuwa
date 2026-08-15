@@ -1,0 +1,97 @@
+name: Fuwa v99 daily 8 AM backup v2
+on:
+  push:
+    branches: [qa/v99-daily-8am-backup]
+    paths: ['.github/workflows/fuwa-v99-daily-8am-backup-v2.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: qa/v99-daily-8am-backup, fetch-depth: 0}
+
+      - name: Reuse v99 production patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('.github/workflows/fuwa-v99-daily-8am-backup.yml').read_text().splitlines()
+          def extract(step):
+              start=next(i for i,x in enumerate(text) if x.strip()==f'- name: {step}')
+              run=next(i for i in range(start+1,len(text)) if text[i].strip()=='run: |')
+              out=[]
+              for line in text[run+1:]:
+                  if line.startswith('      - name:'):
+                      break
+                  out.append(line[10:] if line.startswith('          ') else line)
+              return '\n'.join(out)+'\n'
+          Path('/tmp/v99-patch.sh').write_text(extract('Patch v99 production files'))
+          PY
+          bash /tmp/v99-patch.sh
+
+      - name: Static data-safety and corrected scope QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check firebase-fuwa.js
+          node --check smart-fuwa.js
+          node --check smart-fuwa-life.js
+          node --check service-worker.js
+          grep -q 'FUWA_BUILD: v99-daily-8am-cloud-backup-qa' index.html
+          grep -q 'fuwa-shell-v99' service-worker.js
+          grep -q 'fuwa-v1.2.2-2026-08-15' app.js
+          grep -q 'FUWA_DAILY_BACKUP_HOUR = 8' firebase-fuwa.js
+          grep -q 'cloudDailyBackupStatus' index.html
+          grep -q 'Provider-agnostic: email/password and Google' firebase-fuwa.js
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          git diff --check
+          python3 - <<'PY'
+          import subprocess
+          current=open('app.js').read()+open('firebase-fuwa.js').read()
+          old=subprocess.check_output(['git','show','origin/main:app.js'],text=True)+subprocess.check_output(['git','show','origin/main:firebase-fuwa.js'],text=True)
+          for token in ('localStorage.clear(','indexedDB.deleteDatabase('):
+              assert current.count(token) <= old.count(token), token
+          changed=[x for x in subprocess.check_output(['git','diff','--name-only','origin/main'],text=True).splitlines() if not x.startswith('.github/workflows/')]
+          assert set(changed)=={'index.html','app.js','firebase-fuwa.js','service-worker.js'}, changed
+          PY
+
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Reuse v99 schedule and responsive QA
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text=Path('.github/workflows/fuwa-v99-daily-8am-backup.yml').read_text().splitlines()
+          start=next(i for i,x in enumerate(text) if x.strip()=='- name: Daily schedule and responsive runtime QA')
+          run=next(i for i in range(start+1,len(text)) if text[i].strip()=='run: |')
+          out=[]
+          for line in text[run+1:]:
+              if line.startswith('      - name:'):
+                  break
+              out.append(line[10:] if line.startswith('          ') else line)
+          Path('/tmp/v99-browser.sh').write_text('\n'.join(out)+'\n')
+          PY
+          bash /tmp/v99-browser.sh
+
+      - name: Promote exact tested production files to main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "fa51c1e6a7bbfb12a932d536fcfa6be90cc89244"
+          mkdir -p /tmp/v99
+          cp index.html app.js firebase-fuwa.js service-worker.js /tmp/v99/
+          (cd /tmp/v99 && sha256sum * > /tmp/v99.sha256)
+          git checkout main
+          git reset --hard origin/main
+          cp /tmp/v99/* .
+          (cd . && sha256sum -c /tmp/v99.sha256)
+          git add index.html app.js firebase-fuwa.js service-worker.js
+          git config user.name chachinn
+          git config user.email 140357822+chachinn@users.noreply.github.com
+          git commit -m 'Release Fuwa 1.2.2 daily 8 AM backup'
+          git push origin main
