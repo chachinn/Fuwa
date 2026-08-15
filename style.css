@@ -10203,3 +10203,11 @@ body :where(h1,h2,h3,.topbar h1,.hero-card h2,.section-heading h3,.page-title-ro
 body.cloud-restore-open .settings-sheet,body.cloud-restore-open .mood-checkin-modal,body.cloud-restore-open .fuwa-release-modal,body.cloud-restore-open .feature-tutorial,body.cloud-restore-open .fuwa-drawer,body.cloud-restore-open .fuwa-drawer-backdrop,body.cloud-restore-open .bottom-nav,body.cloud-restore-open .topbar{pointer-events:none!important}
 body.cloud-restore-open .cloud-restore-modal,body.cloud-restore-open .cloud-restore-modal *{pointer-events:auto!important}
 body.cloud-restore-open .privacy-pin-modal:not(.hidden),body.cloud-restore-open .privacy-lock-screen:not(.hidden){z-index:2147482500!important;pointer-events:auto!important}
+
+
+/* FUWA V104 — compact Mood Jar calibrated for a full 31-day month. */
+.jar-mood-item { width: 14px !important; height: 14px !important; transition: transform .34s cubic-bezier(.2,.75,.25,1); }
+.jar-mood-item .fuwa-mood-svg.jar-mood-icon { width: 15px !important; height: 12px !important; margin: 1px 0 0 -0.5px !important; }
+.large .jar-mood-item { width: 36px !important; height: 36px !important; }
+.large .jar-mood-item .fuwa-mood-svg.jar-mood-icon { width: 39px !important; height: 30px !important; margin: 3px 0 0 -2px !important; }
+@media (prefers-reduced-motion: reduce) { .jar-mood-item { transition: none !important; } }

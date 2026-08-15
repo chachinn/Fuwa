@@ -3919,7 +3919,7 @@ function buildMoodJarWorld(container) {
 
   const elements = [...container.querySelectorAll(".jar-mood-item")];
   const isLarge = container.id === "moodJarLargeBeads";
-  const radius = isLarge ? 18 : 10;
+  const radius = isLarge ? 18 : 6.7; // v104: compact preview fits a full 31-day pile.
   const padding = isLarge ? 7 : 4;
 
   const bodies = elements.map((element, index) => {
@@ -4014,7 +4014,40 @@ function resolveMoodJarCollisions(world) {
   }
 }
 
+function layoutCompactMoodJarPile(world) {
+  const bodies = world.bodies;
+  const left = world.padding + world.radius;
+  const right = world.width - world.padding - world.radius;
+  const top = world.padding + world.radius;
+  const bottom = world.height - world.padding - world.radius;
+  const rowStep = (bottom - top) / 6;
+  let bodyIndex = 0;
+
+  // Five/four staggered rows mimic a naturally settled pile. Seven rows hold
+  // 32 spots, so a 31-day month reaches the top without hiding moods.
+  for (let row = 0; row < 7 && bodyIndex < bodies.length; row += 1) {
+    const capacity = row % 2 === 0 ? 5 : 4;
+    const take = Math.min(capacity, bodies.length - bodyIndex);
+    const spacing = take > 1 ? Math.min(16, (right - left) / (take - 1)) : 0;
+    const rowWidth = spacing * Math.max(0, take - 1);
+    const startX = (left + right - rowWidth) / 2;
+    const y = Math.max(top, bottom - row * rowStep);
+    for (let column = 0; column < take; column += 1) {
+      const body = bodies[bodyIndex];
+      const x = Math.max(left, Math.min(right, startX + column * spacing));
+      body.x = x; body.y = y; body.vx = 0; body.vy = 0;
+      body.rotation = ((bodyIndex % 5) - 2) * 2.2;
+      body.element.style.transform = `translate3d(${x - body.radius}px, ${y - body.radius}px, 0) rotate(${body.rotation}deg)`;
+      bodyIndex += 1;
+    }
+  }
+}
+
 function stepMoodJarWorld(world, dt) {
+  if (world.container?.id === "homeMoodJarBeads") {
+    layoutCompactMoodJarPile(world);
+    return;
+  }
   const gravityStrength = 0.0017 * dt;
   const gx = moodJarGravity.x * gravityStrength;
   const gy = moodJarGravity.y * gravityStrength;
@@ -4058,7 +4091,11 @@ function stepMoodJarWorld(world, dt) {
 
   resolveMoodJarCollisions(world);
 
+  // Pair separation can move a large mood back across the glass edge.
+  // Re-clamp after collisions so every visible mood remains inside the jar.
   world.bodies.forEach(body => {
+    body.x = Math.max(left, Math.min(right, body.x));
+    body.y = Math.max(top, Math.min(bottom, body.y));
     body.rotation += body.vx * dt * 0.035;
     body.element.style.transform = `translate3d(${body.x - body.radius}px, ${body.y - body.radius}px, 0) rotate(${body.rotation}deg)`;
   });
