@@ -9507,7 +9507,7 @@ function closeSettingsSheet() {
   document.body.style.overflow = "";
 }
 
-const FUWA_RELEASE_KEY = "fuwa-v1.2.0-2026-08-15";
+const FUWA_RELEASE_KEY = "fuwa-v1.2.1-2026-08-15";
 const FUWA_PENDING_RELEASE_NOTES_KEY = "fuwaPendingReleaseNotes";
 const FUWA_SEEN_RELEASE_NOTES_KEY = "fuwaSeenReleaseNotes";
 const FUWA_RELEASE_MARKER_CACHE = "fuwa-release-state";
