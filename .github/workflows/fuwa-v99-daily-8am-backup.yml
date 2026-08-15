@@ -1,0 +1,202 @@
+name: Fuwa v99 daily 8 AM backup
+on:
+  push:
+    branches: [qa/v99-daily-8am-backup]
+    paths: ['.github/workflows/fuwa-v99-daily-8am-backup.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: qa/v99-daily-8am-backup, fetch-depth: 0}
+
+      - name: Patch v99 production files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # firebase-fuwa.js — add provider-agnostic 8 AM daily backup scheduler.
+          p=Path('firebase-fuwa.js'); s=p.read_text()
+          s=s.replace(
+          '''let autoSyncTimer = null;\nlet autoSyncInFlight = false;\nlet autoSyncQueued = false;''',
+          '''let autoSyncTimer = null;\nlet autoSyncInFlight = false;\nlet autoSyncQueued = false;\nlet dailyBackupTimer = null;\nlet dailyBackupRetryTimer = null;\nlet dailyBackupInFlight = false;''')
+          s=s.replace(
+          '''const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";\nconst FUWA_LOCAL_MODE_KEY = "fuwaLocalModeV1";''',
+          '''const FUWA_CLOUD_PENDING_KEY = "fuwaCloudPendingV1";\nconst FUWA_LOCAL_MODE_KEY = "fuwaLocalModeV1";\nconst FUWA_DAILY_BACKUP_STATE_KEY = "fuwaDailyCloudBackupV1";\nconst FUWA_DAILY_BACKUP_HOUR = 8;''')
+          s=s.replace(
+          '''function stopAutoSync() {\n  window.clearTimeout(autoSyncTimer);\n  autoSyncTimer = null;\n  autoSyncQueued = false;\n}''',
+          '''function stopAutoSync() {\n  window.clearTimeout(autoSyncTimer);\n  window.clearTimeout(dailyBackupTimer);\n  window.clearTimeout(dailyBackupRetryTimer);\n  autoSyncTimer = null;\n  dailyBackupTimer = null;\n  dailyBackupRetryTimer = null;\n  autoSyncQueued = false;\n  dailyBackupInFlight = false;\n}''')
+
+          anchor='''function formatAutoSyncClock(date = new Date()) {\n  return new Intl.DateTimeFormat("en-US", {\n    hour: "numeric",\n    minute: "2-digit"\n  }).format(date);\n}\n\n'''
+          assert anchor in s
+          daily_code=r'''/* FUWA V99 — DAILY 8:00 AM CLOUD BACKUP\n   iOS cannot wake a fully closed PWA on a clock schedule. Fuwa therefore\n   backs up at 8:00 AM while open, or catches up once when next opened/resumed.\n   Provider-agnostic: email/password and Google both use auth.currentUser.uid. */\nfunction setDailyBackupStatus(message) {\n  const el = $auth("cloudDailyBackupStatus");\n  if (el) el.textContent = message;\n}\n\nfunction localDayKey(date = new Date()) {\n  const y = date.getFullYear();\n  const m = String(date.getMonth() + 1).padStart(2, "0");\n  const d = String(date.getDate()).padStart(2, "0");\n  return `${y}-${m}-${d}`;\n}\n\nfunction dailyBackupTarget(date = new Date()) {\n  const target = new Date(date);\n  target.setHours(FUWA_DAILY_BACKUP_HOUR, 0, 0, 0);\n  return target;\n}\n\nfunction readDailyBackupState(uid) {\n  if (!uid) return null;\n  try {\n    const all = JSON.parse(localStorage.getItem(FUWA_DAILY_BACKUP_STATE_KEY) || "{}");\n    return all?.[uid] || null;\n  } catch (_) {\n    return null;\n  }\n}\n\nfunction writeDailyBackupState(uid, backup = {}, now = new Date()) {\n  if (!uid) return;\n  try {\n    const all = JSON.parse(localStorage.getItem(FUWA_DAILY_BACKUP_STATE_KEY) || "{}");\n    all[uid] = {\n      dayKey: localDayKey(now),\n      completedAt: now.toISOString(),\n      backupId: backup?.backupId || null,\n      sourceDeviceId: backup?.sourceDeviceId || null\n    };\n    localStorage.setItem(FUWA_DAILY_BACKUP_STATE_KEY, JSON.stringify(all));\n  } catch (error) {\n    console.warn("Fuwa could not save its daily backup schedule state.", error);\n  }\n}\n\nfunction isAtOrAfterDailyBackupTime(date = new Date()) {\n  return date.getTime() >= dailyBackupTarget(date).getTime();\n}\n\nfunction dailyBackupDue(uid, date = new Date()) {\n  if (!uid || !isAtOrAfterDailyBackupTime(date)) return false;\n  return readDailyBackupState(uid)?.dayKey !== localDayKey(date);\n}\n\nfunction millisecondsUntilNext8am(date = new Date()) {\n  const target = dailyBackupTarget(date);\n  if (date.getTime() >= target.getTime()) target.setDate(target.getDate() + 1);\n  return Math.max(1000, target.getTime() - date.getTime());\n}\n\nfunction markDailyBackupSatisfied(uid, backup = {}, now = new Date()) {\n  if (!uid || !isAtOrAfterDailyBackupTime(now)) return false;\n  writeDailyBackupState(uid, backup, now);\n  setDailyBackupStatus(`Today ✓ · ${formatAutoSyncClock(now)}`);\n  return true;\n}\n\nfunction scheduleDailyCloudBackup(reason = "schedule") {\n  window.clearTimeout(dailyBackupTimer);\n  dailyBackupTimer = null;\n\n  const user = auth?.currentUser;\n  if (isLocalModeChosen() || !user?.uid) return;\n\n  const now = new Date();\n  if (dailyBackupDue(user.uid, now)) {\n    setDailyBackupStatus(navigator.onLine ? "Due · backing up shortly" : "Due · waiting for connection");\n    dailyBackupTimer = window.setTimeout(() => performDaily8amBackup(reason === "timer" ? "scheduled-8am" : "catch-up"), 500);\n    return;\n  }\n\n  const state = readDailyBackupState(user.uid);\n  if (state?.dayKey === localDayKey(now)) setDailyBackupStatus(`Today ✓ · 8:00 AM protected`);\n  else setDailyBackupStatus("Scheduled · 8:00 AM");\n\n  dailyBackupTimer = window.setTimeout(() => performDaily8amBackup("scheduled-8am"), millisecondsUntilNext8am(now));\n}\n\nfunction scheduleDailyBackupRetry(delay = 60000) {\n  window.clearTimeout(dailyBackupRetryTimer);\n  dailyBackupRetryTimer = window.setTimeout(() => scheduleDailyCloudBackup("retry"), Math.max(1500, delay));\n}\n\nasync function performDaily8amBackup(trigger = "scheduled-8am") {\n  const user = auth?.currentUser;\n  if (isLocalModeChosen() || !user?.uid) return false;\n\n  const now = new Date();\n  if (!dailyBackupDue(user.uid, now)) {\n    scheduleDailyCloudBackup("not-due");\n    return false;\n  }\n\n  if (!navigator.onLine) {\n    setDailyBackupStatus("Due · waiting for connection");\n    return false;\n  }\n  if (cloudConflictDetected) {\n    setDailyBackupStatus("Paused · review newer cloud copy");\n    return false;\n  }\n  if (cloudRestoreRunning || Date.now() < suppressAutoSyncUntil || autoSyncInFlight || dailyBackupInFlight) {\n    setDailyBackupStatus("Due · waiting for Fuwa to finish safely");\n    scheduleDailyBackupRetry(2500);\n    return false;\n  }\n\n  if (!firestore || !firestoreApi) {\n    setDailyBackupStatus("Due · connecting to Fuwa Cloud…");\n    const ready = await ensureFirestoreReady();\n    if (!ready) {\n      setDailyBackupStatus("Due · cloud unavailable, will retry");\n      scheduleDailyBackupRetry();\n      return false;\n    }\n  }\n\n  dailyBackupInFlight = true;\n  setDailyBackupStatus(trigger === "scheduled-8am" ? "8:00 AM · backing up…" : "Catch-up · backing up…");\n  try {\n    const ok = await performAutomaticCloudSync(`daily-8am:${trigger}`);\n    if (!ok) {\n      setDailyBackupStatus("Due · will retry safely");\n      scheduleDailyBackupRetry();\n      return false;\n    }\n    return true;\n  } finally {\n    dailyBackupInFlight = false;\n    if (!dailyBackupDue(user.uid, new Date())) scheduleDailyCloudBackup("completed");\n  }\n}\n\nwindow.fuwaDailyBackupDebug = {\n  localDayKey,\n  dailyBackupTarget,\n  dailyBackupDue,\n  millisecondsUntilNext8am,\n  markDailyBackupSatisfied,\n  readDailyBackupState\n};\n\n'''.replace('\\n','\n')
+          s=s.replace(anchor,anchor+daily_code)
+
+          start=s.index('async function performAutomaticCloudSync() {')
+          end=s.index('\nfunction scheduleAutomaticCloudSync()', start)
+          block=s[start:end]
+          block=block.replace('async function performAutomaticCloudSync() {','async function performAutomaticCloudSync(syncReason = "automatic-local-change") {',1)
+          block=block.replace('syncReason: "automatic-local-change"','syncReason',1)
+          needle='''    setPendingCloudSync(false);\n\n    setCloudBackupUI({'''
+          assert needle in block
+          block=block.replace(needle,'''    setPendingCloudSync(false);\n    markDailyBackupSatisfied(user.uid, cloudDocument, new Date());\n\n    setCloudBackupUI({''',1)
+          s=s[:start]+block+s[end:]
+
+          # A successful manual backup after 8 AM also satisfies today's daily protection,
+          # avoiding a redundant second write when the app catches up moments later.
+          hstart=s.index('async function handleCloudBackupRequest(event)')
+          hend=s.index('\n\nconst CLOUD_RESTORE_READ_TIMEOUT_MS', hstart)
+          hblock=s[hstart:hend]
+          needle='''    setPendingCloudSync(false);\n\n    setCloudBackupUI({'''
+          assert needle in hblock
+          hblock=hblock.replace(needle,'''    setPendingCloudSync(false);\n    markDailyBackupSatisfied(user.uid, verified, new Date());\n\n    setCloudBackupUI({''',1)
+          s=s[:hstart]+hblock+s[hend:]
+
+          # Firestore-ready, online, resume, and pageshow all schedule/catch up the 8 AM backup.
+          needle='''      retryPendingCloudSync("resume");\n\n      window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {'''
+          assert needle in s
+          s=s.replace(needle,'''      retryPendingCloudSync("resume");\n      scheduleDailyCloudBackup("firestore-ready");\n\n      window.dispatchEvent(new CustomEvent("fuwa-firestore-ready", {''',1)
+
+          old='''window.addEventListener("online", () => retryPendingCloudSync("online"));\nwindow.addEventListener("offline", () => {'''
+          assert old in s
+          s=s.replace(old,'''window.addEventListener("online", () => {\n  retryPendingCloudSync("online");\n  scheduleDailyCloudBackup("online");\n});\nwindow.addEventListener("offline", () => {''',1)
+
+          old='''document.addEventListener("visibilitychange", () => {\n  if (document.visibilityState === "visible") retryPendingCloudSync("resume");\n});'''
+          assert old in s
+          s=s.replace(old,'''document.addEventListener("visibilitychange", () => {\n  if (document.visibilityState === "visible") {\n    retryPendingCloudSync("resume");\n    scheduleDailyCloudBackup("resume");\n  }\n});''',1)
+
+          old='''window.addEventListener("pageshow", () => {\n  retryPendingCloudSync("resume");\n  resetCloudRestoreButtonIfIdle();\n});'''
+          assert old in s
+          s=s.replace(old,'''window.addEventListener("pageshow", () => {\n  retryPendingCloudSync("resume");\n  scheduleDailyCloudBackup("pageshow");\n  resetCloudRestoreButtonIfIdle();\n});''',1)
+          p.write_text(s)
+
+          # index.html — release marker + transparent schedule UI.
+          p=Path('index.html'); s=p.read_text()
+          assert 'FUWA_BUILD: v98-life-intelligence-qa' in s
+          s=s.replace('FUWA_BUILD: v98-life-intelligence-qa','FUWA_BUILD: v99-daily-8am-cloud-backup-qa',1)
+          s=s.replace('What’s new in Fuwa 1.2.1','What’s new in Fuwa 1.2.2',1)
+          old='''          <div class="cloud-backup-meta">\n            <span>Automatic sync</span>\n            <strong id="cloudAutoSyncStatus">On · waiting for changes</strong>\n          </div>'''
+          assert old in s
+          new=old+'''\n          <div class="cloud-backup-meta">\n            <span>Daily backup</span>\n            <strong id="cloudDailyBackupStatus">Scheduled · 8:00 AM</strong>\n          </div>'''
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          # Release key and service-worker update marker.
+          p=Path('app.js'); s=p.read_text(); assert 'fuwa-v1.2.1-2026-08-15' in s
+          p.write_text(s.replace('fuwa-v1.2.1-2026-08-15','fuwa-v1.2.2-2026-08-15',1))
+          p=Path('service-worker.js'); s=p.read_text(); assert 'fuwa-shell-v98' in s and 'fuwa-v1.2.1-2026-08-15' in s
+          s=s.replace('fuwa-shell-v98','fuwa-shell-v99',1).replace('fuwa-v1.2.1-2026-08-15','fuwa-v1.2.2-2026-08-15',1)
+          p.write_text(s)
+          PY
+
+      - name: Static data-safety and scope QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check firebase-fuwa.js
+          node --check smart-fuwa.js
+          node --check smart-fuwa-life.js
+          node --check service-worker.js
+          grep -q 'FUWA_BUILD: v99-daily-8am-cloud-backup-qa' index.html
+          grep -q 'fuwa-shell-v99' service-worker.js
+          grep -q 'fuwa-v1.2.2-2026-08-15' app.js
+          grep -q 'FUWA_DAILY_BACKUP_HOUR = 8' firebase-fuwa.js
+          grep -q 'cloudDailyBackupStatus' index.html
+          grep -q 'Provider-agnostic: email/password and Google' firebase-fuwa.js
+          grep -q 'const DATABASE_VERSION = 13;' app.js
+          ! grep -q 'setInterval' firebase-fuwa.js
+          git diff --check
+          python3 - <<'PY'
+          import subprocess
+          current=open('app.js').read()+open('firebase-fuwa.js').read()
+          old=subprocess.check_output(['git','show','origin/main:app.js'],text=True)+subprocess.check_output(['git','show','origin/main:firebase-fuwa.js'],text=True)
+          for token in ('localStorage.clear(','indexedDB.deleteDatabase('):
+              assert current.count(token) <= old.count(token), token
+          changed=subprocess.check_output(['git','diff','--name-only','origin/main'],text=True).splitlines()
+          assert set(changed)=={'index.html','app.js','firebase-fuwa.js','service-worker.js'}, changed
+          PY
+
+      - name: Install browser runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Daily schedule and responsive runtime QA
+        run: |
+          cat > v99-test.cjs <<'JS'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const sizes=[[320,568],[375,812],[390,844],[430,932],[820,1180],[1180,820]];
+            for(const [width,height] of sizes){
+              const page=await browser.newPage({viewport:{width,height}});
+              const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+              await page.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1');});
+              await page.goto('http://127.0.0.1:4339/',{waitUntil:'domcontentloaded'});
+              await page.waitForTimeout(650);
+              if(errors.length) throw new Error(errors.join('\n'));
+              const info=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth+2,debug:!!window.fuwaDailyBackupDebug,dbText:document.documentElement.innerHTML.includes('cloudDailyBackupStatus')}));
+              if(info.overflow) throw new Error(`horizontal overflow ${width}x${height}`);
+              if(!info.debug||!info.dbText) throw new Error(`daily backup UI/debug missing ${width}x${height}`);
+              await page.close();
+            }
+
+            const page=await browser.newPage();
+            await page.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.removeItem('fuwaDailyCloudBackupV1');});
+            await page.goto('http://127.0.0.1:4339/',{waitUntil:'domcontentloaded'}); await page.waitForTimeout(400);
+            const result=await page.evaluate(()=>{
+              const d=window.fuwaDailyBackupDebug;
+              const uidA='email-user'; const uidB='google-user';
+              const before=new Date(2026,7,15,7,59,0,0);
+              const exact=new Date(2026,7,15,8,0,0,0);
+              const late=new Date(2026,7,15,20,30,0,0);
+              const nextDay=new Date(2026,7,16,8,1,0,0);
+              const a={
+                before:d.dailyBackupDue(uidA,before),
+                exact:d.dailyBackupDue(uidA,exact),
+                late:d.dailyBackupDue(uidA,late),
+                beforeDelay:d.millisecondsUntilNext8am(before),
+                lateDelay:d.millisecondsUntilNext8am(late)
+              };
+              d.markDailyBackupSatisfied(uidA,{backupId:'a'},late);
+              a.sameDayAfterSuccess=d.dailyBackupDue(uidA,late);
+              a.otherUserStillDue=d.dailyBackupDue(uidB,late);
+              a.nextDayDue=d.dailyBackupDue(uidA,nextDay);
+              a.state=d.readDailyBackupState(uidA);
+              return a;
+            });
+            if(result.before!==false) throw new Error('backup due before 8 AM');
+            if(result.exact!==true||result.late!==true) throw new Error('8 AM or catch-up due logic failed');
+            if(result.sameDayAfterSuccess!==false) throw new Error('duplicate same-day backup allowed');
+            if(result.otherUserStillDue!==true) throw new Error('per-user schedule isolation failed');
+            if(result.nextDayDue!==true) throw new Error('next-day recurrence failed');
+            if(result.beforeDelay<59000||result.beforeDelay>61000) throw new Error('pre-8 timer inaccurate');
+            if(result.lateDelay<40000000||result.lateDelay>43000000) throw new Error('next-day timer inaccurate');
+            if(result.state?.dayKey!=='2026-08-15') throw new Error('daily success state not saved');
+            console.log('v99 schedule QA',result);
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          python3 -m http.server 4339 --bind 127.0.0.1 >/tmp/v99-server.log 2>&1 & PID=$!; trap 'kill $PID 2>/dev/null || true' EXIT; sleep .5
+          node v99-test.cjs
+
+      - name: Promote exact tested production files to main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "fa51c1e6a7bbfb12a932d536fcfa6be90cc89244"
+          mkdir -p /tmp/v99
+          cp index.html app.js firebase-fuwa.js service-worker.js /tmp/v99/
+          sha256sum /tmp/v99/* > /tmp/v99.sha256
+          git checkout main
+          git reset --hard origin/main
+          cp /tmp/v99/* .
+          sha256sum -c /tmp/v99.sha256
+          git add index.html app.js firebase-fuwa.js service-worker.js
+          git config user.name chachinn
+          git config user.email 140357822+chachinn@users.noreply.github.com
+          git commit -m 'Release Fuwa 1.2.2 daily 8 AM backup'
+          git push origin main
