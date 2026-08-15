@@ -1,0 +1,211 @@
+name: Fuwa v97 intelligence release QA
+
+on:
+  push:
+    branches:
+      - qa/v97-fuwa-intelligence
+
+jobs:
+  release-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: qa/v97-fuwa-intelligence
+          fetch-depth: 0
+
+      - name: Apply v97 production integration
+        run: python3 tools/fuwa_v97_patch.py
+
+      - name: Static privacy data-safety and syntax QA
+        run: |
+          set -euo pipefail
+          node --check app.js
+          node --check smart-fuwa.js
+          node --check firebase-fuwa.js
+          node --check service-worker.js
+          node --check data/scrapbook-data.js
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, subprocess, collections, json
+          app=Path('app.js').read_text()
+          smart=Path('smart-fuwa.js').read_text()
+          html=Path('index.html').read_text()
+          sw=Path('service-worker.js').read_text()
+          fb=Path('firebase-fuwa.js').read_text()
+          assert 'const DATABASE_VERSION = 13;' in app
+          assert 'fuwa-v1.2.0-2026-08-15' in app
+          assert 'FUWA_BUILD: v97-fuwa-intelligence-qa' in html
+          assert 'What’s new in Fuwa 1.2.0' in html
+          assert 'fuwa-shell-v97' in sw and 'fuwa-v1.2.0-2026-08-15' in sw
+          assert './smart-fuwa.js' in sw and './smart-fuwa.css' in sw
+          assert 'CLOUD_RESTORE_READ_TIMEOUT_MS = 12000' in fb
+          assert 'fuwaMoodCheckinBlockedByActiveModal' in app
+          assert 'currentView !== "home"' in app
+          assert 'window.fuwaSmartApi' in app
+          assert 'window.fuwaSmartRender' in smart
+          assert 'Ask Fuwa' in smart and 'Smart Search' in smart and 'Gentle Weekly Story' in smart
+          assert 'Threads Fuwa noticed' in smart and 'Memory Pages' in smart and 'Journal Recap' in smart
+          assert 'writingSuggestion' in smart and 'PROMPT_WINDOW_DAYS = 14' in smart
+          # The intelligence module must remain local-only.
+          forbidden=['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'firebase', 'firestore', 'openai', 'anthropic']
+          low=smart.lower()
+          for token in forbidden:
+              assert token.lower() not in low, token
+          # No destructive shortcut and no schema migration.
+          old_app=subprocess.check_output(['git','show','HEAD:app.js'],text=True)
+          for token in ('localStorage.clear(', 'indexedDB.deleteDatabase('):
+              assert app.count(token) <= old_app.count(token), token
+          ids=re.findall(r'\bid="([^"]+)"',html)
+          dups={k:v for k,v in collections.Counter(ids).items() if v>1}
+          old_html=subprocess.check_output(['git','show','HEAD:index.html'],text=True)
+          old_ids=re.findall(r'\bid="([^"]+)"',old_html)
+          old_dups={k:v for k,v in collections.Counter(old_ids).items() if v>1}
+          assert dups==old_dups
+          changed=set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())
+          assert changed=={'app.js','firebase-fuwa.js','index.html','style.css','service-worker.js'},changed
+          subprocess.run(['git','diff','--exit-code','HEAD','--','manifest.json','data','audio','icon'],check=True)
+          json.loads(Path('manifest.json').read_text())
+          print('static privacy/data-safety QA passed')
+          PY
+          git diff --check
+
+      - name: Install Chromium runtime
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null
+          npx playwright install chromium >/dev/null
+
+      - name: Smart features functional and performance QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4331 --bind 127.0.0.1 >/tmp/fuwa-v97.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .5
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          const assert=(x,m)=>{if(!x)throw new Error(m)};
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
+            const p=await c.newPage(), errors=[];p.on('pageerror',e=>errors.push(String(e)));
+            await p.addInitScript(()=>{
+              localStorage.setItem('fuwaLocalModeV1','1');
+              localStorage.setItem('fuwaTutorialSeenV1','1');
+              localStorage.setItem('fuwaFeatureTutorial:v1:me','1');
+              window.alert=()=>{};window.confirm=()=>true;
+            });
+            await p.goto('http://127.0.0.1:4331/index.html',{waitUntil:'domcontentloaded'});
+            await p.waitForFunction(()=>window.fuwaSmartApi&&window.fuwaSmartDebug);
+            assert(!errors.length,errors.join('|'));
+
+            // Seed a realistic journal directly into FuwaDB, then reload so production state reads it normally.
+            await p.evaluate(async()=>{
+              const open=indexedDB.open('FuwaDB',13);const db=await new Promise((res,rej)=>{open.onsuccess=()=>res(open.result);open.onerror=()=>rej(open.error)});
+              const tx=db.transaction(['entries','tinyJoys','moodCheckins','dailyCheckins'],'readwrite');
+              const now=Date.now();
+              const entries=[
+                {id:'smart-work-1',date:'2026-08-15',mood:'low',title:'Office pressure',body:'The deadline and meeting pressure at the office felt heavy today.',tags:['work'],threadIds:[],createdAt:now-1000,updatedAt:now-1000},
+                {id:'smart-japan',date:'2026-07-02',mood:'amazing',title:'Tokyo evening',body:'Walking around Tokyo after dinner made me happy and calm. Japan felt bright.',tags:['travel'],threadIds:[],createdAt:now-40*86400000,updatedAt:now-40*86400000},
+                {id:'smart-work-old',date:'2026-06-01',mood:'okay',title:'Work boundary',body:'I noticed that office meetings are easier when I leave the deadline pressure at work.',tags:['work'],threadIds:[],createdAt:now-75*86400000,updatedAt:now-75*86400000},
+                {id:'smart-friend-1',date:'2026-08-10',mood:'good',title:'Coffee',body:'Had coffee with Mika at Shibuya and laughed for a long time.',tags:[],threadIds:[],createdAt:now-5*86400000,updatedAt:now-5*86400000},
+                {id:'smart-friend-2',date:'2026-08-11',mood:'good',title:'Call',body:'Talked to Mika again after work. It was comforting.',tags:[],threadIds:[],createdAt:now-4*86400000,updatedAt:now-4*86400000}
+              ];
+              entries.forEach(x=>tx.objectStore('entries').put(x));
+              tx.objectStore('tinyJoys').put({id:'joy-1',date:'2026-08-14',text:'A quiet dinner made me smile',createdAt:now-86400000,updatedAt:now-86400000});
+              for(let i=0;i<6;i++){
+                const d=new Date(now-(i+1)*86400000).toISOString().slice(0,10);
+                tx.objectStore('moodCheckins').put({id:'m'+i,date:d,mood:i<3?'good':'low',createdAt:now-i});
+                tx.objectStore('dailyCheckins').put({id:'d'+i,date:d,sleepHours:i<3?8:5,energy:i<3?4:2,rating:i<3?4:2,createdAt:now-i});
+              }
+              await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});db.close();
+            });
+            await p.reload({waitUntil:'domcontentloaded'});await p.waitForFunction(()=>window.fuwaSmartApi&&window.fuwaSmartDebug);
+            const result=await p.evaluate(()=>({
+              search:window.fuwaSmartDebug.searchDocs('overwhelmed at work',{limit:6}).map(x=>x.id),
+              ask:window.fuwaSmartDebug.askFuwa('When did I last mention Japan?'),
+              weekly:window.fuwaSmartDebug.weeklyStory(),
+              patterns:window.fuwaSmartDebug.moodInsights(),
+              rhythm:window.fuwaSmartDebug.rhythm(),
+              thenNow:window.fuwaSmartDebug.smartThenNow(),
+              entities:window.fuwaSmartDebug.entityPages(),
+              stats:window.fuwaSmartDebug.stats()
+            }));
+            assert(result.search.includes('smart-work-1'),`semantic work search failed ${JSON.stringify(result.search)}`);
+            assert(result.ask.docs.some(x=>x.id==='smart-japan'),'Ask Fuwa last mention failed');
+            assert(!result.weekly.empty,'weekly story failed');
+            assert(result.patterns.length>=1,'mood pattern insight failed');
+            assert(result.rhythm,'rhythm failed');
+            assert(result.thenNow?.recent?.id==='smart-work-1'&&result.thenNow?.older,'smart Then & Now failed');
+            assert(result.entities.people.some(x=>x.name==='Mika'),'people memory page failed');
+
+            // Full smart view + meaning search UI.
+            await p.evaluate(()=>window.fuwaSmartApi.navigate('smart'));await p.waitForTimeout(120);
+            assert(await p.locator('#smartView').evaluate(el=>el.classList.contains('active')),'smart view did not activate');
+            assert(await p.locator('text=Fuwa Insights').first().isVisible(),'smart view missing');
+            await p.locator('#fuwaSmartSearch').fill('overwhelmed at work');await p.waitForTimeout(260);
+            assert((await p.locator('#fuwaSmartSearchResults').innerText()).includes('Office pressure'),'smart search UI failed');
+            await p.locator('#fuwaAskInput').fill('Show me happy memories');await p.locator('#fuwaAskForm button').click();
+            assert((await p.locator('#fuwaAskAnswer').innerText()).includes('brighter'),'Ask Fuwa UI failed');
+
+            // Approved smart thread creation must be atomic and persist links.
+            await p.evaluate(()=>window.fuwaSmartApi.createThread({title:'Work',description:'QA smart thread',emoji:'☁️',entryIds:['smart-work-1','smart-work-old']}));
+            const linked=await p.evaluate(()=>{const s=window.fuwaSmartApi.snapshot().data;const t=s.threads.find(x=>x.title==='Work');return{thread:!!t,a:s.entries.find(x=>x.id==='smart-work-1').threadIds.includes(t.id),b:s.entries.find(x=>x.id==='smart-work-old').threadIds.includes(t.id)}});
+            assert(linked.thread&&linked.a&&linked.b,`thread linking failed ${JSON.stringify(linked)}`);
+
+            // Writing helper may suggest, but must not mutate text until Apply is pressed.
+            await p.evaluate(()=>window.fuwaSmartApi.openEntry('smart-work-1'));await p.waitForTimeout(120);
+            const before=await p.locator('#entryBody').inputValue();
+            await p.locator('[data-write-help="gentle"]').click();
+            assert(await p.locator('#entryBody').inputValue()===before,'writing helper mutated entry before approval');
+            await p.locator('[data-write-apply]').click();
+            assert((await p.locator('#entryBody').inputValue()).length>before.length,'approved writing suggestion not applied');
+
+            // Stress-test lazy index with 1,500 journal records. No index work should be network-backed.
+            await p.evaluate(async()=>{
+              const open=indexedDB.open('FuwaDB',13);const db=await new Promise((res,rej)=>{open.onsuccess=()=>res(open.result);open.onerror=()=>rej(open.error)});const tx=db.transaction('entries','readwrite'),store=tx.objectStore('entries'),now=Date.now();for(let i=0;i<1500;i++)store.put({id:'perf-'+i,date:new Date(now-(i%365)*86400000).toISOString().slice(0,10),mood:i%3?'good':'okay',title:'Journal '+i,body:i%11===0?'A stressful office deadline needed quiet rest afterward.':'A small ordinary day with music and dinner.',tags:[],threadIds:[],createdAt:now-i*1000,updatedAt:now-i*1000});await new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});db.close();});
+            await p.reload({waitUntil:'domcontentloaded'});await p.waitForFunction(()=>window.fuwaSmartDebug);const perf=await p.evaluate(()=>{window.fuwaSmartDebug.invalidate();const t=performance.now();const idx=window.fuwaSmartDebug.ensureIndex();const build=performance.now()-t;const q=performance.now();const res=window.fuwaSmartDebug.searchDocs('office stress',{limit:20});return{build,query:performance.now()-q,docs:idx.docs.length,res:res.length}});
+            assert(perf.docs>=1500,`perf dataset missing ${JSON.stringify(perf)}`);assert(perf.build<700,`index too slow ${JSON.stringify(perf)}`);assert(perf.query<150,`query too slow ${JSON.stringify(perf)}`);assert(perf.res>0,'perf search empty');
+            assert(!errors.length,errors.join('|'));
+            await c.close();await b.close();console.log('smart functional/performance QA passed',perf);
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Restore race and responsive regression QA
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4332 --bind 127.0.0.1 >/tmp/fuwa-v97-responsive.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          sleep .5
+          node - <<'JS'
+          const {chromium}=require('playwright');const assert=(x,m)=>{if(!x)throw new Error(m)};
+          const sizes=[[320,568],[375,812],[390,844],[430,932],[768,1024],[1024,768],[820,1180],[1180,820],[834,1194],[1194,834],[1024,1366],[1366,1024]];
+          (async()=>{const b=await chromium.launch({headless:true});for(const[w,h]of sizes){const c=await b.newContext({viewport:{width:w,height:h},serviceWorkers:'block'}),p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(String(e)));await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1');localStorage.setItem('fuwaFeatureTutorial:v1:me','1')});await p.goto('http://127.0.0.1:4332/index.html',{waitUntil:'domcontentloaded'});await p.waitForFunction(()=>window.fuwaSmartApi);await p.evaluate(()=>window.fuwaSmartApi.navigate('smart'));await p.waitForTimeout(90);const g=await p.evaluate(()=>({sw:document.documentElement.scrollWidth,iw:innerWidth,nodes:document.getElementsByTagName('*').length,smart:document.getElementById('smartView')?.classList.contains('active')}));assert(!errors.length,`${w}x${h} errors ${errors.join('|')}`);assert(g.sw<=g.iw+2,`${w}x${h} overflow ${JSON.stringify(g)}`);assert(g.nodes<10000,`${w}x${h} DOM runaway`);assert(g.smart,`${w}x${h} smart inactive`);await c.close()}const c=await b.newContext({viewport:{width:390,height:844},serviceWorkers:'block'}),p=await c.newPage();await p.addInitScript(()=>{localStorage.setItem('fuwaLocalModeV1','1');localStorage.setItem('fuwaTutorialSeenV1','1');localStorage.setItem('fuwaFeatureTutorial:v1:me','1')});await p.goto('http://127.0.0.1:4332/index.html',{waitUntil:'domcontentloaded'});await p.waitForTimeout(100);await p.locator('.bottom-nav [data-nav="me"]').click();await p.waitForTimeout(500);assert(await p.locator('#moodCheckinModal').evaluate(el=>el.classList.contains('hidden')),'delayed mood check-in escaped Home');await p.locator('#openSettingsButton').click();await p.evaluate(()=>document.getElementById('cloudBackupCard')?.classList.remove('local-hidden'));await p.locator('#cloudRestoreButton').click();await p.waitForTimeout(80);assert(await p.evaluate(()=>document.body.classList.contains('cloud-restore-open')),'restore isolation not active');const layer=await p.evaluate(()=>({settings:getComputedStyle(document.getElementById('settingsSheet')).pointerEvents,restore:getComputedStyle(document.getElementById('cloudRestoreModal')).pointerEvents,z:Number(getComputedStyle(document.getElementById('cloudRestoreModal')).zIndex)}));assert(layer.settings==='none'&&layer.restore==='auto'&&layer.z>1000000,`restore layer regression ${JSON.stringify(layer)}`);await c.close();await b.close();console.log('12-size responsive + restore race regression passed')})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+
+      - name: Build clean packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist/changes dist/full/Fuwa
+          cp index.html style.css smart-fuwa.css app.js smart-fuwa.js firebase-fuwa.js service-worker.js dist/changes/
+          cp index.html style.css smart-fuwa.css app.js smart-fuwa.js manifest.json service-worker.js firebase-fuwa.js dist/full/Fuwa/
+          cp -R audio data icon dist/full/Fuwa/
+          test ! -e dist/full/Fuwa/.github
+          test ! -e dist/full/Fuwa/tools
+
+      - name: Upload changes
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v97-intelligence
+          path: dist/changes
+          retention-days: 1
+
+      - name: Upload full clean production
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fuwa-v97-full-clean-production
+          path: dist/full/Fuwa
+          retention-days: 1
