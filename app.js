@@ -5210,6 +5210,7 @@ const JOURNAL_PRESETS = Object.freeze({
 
 let lifeActiveTab="journal", lifeTrackerYear=new Date().getFullYear(), lifeTrackerMetric="rating", lifeCollectionCategory="cup", journalPageIndex=0;
 let activeLifeJournalDate=isoToday(), lifeHistoryVisibleCount=12, lifeHistorySelectedDate="";
+let lifePastReturnMode="history";
 let lifeDraft={rating:0,mood:"",movement:"",weather:"",dream:"",cycle:"",habits:{},customHabits:{}};
 const LEGACY_JOURNAL_PAGE_IDS = ["mood","rating","highlight","energy","sleep","wellness","mind","adulting","habits","reading","watching","listening","weather","dreams","gratitude","learned","cup","win","memory","tomorrow","free"];
 let journalPreferences=(()=>{try{const saved=JSON.parse(localStorage.getItem(JOURNAL_PREFS_KEY)||"{}");let enabled=Array.isArray(saved.enabledPages)?saved.enabledPages.filter(id=>JOURNAL_PAGES.some(p=>p.id===id)):JOURNAL_PAGES.map(p=>p.id);const wasUsingAllLegacyPages=LEGACY_JOURNAL_PAGE_IDS.every(id=>enabled.includes(id))&&enabled.length===LEGACY_JOURNAL_PAGE_IDS.length;if(wasUsingAllLegacyPages)enabled=JOURNAL_PAGES.map(p=>p.id);return{enabledPages:enabled.length?enabled:JOURNAL_PAGES.map(p=>p.id)}}catch(_){return{enabledPages:JOURNAL_PAGES.map(p=>p.id)}}})();
@@ -5280,7 +5281,7 @@ function loadLifeJournalForm(date=activeLifeJournalDate){
   $("lifeSaveStatus").textContent=r?(isToday?"Saved ✓":"Past journal"):(isToday?"Not checked in":"Unsaved");
   $("journalTodayButton")?.classList.toggle("hidden",isToday);
   if($("journalFinishButton"))$("journalFinishButton").textContent=isToday?"Finish for today ♡":"Save changes ♡";
-  if($("journalCloseButton"))$("journalCloseButton").textContent=isToday?"Close Journal ♡":"Back to History ♡";
+  if($("journalCloseButton"))$("journalCloseButton").textContent=isToday?"Close Journal ♡":lifePastReturnMode==="missed"?"Back to Missed ♡":"Back to History ♡";
 
   [
     ["lifeRatingReason",r?.ratingReason],["lifeHighlight",r?.highlight],["lifeEnergy",r?.energy],["lifeSocial",r?.social],
@@ -5620,7 +5621,13 @@ function closeJournal(){
   journalPageIndex=0;
 
   if(wasPast){
+    const returnMode=lifePastReturnMode;
     activeLifeJournalDate=isoToday();
+    lifePastReturnMode="history";
+    if(returnMode==="missed"&&typeof window.fuwaMissedOpen==="function"){
+      window.fuwaMissedOpen();
+      return;
+    }
     setLifeTab("history",{preserveDate:true});
     return;
   }
@@ -5821,6 +5828,7 @@ function closeLifeHistoryDetail(){
 
 function editLifeHistoryDate(date){
   if(!state.dailyCheckins.some(item=>item.date===date))return;
+  lifePastReturnMode="history";
   activeLifeJournalDate=date;
   closeLifeHistoryDetail();
   setLifeTab("journal",{preserveDate:true});
@@ -6310,6 +6318,33 @@ function renderAll() {
 }
 
 
+
+// FUWA V105 — safe bridge for the Missed Days catch-up section.
+function isValidMissedDate(date){return /^\d{4}-\d{2}-\d{2}$/.test(String(date||""))&&date<isoToday();}
+window.fuwaMissedApi={
+  snapshot(){return structuredClone({selectedMood:state.selectedMood,moodCheckins:state.moodCheckins.map(item=>({date:item.date,mood:item.mood})),dailyCheckins:state.dailyCheckins.map(item=>({date:item.date}))});},
+  today(){return isoToday();},
+  moods(){return Object.keys(moodEmoji).map(id=>({id,label:moodLabels[id]||id,emoji:moodEmoji[id]}));},
+  toast(message){toast(message);},
+  async saveMood(date,mood){
+    if(!isValidMissedDate(date))throw new Error("missed-date-invalid");
+    if(!moodEmoji[mood])throw new Error("missed-mood-invalid");
+    const run=async()=>{
+      if(state.moodCheckins.some(item=>item.date===date))return{saved:false,reason:"exists"};
+      const now=Date.now(),record={id:date,date,mood,note:"",createdAt:now,updatedAt:now};
+      await diaryRepository.save("moodCheckins",record);
+      state.moodCheckins=[...state.moodCheckins,record];
+      renderHomeMoodJar();if(currentView==="moodjar")renderMoodJarView();if(currentView==="weather")renderEmotionalWeather();window.fuwaMissedRender?.();
+      return{saved:true,record:structuredClone(record)};
+    };
+    const queued=moodPersistenceChain.catch(()=>{}).then(run);moodPersistenceChain=queued.catch(()=>{});return queued;
+  },
+  openDailyLifeDate(date){
+    if(!isValidMissedDate(date))return{opened:false,reason:"invalid"};
+    if(state.dailyCheckins.some(item=>item.date===date))return{opened:false,reason:"exists"};
+    lifePastReturnMode="missed";activeLifeJournalDate=date;setLifeTab("journal",{preserveDate:true});loadLifeJournalForm(date);return{opened:true};
+  }
+};
 
 // FUWA V97 — narrow on-device intelligence bridge.
 window.fuwaSmartApi = {
