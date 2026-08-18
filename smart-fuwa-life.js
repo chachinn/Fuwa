@@ -96,3 +96,12 @@ function init(){bind();observer.observe(document.documentElement,{childList:true
 window.fuwaLifeIntelligenceDebug={smartFollowUps,looseEnds,chapterSuggestions,timeline,graph,attention,render:renderLifeIntel};
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
+
+// V108 bootstrap: remember auth state synchronously so the dedicated cloud
+// safety module cannot miss a fast Firebase auth restore on cached iPhone PWAs.
+window.addEventListener("fuwa-auth-ready", event => {
+  window.__fuwaCloudSafetyLastAuthDetail = event?.detail || null;
+});
+import("./features/cloud-backup-safety.js").catch(error => {
+  console.error("Fuwa cloud backup safety module could not load.", error);
+});
