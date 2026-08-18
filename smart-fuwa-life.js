@@ -105,3 +105,9 @@ window.addEventListener("fuwa-auth-ready", event => {
 import("./features/cloud-backup-safety.js").catch(error => {
   console.error("Fuwa cloud backup safety module could not load.", error);
 });
+
+// V111 recovery: inspect actual backup arrays when cloud record-count metadata
+// is stale/corrupt, and expose conservative local legacy recovery when cloud is empty.
+import("./features/cloud-restore-recovery.js").catch(error => {
+  console.error("Fuwa cloud restore recovery module could not load.", error);
+});
