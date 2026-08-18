@@ -116,3 +116,9 @@ import("./features/cloud-restore-recovery.js").catch(error => {
 import("./features/cloud-recovery-diagnostics.js").catch(error => {
   console.error("Fuwa recovery diagnostics could not load.", error);
 });
+
+// V114 history: keep dated, retained cloud snapshots and block destructive
+// automatic drops while preserving the existing backups/current contract.
+import("./features/cloud-backup-history.js").catch(error => {
+  console.error("Fuwa versioned cloud backup history could not load.", error);
+});
