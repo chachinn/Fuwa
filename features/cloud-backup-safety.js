@@ -1,4 +1,4 @@
-// FUWA V108 — CLOUD RESTORE / EMPTY-DEVICE OVERWRITE SAFETY
+// FUWA V109 — CLOUD RESTORE / EMPTY-DEVICE OVERWRITE SAFETY
 // Keeps a fresh or cleared device from replacing an existing useful cloud backup
 // before the user has had a chance to restore it.
 
@@ -6,6 +6,8 @@ const FUWA_CLOUD_SAFETY_FIREBASE_VERSION = "12.16.0";
 const FUWA_CLOUD_RESTORE_GUARD_KEY = "fuwaCloudRestoreGuardV1";
 const FUWA_CLOUD_BASELINE_KEY_SAFETY = "fuwaCloudBaselineV1";
 const FUWA_CLOUD_DEVICE_ID_KEY_SAFETY = "fuwaCloudDeviceIdV1";
+const FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY = "fuwaDailyCloudBackupV1";
+const FUWA_CLOUD_PENDING_KEY_SAFETY = "fuwaCloudPendingV1";
 const FUWA_CLOUD_SAFETY_READ_TIMEOUT_MS = 10000;
 
 let fuwaCloudSafetyUid = "";
@@ -82,12 +84,64 @@ function fuwaCloudSafetyWithTimeout(promise, ms = FUWA_CLOUD_SAFETY_READ_TIMEOUT
   ]);
 }
 
-function fuwaCloudSafetyPauseDailyBackup(uid, backup = {}) {
+function fuwaCloudSafetyLocalDayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function fuwaCloudSafetyPauseDailyBackup(uid, backup = {}, reason = "restore-guard") {
+  if (!uid) return;
+  const now = new Date();
+
+  // The existing daily scheduler only marks a day complete at/after 8 AM.
+  // Persist a safety-only day marker ourselves as well, so a device opened
+  // before 8 AM cannot let an already-scheduled timer overwrite the cloud later.
   try {
-    window.fuwaDailyBackupDebug?.markDailyBackupSatisfied?.(uid, backup, new Date());
+    const all = fuwaCloudSafetyReadJson(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY, {});
+    all[uid] = {
+      dayKey: fuwaCloudSafetyLocalDayKey(now),
+      completedAt: now.toISOString(),
+      backupId: backup?.backupId || null,
+      sourceDeviceId: backup?.sourceDeviceId || null,
+      safetyGuard: true,
+      safetyReason: reason
+    };
+    localStorage.setItem(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY, JSON.stringify(all));
+  } catch (error) {
+    console.warn("Fuwa could not persist its daily cloud safety pause.", error);
+  }
+
+  try {
+    window.fuwaDailyBackupDebug?.markDailyBackupSatisfied?.(uid, backup, now);
   } catch (error) {
     console.warn("Fuwa could not pause today's empty-device backup safely.", error);
   }
+}
+
+function fuwaCloudSafetyReleaseDailyPause(uid = fuwaCloudSafetyUid) {
+  if (!uid) return;
+  try {
+    const all = fuwaCloudSafetyReadJson(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY, {});
+    if (!all?.[uid]?.safetyGuard) return;
+    delete all[uid];
+    if (Object.keys(all).length) localStorage.setItem(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY, JSON.stringify(all));
+    else localStorage.removeItem(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY);
+  } catch (error) {
+    console.warn("Fuwa could not release its temporary daily cloud safety pause.", error);
+  }
+}
+
+function fuwaCloudSafetyDropMeaninglessPendingSync(local) {
+  const empty = !local?.hasJournalData || Number(local?.recordCount || 0) === 0;
+  if (!empty) return;
+  try {
+    // Pending sync is global in the current implementation. On an empty local
+    // diary there is nothing useful to upload, so clearing it prevents a stale
+    // resume timer from writing before restore-first inspection finishes.
+    localStorage.removeItem(FUWA_CLOUD_PENDING_KEY_SAFETY);
+  } catch (_) {}
 }
 
 function fuwaCloudSafetyRenderPausedStatus(guard = fuwaCloudSafetyReadGuard()) {
@@ -131,10 +185,12 @@ async function fuwaCloudSafetyInspect(uid = fuwaCloudSafetyUid, reason = "auth-r
     const local = await fuwaCloudSafetyGetLocalSummary();
     if (!local) return null;
 
-    // Critical race guard: a fresh/cleared device after 8 AM must never run an
-    // automatic empty backup while Fuwa is still discovering the cloud copy.
-    if (!local.hasJournalData || Number(local.recordCount || 0) === 0) {
-      fuwaCloudSafetyPauseDailyBackup(uid);
+    // Critical race guard: a fresh/cleared device must never run an automatic
+    // empty backup while Fuwa is still discovering whether a cloud copy exists.
+    const localEmpty = !local.hasJournalData || Number(local.recordCount || 0) === 0;
+    if (localEmpty) {
+      fuwaCloudSafetyDropMeaninglessPendingSync(local);
+      fuwaCloudSafetyPauseDailyBackup(uid, {}, "inspection-in-progress");
     }
 
     let remote = null;
@@ -147,6 +203,7 @@ async function fuwaCloudSafetyInspect(uid = fuwaCloudSafetyUid, reason = "auth-r
 
     if (!remote) {
       fuwaCloudSafetyClearGuard(uid);
+      fuwaCloudSafetyReleaseDailyPause(uid);
       return { local, remote: null, guarded: false };
     }
 
@@ -159,8 +216,6 @@ async function fuwaCloudSafetyInspect(uid = fuwaCloudSafetyUid, reason = "auth-r
     const fromAnotherDevice = Boolean(
       remote.sourceDeviceId && (!deviceId || remote.sourceDeviceId !== deviceId)
     );
-    const localEmpty = !local.hasJournalData || Number(local.recordCount || 0) === 0;
-
     const shouldGuard = remoteCount > 0 && (
       localEmpty ||
       (!baselineMatches && fromAnotherDevice)
@@ -173,14 +228,17 @@ async function fuwaCloudSafetyInspect(uid = fuwaCloudSafetyUid, reason = "auth-r
         backedUpAtClient: remote.backedUpAtClient || null,
         reason: localEmpty ? "empty-device-restore-first" : "unseen-cloud-copy"
       });
-      fuwaCloudSafetyPauseDailyBackup(uid, remote);
+      fuwaCloudSafetyPauseDailyBackup(uid, remote, "protected-cloud-copy");
       fuwaCloudSafetyRenderPausedStatus();
       return { local, remote, guarded: true };
     }
 
     // A matching baseline means this device has already seen this cloud copy.
     // A zero-record remote is not useful restore data and does not need a guard.
-    if (baselineMatches || remoteCount === 0) fuwaCloudSafetyClearGuard(uid);
+    if (baselineMatches || remoteCount === 0) {
+      fuwaCloudSafetyClearGuard(uid);
+      fuwaCloudSafetyReleaseDailyPause(uid);
+    }
     return { local, remote, guarded: Boolean(fuwaCloudSafetyReadGuard(uid)) };
   })().finally(() => {
     fuwaCloudSafetyInspection = null;
@@ -240,7 +298,8 @@ document.addEventListener("click", event => {
     return;
   }
 
-  fuwaCloudSafetyClearGuard(fuwaCloudSafetyUid);
+  // Keep the guard in place until the real cloud write reports success.
+  // This way a failed manual overwrite cannot silently remove restore protection.
   fuwaCloudSafetyManualOverwriteOnce = true;
   window.queueMicrotask(() => button.click());
 }, true);
@@ -258,17 +317,37 @@ window.addEventListener("fuwa-firestore-ready", event => {
 window.addEventListener("fuwa-cloud-backup-complete", () => {
   if (!fuwaCloudSafetyUid) return;
   fuwaCloudSafetyClearGuard(fuwaCloudSafetyUid);
+  fuwaCloudSafetyReleaseDailyPause(fuwaCloudSafetyUid);
 });
 
-window.addEventListener("online", () => {
+function fuwaCloudSafetyHoldResumeEvent(event, reason) {
+  if (!fuwaCloudSafetyUid) return false;
+  const guard = fuwaCloudSafetyReadGuard(fuwaCloudSafetyUid);
+  if (!guard) return false;
+  event?.stopImmediatePropagation?.();
+  fuwaCloudSafetyRenderPausedStatus(guard);
+  void fuwaCloudSafetyInspect(fuwaCloudSafetyUid, reason);
+  return true;
+}
+
+// Existing Firebase resume handlers can directly call automatic sync without a
+// local-change event. Capture these lifecycle events first while restore guard
+// is active so those direct paths cannot overwrite the protected cloud copy.
+window.addEventListener("online", event => {
+  if (fuwaCloudSafetyHoldResumeEvent(event, "online")) return;
   if (fuwaCloudSafetyUid) void fuwaCloudSafetyInspect(fuwaCloudSafetyUid, "online");
-});
+}, true);
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && fuwaCloudSafetyUid) {
-    void fuwaCloudSafetyInspect(fuwaCloudSafetyUid, "resume");
-  }
-});
+window.addEventListener("pageshow", event => {
+  if (fuwaCloudSafetyHoldResumeEvent(event, "pageshow")) return;
+  if (fuwaCloudSafetyUid) void fuwaCloudSafetyInspect(fuwaCloudSafetyUid, "pageshow");
+}, true);
+
+document.addEventListener("visibilitychange", event => {
+  if (document.visibilityState !== "visible" || !fuwaCloudSafetyUid) return;
+  if (fuwaCloudSafetyHoldResumeEvent(event, "resume")) return;
+  void fuwaCloudSafetyInspect(fuwaCloudSafetyUid, "resume");
+}, true);
 
 // If the tiny synchronous loader saw auth before this module finished loading,
 // replay that state now so the guard is still established.
@@ -279,6 +358,10 @@ if (window.__fuwaCloudSafetyLastAuthDetail) {
 window.FuwaCloudBackupSafety = {
   inspect: () => fuwaCloudSafetyInspect(fuwaCloudSafetyUid, "manual-debug"),
   guard: () => fuwaCloudSafetyReadGuard(),
-  clearGuard: () => fuwaCloudSafetyClearGuard(),
-  readBaseline: uid => fuwaCloudSafetyReadBaseline(uid || fuwaCloudSafetyUid)
+  clearGuard: () => {
+    fuwaCloudSafetyClearGuard();
+    fuwaCloudSafetyReleaseDailyPause();
+  },
+  readBaseline: uid => fuwaCloudSafetyReadBaseline(uid || fuwaCloudSafetyUid),
+  dailyPause: uid => fuwaCloudSafetyReadJson(FUWA_CLOUD_DAILY_BACKUP_STATE_KEY_SAFETY, {})?.[uid || fuwaCloudSafetyUid] || null
 };
