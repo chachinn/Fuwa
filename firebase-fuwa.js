@@ -72,6 +72,25 @@ function hasPendingCloudSync() {
   }
 }
 
+
+// FUWA V110 — CORE FIRST-CONTACT CLOUD WRITE GUARD
+// No timer, resume event, or helper-module race may replace a useful existing
+// cloud copy until this device has a matching baseline or the user explicitly
+// chooses a manual replacement.
+function shouldProtectFirstContactCloud(remote, baseline) {
+  if (!remote?.backupId || baseline?.backupId) return false;
+  const declared = Number(remote?.recordCount || 0);
+  if (declared > 0) return true;
+  const data = remote?.data;
+  if (!data || typeof data !== "object") return false;
+  return [
+    "entries", "tinyJoys", "letters", "moodCheckins", "threads", "bookmarks",
+    "nightlyReflections", "thenNow", "comfortItems", "unsentLetters",
+    "thoughtBubbles", "dreams", "dailyCheckins", "lifeCollections",
+    "habitDefinitions", "moments", "randomThoughts"
+  ].some(storeName => Array.isArray(data?.[storeName]) && data[storeName].length > 0);
+}
+
 function getCloudDeviceId() {
   let id = localStorage.getItem(FUWA_CLOUD_DEVICE_ID_KEY);
   if (!id) {
@@ -754,6 +773,24 @@ async function performAutomaticCloudSync(syncReason = "automatic-local-change") 
     const baseline = readCloudBaseline(user.uid);
     const thisDeviceId = getCloudDeviceId();
 
+    // This guard is inside the actual automatic/daily write path. Even if a
+    // scheduled 8 AM timer fires before outer safety inspection finishes, the
+    // existing useful cloud copy cannot be replaced on first contact.
+    if (shouldProtectFirstContactCloud(remote, baseline)) {
+      cloudConflictDetected = true;
+      const localCount = Number(payload.recordCount || 0);
+      setAutoSyncStatus(localCount > 0
+        ? "Paused · cloud copy needs review"
+        : "Cloud backup found · restore available");
+      setCloudBackupUI({
+        busy: false,
+        status: localCount > 0 ? "Review cloud copy" : "Cloud copy found",
+        lastBackup: remote.backedUpAt || remote.backedUpAtClient || remote.createdAt,
+        recordCount: Number(remote.recordCount || 0)
+      });
+      throw new Error(localCount > 0 ? "cloud-first-contact-local" : "cloud-first-contact-empty");
+    }
+
     // If another device changed the cloud since this device last saw it,
     // pause automatic sync rather than silently overwriting newer cloud data.
     if (
@@ -803,11 +840,15 @@ async function performAutomaticCloudSync(syncReason = "automatic-local-change") 
   } catch (error) {
     console.error("Fuwa automatic cloud sync failed.", error);
     setAutoSyncStatus(
-      error?.message === "cloud-conflict"
-        ? "Paused · newer cloud copy found"
-        : error?.message === "cloud-backup-too-large"
-          ? "On · manual backup needed"
-          : "On · will retry"
+      error?.message === "cloud-first-contact-empty"
+        ? "Cloud backup found · restore available"
+        : error?.message === "cloud-first-contact-local"
+          ? "Paused · cloud copy needs review"
+          : error?.message === "cloud-conflict"
+            ? "Paused · newer cloud copy found"
+            : error?.message === "cloud-backup-too-large"
+              ? "On · manual backup needed"
+              : "On · will retry"
     );
     return false;
   } finally {
@@ -912,11 +953,20 @@ async function reconcileStartupCloudState(user = auth?.currentUser) {
     );
 
     if (!local.hasJournalData && cloudCount > 0) {
-      cloudConflictDetected = false;
+      cloudConflictDetected = true;
       setAutoSyncStatus("Cloud backup found · restore available");
       setCloudBackupUI({
         busy: false,
         status: "Cloud copy found",
+        lastBackup: cloud.backedUpAt || cloud.backedUpAtClient || cloud.createdAt,
+        recordCount: cloudCount
+      });
+    } else if (!baseline?.backupId && cloudCount > 0 && local.hasJournalData) {
+      cloudConflictDetected = true;
+      setAutoSyncStatus("Paused · cloud copy needs review");
+      setCloudBackupUI({
+        busy: false,
+        status: "Review cloud copy",
         lastBackup: cloud.backedUpAt || cloud.backedUpAtClient || cloud.createdAt,
         recordCount: cloudCount
       });
@@ -1014,8 +1064,24 @@ async function handleCloudBackupRequest(event) {
       && currentCloud.sourceDeviceId
       && currentCloud.sourceDeviceId !== thisDeviceId
     );
+    const firstContactCloudExists = shouldProtectFirstContactCloud(currentCloud, baseline);
 
-    if (cloudChangedElsewhere) {
+    if (firstContactCloudExists) {
+      const overwrite = window.confirm(
+        "A Fuwa cloud backup already exists for this account, and this device hasn't matched it yet. If you expected to restore that backup, tap Cancel and use Restore from Fuwa Cloud. Replace the cloud copy with this device instead?"
+      );
+      if (!overwrite) {
+        cloudConflictDetected = true;
+        setCloudBackupUI({
+          busy: false,
+          status: "Cloud copy kept",
+          lastBackup: currentCloud.backedUpAt || currentCloud.backedUpAtClient || currentCloud.createdAt,
+          recordCount: Number(currentCloud.recordCount || 0)
+        });
+        setAutoSyncStatus("Paused · cloud copy needs review");
+        return;
+      }
+    } else if (cloudChangedElsewhere) {
       const overwrite = window.confirm(
         "A newer Fuwa cloud copy was saved from another device. Backing up now will replace that cloud copy with this device's diary. Continue?"
       );
@@ -1196,6 +1262,15 @@ async function handleCloudRestoreConfirm() {
     // Re-read immediately before restore instead of trusting stale modal data.
     const backup = await getVerifiedCloudBackup();
 
+    // Empty cloud must never erase a non-empty device.
+    if (Number(backup.recordCount || 0) === 0
+      && typeof window.fuwaGetLocalCloudSummary === "function") {
+      const localSummary = await window.fuwaGetLocalCloudSummary();
+      if (Number(localSummary?.recordCount || 0) > 0) {
+        throw new Error("empty-cloud-backup-protected");
+      }
+    }
+
     if (typeof window.fuwaCreateRestoreSafetyBackup !== "function"
       || typeof window.fuwaRestoreSafetyBackup !== "function"
       || typeof window.fuwaApplyCloudRestorePayload !== "function") {
@@ -1252,7 +1327,9 @@ async function handleCloudRestoreConfirm() {
       }
     }
 
-    const message = !restoreStarted
+    const message = error?.message === "empty-cloud-backup-protected"
+      ? "Fuwa found an empty cloud copy, so it kept the journal already on this device unchanged."
+      : !restoreStarted
       ? "Fuwa couldn't start the restore. Nothing on this device was changed."
       : rollbackOk
         ? "Fuwa couldn't complete the restore, so your previous device data was restored from Fuwa's safety snapshot. Please don't clear Fuwa data."
