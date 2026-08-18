@@ -111,3 +111,8 @@ import("./features/cloud-backup-safety.js").catch(error => {
 import("./features/cloud-restore-recovery.js").catch(error => {
   console.error("Fuwa cloud restore recovery module could not load.", error);
 });
+
+// V112 diagnostics: explain a genuine zero-record state without writing cloud data.
+import("./features/cloud-recovery-diagnostics.js").catch(error => {
+  console.error("Fuwa recovery diagnostics could not load.", error);
+});
