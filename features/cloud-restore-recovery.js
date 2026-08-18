@@ -1,4 +1,4 @@
-// FUWA V111 — CLOUD RESTORE RECOVERY
+// FUWA V113 — CLOUD RESTORE RECOVERY / INTERACTION STABILITY
 // Recovery-only layer for backups whose saved recordCount metadata disagrees
 // with the actual arrays in data, plus a conservative legacy-device fallback.
 // This module never repairs or rewrites the cloud document by itself.
@@ -20,6 +20,7 @@ let fuwaRecoveryScanPromise = null;
 let fuwaRecoveryBypassNextConfirm = false;
 let fuwaRecoveryRunning = false;
 let fuwaRecoveryObserver = null;
+let fuwaRecoveryRenderQueued = false;
 
 function fuwaRecoveryCount(data) {
   if (!data || typeof data !== "object") return 0;
@@ -254,6 +255,34 @@ function fuwaRecoverySetText(id, text) {
   if (node && node.textContent !== text) node.textContent = text;
 }
 
+function fuwaRecoverySetIdleButton(button, label) {
+  if (!button || fuwaRecoveryRunning) return;
+  if (button.disabled) button.disabled = false;
+  if (button.textContent !== label) button.textContent = label;
+}
+
+function fuwaRecoveryReleaseStaleInteractionLock() {
+  const modal = document.getElementById("cloudRestoreModal");
+  if (!modal || !modal.classList.contains("hidden") || fuwaRecoveryRunning) return false;
+  if (!document.body.classList.contains("cloud-restore-open")) return false;
+
+  // The core restore layer normally removes this class itself. If another modal
+  // path hides Cloud Restore first, leaving it behind makes Settings inherit
+  // pointer-events:none and both Backup/Restore appear completely untappable.
+  document.body.classList.remove("cloud-restore-open");
+  return true;
+}
+
+function fuwaRecoveryQueueRender() {
+  if (fuwaRecoveryRenderQueued || fuwaRecoveryRunning) return;
+  fuwaRecoveryRenderQueued = true;
+  window.queueMicrotask(() => {
+    fuwaRecoveryRenderQueued = false;
+    fuwaRecoveryReleaseStaleInteractionLock();
+    fuwaRecoveryRender();
+  });
+}
+
 function fuwaRecoveryRender(state = fuwaRecoveryState) {
   if (!state) return;
   const modal = document.getElementById("cloudRestoreModal");
@@ -267,10 +296,7 @@ function fuwaRecoveryRender(state = fuwaRecoveryState) {
       `Fuwa found ${state.actualCount} recoverable record${state.actualCount === 1 ? "" : "s"} inside this cloud backup. Its saved count is wrong, so Recovery Mode will use the actual backup contents.`
     );
     fuwaRecoverySetText("cloudRestoreRecords", `${state.actualCount} recoverable record${state.actualCount === 1 ? "" : "s"}`);
-    if (button && !fuwaRecoveryRunning) {
-      button.disabled = false;
-      button.textContent = "Recover safely";
-    }
+    fuwaRecoverySetIdleButton(button, "Recover safely");
     return;
   }
 
@@ -280,10 +306,7 @@ function fuwaRecoveryRender(state = fuwaRecoveryState) {
       `The current cloud copy is empty, but Fuwa found ${state.legacyCount} older local record${state.legacyCount === 1 ? "" : "s"} still stored on this device. Recovery Mode can restore those safely.`
     );
     fuwaRecoverySetText("cloudRestoreRecords", `${state.legacyCount} local record${state.legacyCount === 1 ? "" : "s"} found`);
-    if (button && !fuwaRecoveryRunning) {
-      button.disabled = false;
-      button.textContent = "Recover local copy";
-    }
+    fuwaRecoverySetIdleButton(button, "Recover local copy");
     return;
   }
 
@@ -293,10 +316,7 @@ function fuwaRecoveryRender(state = fuwaRecoveryState) {
       `This cloud copy says it has ${state.declaredCount} record${state.declaredCount === 1 ? "" : "s"}, but its actual journal arrays are empty. Fuwa will not overwrite this device with a corrupted copy.`
     );
     fuwaRecoverySetText("cloudRestoreRecords", "0 recoverable records");
-    if (button && !fuwaRecoveryRunning) {
-      button.disabled = false;
-      button.textContent = "Check again";
-    }
+    fuwaRecoverySetIdleButton(button, "Check again");
     return;
   }
 
@@ -306,10 +326,7 @@ function fuwaRecoveryRender(state = fuwaRecoveryState) {
       `The cloud copy is empty, but this device still has ${state.localCount} local record${state.localCount === 1 ? "" : "s"}. Fuwa will keep the device copy unchanged.`
     );
     fuwaRecoverySetText("cloudRestoreRecords", "Cloud: 0 recoverable records");
-    if (button && !fuwaRecoveryRunning) {
-      button.disabled = false;
-      button.textContent = "Check again";
-    }
+    fuwaRecoverySetIdleButton(button, "Check again");
     return;
   }
 
@@ -319,10 +336,7 @@ function fuwaRecoveryRender(state = fuwaRecoveryState) {
       "Fuwa checked the actual arrays inside this cloud document. It currently contains 0 recoverable journal records."
     );
     fuwaRecoverySetText("cloudRestoreRecords", "0 recoverable records");
-    if (button && !fuwaRecoveryRunning) {
-      button.disabled = false;
-      button.textContent = "Check again";
-    }
+    fuwaRecoverySetIdleButton(button, "Check again");
   }
 }
 
@@ -499,7 +513,11 @@ function fuwaRecoveryWatchModal() {
   if (!modal || fuwaRecoveryObserver) return;
   fuwaRecoveryObserver = new MutationObserver(() => {
     if (fuwaRecoveryRunning) return;
-    window.queueMicrotask(() => fuwaRecoveryRender());
+    if (modal.classList.contains("hidden")) {
+      fuwaRecoveryReleaseStaleInteractionLock();
+      return;
+    }
+    fuwaRecoveryQueueRender();
   });
   fuwaRecoveryObserver.observe(modal, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["class"] });
 }
@@ -545,13 +563,14 @@ window.addEventListener("fuwa-firestore-ready", event => {
 });
 
 window.addEventListener("pageshow", () => {
+  fuwaRecoveryReleaseStaleInteractionLock();
   if (fuwaRecoveryUid) void fuwaRecoveryScan("pageshow");
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && fuwaRecoveryUid) {
-    void fuwaRecoveryScan("resume");
-  }
+  if (document.visibilityState !== "visible") return;
+  fuwaRecoveryReleaseStaleInteractionLock();
+  if (fuwaRecoveryUid) void fuwaRecoveryScan("resume");
 });
 
 if (window.__fuwaCloudSafetyLastAuthDetail) {
@@ -571,5 +590,6 @@ window.FuwaCloudRestoreRecovery = {
   readLegacy: fuwaRecoveryReadLegacy,
   describe: fuwaRecoveryDescribe,
   correctCloudPayload: fuwaRecoveryCorrectCloudPayload,
-  buildLegacyPayload: fuwaRecoveryBuildLegacyPayload
+  buildLegacyPayload: fuwaRecoveryBuildLegacyPayload,
+  repairInteractionLock: fuwaRecoveryReleaseStaleInteractionLock
 };
