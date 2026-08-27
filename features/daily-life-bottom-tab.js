@@ -1,4 +1,4 @@
-// FUWA V115 — DAILY LIFE BOTTOM TAB
+// FUWA V115.1 — DAILY LIFE BOTTOM TAB UI FIX
 // Reprioritizes the bottom Letters shortcut to Daily Life Pages without deleting
 // or changing the Letters feature. Letters remains available from the Fuwa drawer.
 
@@ -20,9 +20,12 @@
     const tab = getBottomLettersTab();
     if (!tab) return false;
 
-    const icon = tab.querySelector('.nav-icon');
-    const labels = tab.querySelectorAll('span');
-    const label = labels.length ? labels[labels.length - 1] : null;
+    // Bottom-nav markup is <span>icon</span><small>label</small>.
+    // Keep the icon in the span so it retains the nav icon sizing, and update
+    // only the small label. The previous v115 code accidentally replaced the
+    // icon span with "Daily Life", which produced the oversized two-line text.
+    const icon = tab.querySelector('span');
+    const label = tab.querySelector('small');
 
     if (icon && icon.textContent !== '☀') icon.textContent = '☀';
     if (label && label.textContent !== 'Daily Life') label.textContent = 'Daily Life';
@@ -36,8 +39,6 @@
     const lifeTab = getLifeTab();
     if (!dailyTab || !lifeTab) return;
 
-    // The native Life navigation owns the actual view state. After it opens,
-    // mirror the active indicator onto the shortcut the user actually tapped.
     lifeTab.classList.remove('active');
     dailyTab.classList.add('active');
   }
@@ -75,11 +76,8 @@
     initialized = true;
     relabelBottomTab();
 
-    // Capture runs before Fuwa's existing Letters click handler, but only for
-    // the one bottom-nav shortcut. Drawer Letters buttons are deliberately left alone.
     document.addEventListener('click', handleBottomTabClick, true);
 
-    // Keep the label correct if iOS restores/repaints the cached shell.
     const nav = document.querySelector('.bottom-nav');
     if (nav && typeof MutationObserver !== 'undefined') {
       const observer = new MutationObserver(() => relabelBottomTab());
