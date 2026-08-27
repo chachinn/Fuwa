@@ -4,7 +4,7 @@
 const PREF_KEY="fuwaLifeIntelligenceV1";
 const MAX_DOCS=2400;
 const OPEN_PATTERNS=[
-  /\b(?:i need to|i should|i have to|remember to|don't forget to|dont forget to|i want to|i'd like to|id like|i plan to|i hope to|i'll|ill)\s+([^.!?\n]{3,150})/gi,
+  /\b(?:i need to|i should|i have to|remember to|don't forget to|dont forget to|i want to|i'd like to|id like to|i plan to|i hope to|i'll|ill)\s+([^.!?\n]{3,150})/gi,
   /\b(?:decide|figure out|follow up|check|ask|message|call|book|buy|try|visit|watch|read)\s+([^.!?\n]{2,130})/gi
 ];
 const CHAPTER_MARKERS={
