@@ -123,8 +123,8 @@ import("./features/cloud-backup-history.js").catch(error => {
   console.error("Fuwa versioned cloud backup history could not load.", error);
 });
 
-// V115 navigation: make the bottom Letters shortcut open the existing Daily Life Pages.
-// Letters itself remains available from the Fuwa drawer and its data is unchanged.
-import("./features/daily-life-bottom-tab.js").catch(error => {
-  console.error("Fuwa Daily Life bottom-tab shortcut could not load.", error);
+// V117 navigation recovery: cache-bust the Daily Life tab guard so an iPhone
+// session cannot keep reusing the broken v115/v116 module from an older shell.
+import("./features/daily-life-bottom-tab.js?v=117").catch(error => {
+  console.error("Fuwa Daily Life bottom-tab recovery could not load.", error);
 });
